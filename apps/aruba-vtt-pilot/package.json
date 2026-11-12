@@ -6,7 +6,8 @@
   "scripts": {
     "build": "vite build --config vite.config.mjs",
     "test": "node --test test/*.test.mjs",
-    "test:original-folders": "vite build --config vite.original-folder-contract.config.mjs"
+    "test:original-folders": "vite build --config vite.original-folder-contract.config.mjs",
+    "test:original-campaign-notes": "HG_CAMPAIGN_NOTES_CONTRACT=1 vite build --config vite.original-campaign-notes-contract.config.mjs"
   },
   "dependencies": {
     "react": "18.3.1",

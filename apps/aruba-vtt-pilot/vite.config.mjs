@@ -37,6 +37,19 @@ export default defineConfig({
         };
         if(Object.hasOwn(isolated,id))return resolve(root,'src/'+isolated[id]);
       }
+      if(process.env.HG_CAMPAIGN_NOTES_CONTRACT==='1'){
+        if(id==='./useEntityTabs' &&
+         (importer?.endsWith('/src/app/components/session/shared/useCampaignNotesSection.tsx')||
+          importer?.endsWith('/src/app/components/session/shared/NoteSubTabs.tsx')||
+          importer?.endsWith('/src/app/components/session/shared/EntityTabBar.tsx')))
+          return resolve(root,'src/ArubaCampaignEntityTabs.ts');
+        if(id==='../../../auth/AuthContext' &&
+         importer?.endsWith('/src/app/components/session/shared/NoteListRow.tsx'))
+          return resolve(root,'src/ArubaCampaignNotesContext.tsx');
+        if(id==='../../../../services/supabase/noteTitleIconService' &&
+         importer?.endsWith('/src/app/components/session/shared/NoteListRow.tsx'))
+          return resolve(root,'src/ArubaOriginalNoteTitleService.ts');
+      }
       if(importer?.endsWith('/src/app/components/session/shared/NoteContextualPickers.tsx') &&
         (id==='../../../../lib/supabaseClient'||id==='../../../../services/storage/contentAssets'||id==='../../../auth/AuthContext'))
         return resolve(root,'src/ArubaNoteRuntime.tsx');
@@ -88,6 +101,12 @@ export default defineConfig({
         // The URL is only a historical argument; the Aruba transport ignores
         // it. Strip the legacy hostname from this isolated bundle entirely.
         return code.replace(legacy,"const SERVER_BASE = '/vtt';");
+      }
+      if(process.env.HG_CAMPAIGN_NOTES_CONTRACT==='1' &&
+       id.endsWith('/src/app/components/session/shared/NoteListRow.tsx')){
+        const old='await setNoteTitleIcon(note.id, nextIcon);';
+        if(!code.includes(old))throw Error('NoteListRow title icon contract changed');
+        return code.replace(old,'await setNoteTitleIcon(runtimeNote.campaign_id, note.id, nextIcon);');
       }
       if(!id.endsWith('/src/app/components/session/shared/EntityDetailView.tsx'))return null;
       const from='<EntityTabBar canEdit={canEdit} tabs={tabs} tabIndicators={tabIndicators} />';

@@ -363,3 +363,14 @@ Il componente non è ancora montato nella navigazione: manca
 l'integrazione dello stesso `useCampaignNotesSection` e del Cestino
 originale. Questa fase non aggiunge menu alternativi e non attiva
 alcuna funzionalità sul VPS.
+
+## Original Campaign Notes — compile contract (not mounted)
+
+The isolated build entry imports the ORIGINAL `useCampaignNotesSection`,
+`NoteListRow`, `NoteSubTabs`, `useFolderSection`, original breadcrumb
+and TipTap editor. Only the campaign Note data hooks and NoteListRow icon
+services are resolved to Aruba cookie endpoints during this dedicated
+contract build. Character sheets continue using the existing independent
+entity-note adapter. The compile contract is tested in CI and its bundle
+checked for supabase.co endpoints; it is NEVER imported by main.tsx.
+No production deployment or staging feature activation.

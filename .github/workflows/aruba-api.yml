@@ -38,6 +38,12 @@ jobs:
           npm test
           npm run build
           npm run test:original-folders
+          npm run test:original-campaign-notes
+          test -d ../../deploy/aruba/dist/vtt-original-campaign-notes-contract
+          if grep -R -i -l 'supabase\\.co' ../../deploy/aruba/dist/vtt-original-campaign-notes-contract; then
+            echo "Legacy Supabase backend in original Campaign Notes contract" >&2
+            exit 1
+          fi
           # Verify that the original 5-level folder hook compiles with Aruba
           # transport but does not import the old Supabase endpoint.
           test -d ../../deploy/aruba/dist/vtt-original-folder-contract
