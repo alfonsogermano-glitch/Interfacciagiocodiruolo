@@ -120,7 +120,7 @@ test('VTT pilot bootstrap only accepts an active Aruba cookie; game capabilities
 
 test('original Notes panel bootstrap cannot advertise disabled backend dependencies',()=>{
  assert.throws(()=>createAuthHttpHandler({
-  origin,login:async()=>{},getSessionUser:async()=>null,revokeSession:async()=>{},
+  origin:ORIGIN,login:async()=>{},getSessionUser:async()=>null,revokeSession:async()=>{},
   notesPanelEnabled:true,
  }),/requires both/);
 });
