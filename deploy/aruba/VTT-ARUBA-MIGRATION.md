@@ -139,3 +139,19 @@ sulla tabella membership al runtime.
 Nessun invito, servizio HTTP per membri, scrittura GM, aggiornamento VPS,
 montaggio della UI Note o deploy della migrazione 016. Le API di Note 015
 rimangono owner-only e spente: non sostituirne i controlli con permessi frontend.
+
+## Lettura API per membri della campagna (integrazione 016)
+
+La rotta GET di `/vtt/campaign-notes` usa ora esclusivamente
+`list_member_campaign_notes`, non più `list_owned_campaign_notes`.
+La funzione SQL risolve GM/giocatore in ciascuna campagna, applica la revoca
+e filtra documenti privati e figli di note private prima della risposta.
+Il servizio riceve l'ID dell'utente dalla sessione Aruba autenticata; le query
+HTTP non accettano `role`, `ownerId` o altri campi non previsti.
+POST/PATCH/DELETE rimangono **solo proprietario** tramite le routine 015,
+senza dare automaticamente accesso di modifica ai GM ospiti.
+
+Lo staging rimane disabilitato per default con
+`AUTH_VTT_CAMPAIGN_NOTES_ENABLED` assente. L'attivazione futura richiede
+**sia schema 015 sia schema 016** nel database test e collaudo E2E,
+oltre alla UI originale Note; non distribuire ancora sul VPS.

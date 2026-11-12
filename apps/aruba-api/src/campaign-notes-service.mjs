@@ -29,6 +29,16 @@ export function createCampaignNotesService({pool}){
    [ownerId,campaignId,parentId]);
   return {notes:rows.map(map)};
  }
+ // Member reads must NEVER use the owner-only list routine: the DB filters
+ // private documents and revoked memberships using the authenticated user ID.
+ async function listForMember(userId,campaignId,parentId=null){
+  id(userId,'Utente');id(campaignId,'Campagna');
+  if(parentId!==null)id(parentId,'Nota padre');
+  const {rows}=await pool.query(
+   'SELECT * FROM hollowgate_vtt.list_member_campaign_notes($1,$2,$3)',
+   [userId,campaignId,parentId]);
+  return {notes:rows.map(map)};
+ }
  async function create(ownerId,campaignId,data){
   id(ownerId,'Utente');id(campaignId,'Campagna');
   exact(data,['title','parentId']);
@@ -74,5 +84,5 @@ export function createCampaignNotesService({pool}){
    throw new CampaignRejected('Nota non trovata o non autorizzata',404);
   return {archivedId:noteId};
  }
- return {list,create,save,archive};
+ return {list,listForMember,create,save,archive};
 }

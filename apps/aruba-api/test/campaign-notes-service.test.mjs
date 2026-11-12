@@ -43,3 +43,21 @@ test('campaign notes reject malformed identity, injected fields, oversized TipTa
  await assert.rejects(()=>notes.save(owner,campaign,child,payload),e=>e.status===404);
  await assert.rejects(()=>notes.archive(owner,campaign,child),e=>e.status===404);
 });
+
+test('member reads use the database membership and privacy gate, never owner-only list',async()=>{
+ const member='cc2f1a87-b8ee-4b34-9da0-07efda11379a';
+ const calls=[];
+ const notes=createCampaignNotesService({pool:{query:async(sql,params)=>{
+  calls.push([sql,params]);
+  return {rows:[{id:child,title:'Condivisa',content_rich:{type:'doc'},
+   parent_note_id:parent,tab_position:0,visibility:'all'}]};
+ }}});
+ const result=await notes.listForMember(member,campaign,parent);
+ assert.deepEqual(result.notes,[{id:child,title:'Condivisa',contentRich:{type:'doc'},
+  parentId:parent,position:0,visibility:'all'}]);
+ assert.match(calls[0][0],/list_member_campaign_notes/);
+ assert.doesNotMatch(calls[0][0],/list_owned_campaign_notes/);
+ assert.deepEqual(calls[0][1],[member,campaign,parent]);
+ await assert.rejects(()=>notes.listForMember(member,campaign,'bad'),e=>e.status===400);
+ assert.equal(calls.length,1,'Invalid parent must not query DB');
+});

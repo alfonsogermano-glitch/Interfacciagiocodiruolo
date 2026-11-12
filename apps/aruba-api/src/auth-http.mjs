@@ -85,7 +85,7 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
    ['list','create','save','archive'].some(k=>typeof entityNotes[k]!=='function')))
     throw new TypeError('Invalid entity notes service');
   if(campaignNotes!==null && (!campaigns ||
-   ['list','create','save','archive'].some(key=>typeof campaignNotes[key]!=='function')))
+   ['listForMember','create','save','archive'].some(key=>typeof campaignNotes[key]!=='function')))
     throw new TypeError('Invalid campaign notes service');
   return async (req, res) => {
     try {
@@ -273,7 +273,7 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
              url.searchParams.getAll('campaignId').length!==1||
              url.searchParams.getAll('parentId').length>1)
             throw new HttpProblem(400,'Query Note non valida');
-          return response(res,200,await campaignNotes.list(user.id,
+          return response(res,200,await campaignNotes.listForMember(user.id,
             url.searchParams.get('campaignId'),url.searchParams.get('parentId')));
         }
         if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');

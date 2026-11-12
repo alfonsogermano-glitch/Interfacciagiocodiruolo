@@ -29,7 +29,7 @@ test('campaign notes endpoints stay absent unless explicitly enabled',async()=>{
 test('campaign notes session, Origin, exact query and body cannot be bypassed',async()=>{
  const called=[];
  const notes={
-  list:async(...args)=>{called.push(['list',...args]);return {notes:[]}},
+  listForMember:async(...args)=>{called.push(['listForMember',...args]);return {notes:[]}},
   create:async(...args)=>{called.push(['create',...args]);return {note:{id:parent}}},
   save:async(...args)=>{called.push(['save',...args]);return {savedId:parent}},
   archive:async(...args)=>{called.push(['archive',...args]);return {archivedId:parent}},
@@ -57,10 +57,43 @@ test('campaign notes session, Origin, exact query and body cannot be bypassed',a
   assert.equal((await boot.json()).capabilities.campaignNotes.read,true);
  });
  assert.deepEqual(called,[
-  ['list',owner,campaign,null],
-  ['list',owner,campaign,parent],
+  ['listForMember',owner,campaign,null],
+  ['listForMember',owner,campaign,parent],
   ['create',owner,campaign,{title:'Nota',parentId:null}],
   ['save',owner,campaign,parent,{title:'Nota',contentRich:{type:'doc'},position:0,visibility:'private'}],
   ['archive',owner,campaign,parent],
  ]);
+});
+
+test('HTTP GET notes is limited to authenticated DB-member reader, while writes remain owner-only',async()=>{
+ const member='cc2f1a87-b8ee-4b34-9da0-07efda11379a';
+ const calls=[];
+ // The fake DB-filtering service returns only permitted notes.
+ const notes={
+  listForMember:async(...args)=>{calls.push(['member-read',...args]);return {notes:[{id:parent,title:'Condivisa',visibility:'all'}]};},
+  create:async(...args)=>{calls.push(['owner-create',...args]);return {note:{id:parent}};},
+  save:async(...args)=>{calls.push(['owner-save',...args]);return {savedId:parent};},
+  archive:async(...args)=>{calls.push(['owner-archive',...args]);return {archivedId:parent};},
+ };
+ const app=createApp({checkDatabase:async()=>{},authHandler:createAuthHttpHandler({
+  origin,login:async()=>{},getSessionUser:async()=>({id:member}),
+  revokeSession:async()=>{},campaigns,campaignNotes:notes,
+ })});
+ app.listen(0,'127.0.0.1');await once(app,'listening');
+ try{
+  const base='http://127.0.0.1:'+app.address().port+'/vtt/campaign-notes';
+  const response=await fetch(base+'?campaignId='+campaign,{headers:cookie});
+  assert.equal(response.status,200);
+  assert.deepEqual((await response.json()).notes,[{id:parent,title:'Condivisa',visibility:'all'}]);
+  assert.deepEqual(calls,[['member-read',member,campaign,null]]);
+  const forged=await fetch(base+'?campaignId='+campaign+'&role=gm',{headers:cookie});
+  assert.equal(forged.status,400);
+  assert.equal(calls.length,1);
+ }finally{await new Promise(resolve=>app.close(resolve));}
+});
+test('campaign note HTTP rejects an implementation lacking member-scoped reads',()=>{
+ assert.throws(()=>createAuthHttpHandler({
+  origin,login:async()=>{},getSessionUser:async()=>null,revokeSession:async()=>{},
+  campaigns,campaignNotes:{list:async()=>{},create:async()=>{},save:async()=>{},archive:async()=>{}},
+ }),/Invalid campaign notes service/);
 });
