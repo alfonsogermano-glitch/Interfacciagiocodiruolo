@@ -50,3 +50,29 @@ essere introdotta.
 
 ## Correzione del confine Note / Personaggi
 Il dettaglio originale di Personaggi (EntityDetailView.tsx) usa editor rich text direttamente nelle tab personalizzate. Il componente originale NoteSubTabs.tsx appartiene invece alle Note di campagna e ha profondità fissa di due livelli. Non sostituire le tab di Personaggi con NoteSubTabs: il backend 014 per l'annidamento resta predisposto e testato, ma deve essere collegato al contesto Note di campagna senza introdurre una nuova UI. Questo vincolo viene testato automaticamente.
+
+## Vincolo dei due sistemi di Note — fase Aruba 014 (12/11/2026)
+
+Il codice originale non tratta le tab dei personaggi e le Note di campagna allo
+stesso modo: **EntityDetailView** monta **RichTextEditor** direttamente dentro la
+tab personalizzata del PG; **NoteSubTabs** appartiene alle **Note di campagna**,
+dove una nota è un contenitore di foglie scrivibili (profondità massima 2).
+Non trasformare o uniformare queste due UX. Un test statico di regressione
+impedisce che il plugin Vite Aruba sostituisca l'editor dei PG con NoteSubTabs.
+
+Lo schema PostgreSQL Aruba 014 aggiunge una relazione padre/figlio opzionale
+e tab_order non distruttivo a entity_notes, con funzioni SECURITY DEFINER
+per accesso scoped, creazione figli, ordine completo e archiviazione che
+mantiene i documenti. La API espone parentId opzionale e un endpoint dedicato
+per l'ordine; il client può riprodurre il contratto dell'originale.
+
+**Importante:** tali API 014 sono attualmente limitate al contesto proprietario
+del PG, non sostituiscono ancora gli endpoint autorizzativi delle Note di
+campagna (membri, GM, contenuti privati). Il VTT Aruba *non monta* ancora la
+vista Note di campagna originale. I meccanismi di annidamento non vanno
+presentati come visibili al giocatore finché campagna/permessi/cartelle
+non sono migrati.
+
+Il drag delle tab in Aruba adotta la soglia originale (6px) e aggiorna
+l'ordine soltanto dopo il rilascio, anziché reinterpretare semplici click.
+Gli editor TipTap della scheda PG rimangono identici all'originale.

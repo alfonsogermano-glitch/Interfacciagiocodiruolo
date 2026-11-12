@@ -71,3 +71,23 @@ I servizi legacy di auth/realtime/dadi custom/Supabase Storage vengono isolati *
 `ArubaNotesWriteRegistry.mjs` collega le promesse di salvataggio note al sistema di chiusura dello slide-over: il pannello non deve chiudersi su errore di rete o su contenuto ancora pendente. Le note restano in una tabella propria, mai nel JSON della scheda. Permessi GM/giocatore, realtime, accessi per campagna non proprietaria, ordinamento drag & drop, cartelle, sotto-tab e tool dei dadi devono essere migrati e verificati con test browser prima del cutover.
 
 Stato dei test: la pipeline Aruba API staging verifica struttura SQL, sicurezza API/HTTP, client note, compilazione React originale, e test della coda salvataggi. **Non è un collaudo end-to-end del browser.** Non aggiornare ancora il VPS Aruba con questi cambiamenti incompleti.
+
+## Schema 014 — due livelli Note (in lavorazione, NON ancora da distribuire)
+
+La CI migra e verifica in PostgreSQL effimero l'estensione additiva
+`014_vtt_note_subtabs.sql`, con `parent_note_id` e `tab_order`.
+Le funzioni proprietario/campagna/PG impediscono di creare una terza
+profondità, di leggere il padre altrui, di salvare ordini contenenti ID
+estranei o duplicati, e archiviano le sotto-note senza cancellarne il
+contenuto. Gli endpoint HTTP e il client browser vengono testati con
+`parentId` esplicito; niente ownerId preso dal browser.
+
+Il sottosistema originale Note di campagna non è ancora stato montato,
+poiché richiede l'autorizzazione GM/membro e le cartelle. Questo schema
+014 riguarda la preparazione sicura dei dati, non una conferma di parità
+delle Note di campagna. Lo strato Presentazione Personaggi continua a usare
+il `RichTextEditor` originale direttamente nelle sue tab, senza essere
+sostituito da `NoteSubTabs`. La pipeline di staging usa solo database
+usa-e-getta; `activate-vtt-campaigns.sh` non applica 013 o 014 al VPS.
+Mantieni la feature disabilitata su Aruba finché mancano le API di campagna
+e il test visuale/end-to-end.
