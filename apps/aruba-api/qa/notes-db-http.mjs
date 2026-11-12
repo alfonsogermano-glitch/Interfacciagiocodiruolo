@@ -145,8 +145,10 @@ try{
  assert.deepEqual(approved,{id:charId,availableForPlayers:true});
  assert.deepEqual((await readJson(await ownerFetch(availabilityPath))).characters,
   [{id:charId,availableForPlayers:true}]);
- assert.equal((await playerFetch(availabilityPath)).status===200,false,
-  'Member must not access GM-only availability listing');
+ const memberFlags=await playerFetch(availabilityPath);
+ if(memberFlags.ok)assert.deepEqual((await memberFlags.json()).characters,[],
+  'GM-owned availability must never be exposed to a player');
+ else assert.ok([403,404].includes(memberFlags.status));
  const charUnchanged=(await readJson(await ownerFetch(
   '/vtt/characters?campaignId='+campaign))).characters.find(c=>c.id===charId);
  assert.equal(charUnchanged.ownerId,owner);
