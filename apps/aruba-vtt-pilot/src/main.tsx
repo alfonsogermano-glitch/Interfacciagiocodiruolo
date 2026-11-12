@@ -9,7 +9,7 @@ import {ArubaCharacterDrafts} from './ArubaCharacterDrafts';
 import {ArubaCharacterDetailPanel} from './ArubaCharacterDetailPanel';
 import {HouseIcon,UsersThreeIcon,ScrollIcon,GitBranchIcon,PlayIcon,FileTextIcon,IdentificationBadgeIcon,GhostIcon,LightbulbIcon,BookmarkSimpleIcon,MapTrifoldIcon,ImageIcon,SwordIcon} from '@phosphor-icons/react';
 
-type PilotUser={id:string;email:string;displayName:string;role:'admin'|'standard';campaignsEnabled:boolean;charactersEnabled:boolean};
+type PilotUser={id:string;email:string;displayName:string;role:'admin'|'standard';campaignsEnabled:boolean;charactersEnabled:boolean;entityNotesEnabled:boolean};
 type Campaign={id:string;ownerId:string;name:string;description:string;ruleset:string;createdAt:string};
 type Status={state:'loading'}|{state:'unauthorized'}|{state:'error'}|{state:'ready';user:PilotUser};
 type Section='home'|'campaigns'|'characters'|'chapters'|'preparation'|'sheets'|'npcs'|'monsters'|'clues'|'equipment'|'map'|'situations'|'phases'|'combat'|'assets';
@@ -196,7 +196,7 @@ function App(){
   </div>
   {section==='characters'&&entityDetail&&user.charactersEnabled&&
    <ArubaCharacterDetailPanel key={entityDetail.campaignId+':'+entityDetail.id}
-    characterId={entityDetail.id} campaignId={entityDetail.campaignId} ownerId={user.id}
+    characterId={entityDetail.id} campaignId={entityDetail.campaignId} ownerId={user.id} notesEnabled={user.entityNotesEnabled}
     onClose={()=>setEntityDetail(null)}
     onChanged={()=>setCharacterCatalogRevision(n=>n+1)}
     onArchived={()=>{setCharacterCatalogRevision(n=>n+1);setEntityDetail(null);}}

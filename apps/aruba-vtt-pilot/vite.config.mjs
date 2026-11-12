@@ -81,14 +81,16 @@ export default defineConfig({
       if(!id.endsWith('/src/app/components/session/shared/EntityDetailView.tsx'))return null;
       const from='<EntityTabBar canEdit={canEdit} tabs={tabs} tabIndicators={tabIndicators} />';
       if(!code.includes(from))throw Error('Original EntityDetailView tab contract changed');
-      return code.replace(from,
-       '<EntityTabBar canEdit={false} tabs={tabs} tabIndicators={tabIndicators} />');
+      return "import {ArubaEntityTabBar} from '@aruba-notes/ArubaNotesCapability';\n"+
+        code.replace(from,
+         '<ArubaEntityTabBar canEdit={canEdit} tabs={tabs} tabIndicators={tabIndicators} />');
     }
   },react(),tailwindcss()],
   resolve:{alias:{
     react:resolve(root,'node_modules/react'),
     'lucide-react':resolve(root,'node_modules/lucide-react'),
     '@':resolve(root,'../../src'),
+    '@aruba-notes':resolve(root,'src'),
   }},
   base:'/vtt/',
   build:{

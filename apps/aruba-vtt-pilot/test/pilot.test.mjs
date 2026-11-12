@@ -361,3 +361,18 @@ test('the actual original rich note editor remains the UI source, not a simplifi
  assert.match(rich,/InlineCheckbox/);
  assert.match(rich,/NOTE_TABLE_EXTENSIONS/);
 });
+
+test('note tabs are enabled only after authenticated server capability and never by a browser ownerId',()=>{
+ const auth=readFileSync(new URL('../../aruba-api/src/auth-http.mjs',import.meta.url),'utf8');
+ const client=readFileSync(new URL('../src/client.mjs',import.meta.url),'utf8');
+ const app=readFileSync(new URL('../src/main.tsx',import.meta.url),'utf8');
+ const tabs=readFileSync(new URL('../src/ArubaBaseEntityTabs.ts',import.meta.url),'utf8');
+ const provider=readFileSync(new URL('../src/ArubaNotesCapability.tsx',import.meta.url),'utf8');
+ const build=readFileSync(new URL('../vite.config.mjs',import.meta.url),'utf8');
+ assert.match(auth,/entityNotes:\{read:!!entityNotes,write:!!entityNotes\}/);
+ assert.match(client,/entityNotesEnabled:c\.entityNotes\?\.read===true/);
+ assert.match(app,/notesEnabled=\{user.entityNotesEnabled\}/);
+ assert.match(tabs,/const supported=notesEnabled&&enabled/);
+ assert.match(provider,/canEdit=\{enabled&&props.canEdit\}/);
+ assert.match(build,/ArubaEntityTabBar/);
+});

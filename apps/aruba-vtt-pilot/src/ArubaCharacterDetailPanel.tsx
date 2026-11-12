@@ -4,13 +4,14 @@ import {listCharacterDrafts,saveFullCharacterSheet,archiveOwnedCharacter} from '
 import {EntityDetailRail,type EntityDetailRailSection} from '../../../src/app/components/session/shared/EntityDetailRail';
 import {SlideOverPanel} from '../../../src/app/components/session/SlideOverPanel';
 import {EntityDetailView} from '../../../src/app/components/session/shared/EntityDetailView';
+import {ArubaNotesProvider} from './ArubaNotesCapability';
 import type {Character} from '../../../src/types/character';
 
 type HscCharacter=Character & {player:string;notes:string};
 type Draft={id:string;campaignId:string;ownerId:string;name:string;status:'draft'|'active';sheetData:Record<string,unknown>};
 
-export function ArubaCharacterDetailPanel({characterId,campaignId,ownerId,onClose,onChanged,onArchived}:{
- characterId:string;campaignId:string;ownerId:string;
+export function ArubaCharacterDetailPanel({characterId,campaignId,ownerId,notesEnabled,onClose,onChanged,onArchived}:{
+ characterId:string;campaignId:string;ownerId:string;notesEnabled:boolean;
  onClose:()=>void;onChanged:()=>void;onArchived:()=>void;
 }){
  const [draft,setDraft]=useState<Draft|null>(null);
@@ -37,7 +38,7 @@ export function ArubaCharacterDetailPanel({characterId,campaignId,ownerId,onClos
   .finally(()=>{if(alive)setLoading(false);});
   return ()=>{alive=false;};
  },[characterId,campaignId,ownerId]);
- return <div className="aruba-entity-overlay" data-entity-context="characters-detail">
+ return <ArubaNotesProvider enabled={notesEnabled}><div className="aruba-entity-overlay" data-entity-context="characters-detail">
   <div className="aruba-entity-backdrop" role="presentation" onClick={()=>void requestClose()}/>
   <SlideOverPanel isOpen onClose={()=>void requestClose()} rightOffset="80px" widthClassName="w-full max-w-6xl">
     <div className="aruba-entity-slide-content">
@@ -56,7 +57,7 @@ export function ArubaCharacterDetailPanel({characterId,campaignId,ownerId,onClos
   <div className="aruba-entity-rail" aria-label="Barra contestuale personaggio">
    <EntityDetailRail activeSection={section} onSectionChange={setSection}/>
   </div>
- </div>;
+ </div></ArubaNotesProvider>;
 }
 /* Staging: ORIGINAL EntityDetailView base HSC tabs (summary, conditions,
  * equipment, origins, storia). Backend-dependent custom notes are disabled

@@ -1,4 +1,5 @@
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
+import {useArubaNotesEnabled} from './ArubaNotesCapability';
 import {
  listArubaEntityNotes,createArubaEntityNote,saveArubaEntityNote,archiveArubaEntityNote,
 } from './entity-notes-client.mjs';
@@ -19,7 +20,8 @@ type Params={
 export function useEntityTabs({
  entityType,entityId,campaignId,canEdit=true,enabled=true,baseTabs,savedTabOrder,onPersistTabOrder,
 }:Params){
- const supported=enabled&&entityType==='character'&&!!entityId&&!!campaignId;
+ const notesEnabled=useArubaNotesEnabled();
+ const supported=notesEnabled&&enabled&&entityType==='character'&&!!entityId&&!!campaignId;
  const [customTabs,setCustomTabs]=useState<Note[]>([]);
  const [tabOrder,setTabOrder]=useState<string[]>(savedTabOrder??baseTabs.map(t=>t.id));
  const [currentTab,setCurrentTab]=useState(baseTabs[0]?.id??'');

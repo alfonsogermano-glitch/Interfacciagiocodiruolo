@@ -250,6 +250,7 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
           capabilities:{
             campaigns:{read:!!campaigns,write:!!campaigns},
             characters:{read:!!characters,write:!!characters},
+            entityNotes:{read:!!entityNotes,write:!!entityNotes},
             gameSession:false,
           },
         });

@@ -14,11 +14,15 @@ export function validateBootstrap(data){
   const c=data.capabilities;
   if(!c||typeof c.campaigns?.read!=='boolean'||c.campaigns.read!==c.campaigns.write||
     typeof c.characters?.read!=='boolean'||c.characters.read!==c.characters.write||
-    (c.characters.read&&!c.campaigns.read)||c.gameSession!==false)
+    (c.characters.read&&!c.campaigns.read)||
+    (c.entityNotes!==undefined&&(typeof c.entityNotes.read!=='boolean'||
+      c.entityNotes.read!==c.entityNotes.write||
+      (c.entityNotes.read&&!c.characters.read)))||c.gameSession!==false)
     throw new Error('Funzionalità non autorizzate');
   return Object.freeze({
     id:data.user.id,email:data.user.email,displayName:data.user.displayName,role:data.user.role,
     campaignsEnabled:c.campaigns.read,charactersEnabled:c.characters.read,
+    entityNotesEnabled:c.entityNotes?.read===true,
   });
 }
 export async function loadPilotSession(fetchImpl){
