@@ -299,7 +299,7 @@ test('catalog opens original context rail and side panel via shared App state, n
  assert.match(archive,/onOpenDetail\(d.id,d.campaignId\)/);
  assert.match(bridge,/import \{EntityDetailRail,type EntityDetailRailSection\} from/);
  assert.match(bridge,/import \{SlideOverPanel\} from/);
- assert.match(bridge,/<SlideOverPanel isOpen onClose=\{onClose\} rightOffset="80px"/);
+ assert.match(bridge,/<SlideOverPanel isOpen onClose=\{\(\)=>void requestClose\(\)\} rightOffset="80px"/);
  assert.match(originalRail,/Scheda/);assert.match(originalRail,/Immagine/);assert.match(originalRail,/Token/);
  assert.match(originalPanel,/data-session-slide-over/);
  assert.match(css,/\.aruba-entity-rail\{position:fixed;top:76px;right:0;bottom:0/);
