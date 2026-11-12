@@ -55,7 +55,7 @@ test('member reads use the database membership and privacy gate, never owner-onl
  const result=await notes.listForMember(member,campaign,parent);
  assert.deepEqual(result.notes,[{id:child,title:'Condivisa',contentRich:{type:'doc'},
   parentId:parent,position:0,visibility:'all',scope:'shared',folderId:null,
-  creatorId:null,updatedAt:null}]);
+  creatorId:null,editorOwnerId:null,updatedAt:null}]);
  assert.match(calls[0][0],/list_member_campaign_notes/);
  assert.doesNotMatch(calls[0][0],/list_owned_campaign_notes/);
  assert.deepEqual(calls[0][1],[member,campaign,parent]);
