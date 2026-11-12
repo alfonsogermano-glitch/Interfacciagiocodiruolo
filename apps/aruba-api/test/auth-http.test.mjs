@@ -108,6 +108,7 @@ test('VTT pilot bootstrap only accepts an active Aruba cookie; game capabilities
         entityNotes:{read:false,write:false},
         campaignNotes:{read:false,write:false},
         campaignNoteFolders:{read:false,write:false},
+        campaignRoster:{read:false,write:false},
         originalNotesPanel:{read:false,write:false},
         gameSession:false,
       },

@@ -152,3 +152,23 @@ La lista sessione preserva la selezione. Il pannello dettaglio mantiene
 Sono ancora assenti il `CampaignHome` definitivo, partecipanti
 giocatori, PNG/Mostri, realtime e le altre card e viste storiche.
 Questo step non costituisce certificazione 100%.
+
+## Integrazione 07 — Elenco partecipanti verificato dal database (sola lettura)
+
+Migrazione `026_vtt_campaign_roster.sql` aggiunge una funzione
+`SECURITY DEFINER` di **sola lettura** per il GM proprietario
+della campagna; nega ogni visibilità agli utenti estranei e ai giocatori,
+non include email e filtra gli account disabilitati e i membri revocati.
+`/vtt/campaigns/:id/roster` prende l'identità esclusivamente
+dalla sessione autenticata. L'attivazione richiede
+`AUTH_VTT_CAMPAIGN_ROSTER_ENABLED=true`, disattivo per impostazione
+predefinita e vietato fuori dal database staging di autenticazione.
+La build Aruba mostra i partecipanti soltanto quando la capability
+autorizzata è presente; i ruoli non sono modificabili.
+
+Test reale PostgreSQL/HTTP: proprietario, giocatore, utente estraneo,
+visibilità email, revoca membro, campagna vuota, ID malformato e cookie
+assente. **Non abilita** inviti, assegnazioni personaggi o presenza online.
+PNG e Mostri restano non migrati e non sono rappresentati con dati
+inventati. Questo è un incremento dell'API, non la conversione di
+`CampaignHome` né una certificazione grafica.

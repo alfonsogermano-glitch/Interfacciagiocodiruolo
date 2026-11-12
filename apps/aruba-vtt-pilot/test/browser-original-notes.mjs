@@ -21,6 +21,7 @@ const capability=enabled=>({
  user:{id:user,email:'qa-notes@example.invalid',displayName:'GM di prova',role:'standard'},
  capabilities:{
   campaigns:{read:true,write:true},
+  campaignRoster:{read:true,write:false},
   characters:{read:true,write:true},
   entityNotes:{read:false,write:false},
   campaignNotes:{read:true,write:true},
@@ -63,6 +64,8 @@ function mockApi(page,{enabled=true,authorized=true}={}){
   if(!authorized)return send(route,401,{error:'Non autenticato'});
   if(path==='/vtt/characters'&&method==='GET')
    return send(route,200,{characters:store.characters});
+  if(path==='/vtt/campaigns/'+campaign+'/roster'&&method==='GET')
+   return send(route,200,{members:[{userId:user,displayName:'GM di prova',role:'gm'}]});
   if(path==='/vtt/campaigns'&&method==='GET')
    return send(route,200,{campaigns:[campaignRow]});
   if(path==='/vtt/campaign-note-folders'&&method==='GET')
@@ -175,6 +178,8 @@ try{
   await page.getByRole('button',{name:'Campagne',exact:true}).click();
   await page.getByRole('button',{name:'Apri campagna'}).click();
   await page.getByRole('button',{name:'Entra nella campagna'}).click();
+  await page.getByRole('region',{name:'Partecipanti campagna'}).waitFor();
+  await page.getByText('GM di prova').last().waitFor();
   const sessionRail=page.locator('[data-aruba-session-rail="true"]');
   await sessionRail.waitFor();
   // Real CampaignHome EntityCard must open the contextual Schede detail,

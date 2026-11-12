@@ -256,3 +256,12 @@
 .aruba-campaign-character-grid [role="button"]{min-width:0;outline-offset:3px;border-radius:16px}
 .aruba-campaign-character-grid [role="button"]:focus-visible{outline:2px solid var(--dash-accent)}
 @media(max-width:650px){.aruba-campaign-character-grid{grid-template-columns:minmax(0,1fr)}}
+
+/* Read-only, server-authorized roster; no artificial player cards. */
+.aruba-campaign-roster{margin-top:20px;border:1px solid var(--dash-border-soft);
+ border-radius:12px;padding:14px;min-width:0}
+.aruba-campaign-roster h2{font-size:17px;font-weight:600;margin:0 0 7px}
+.aruba-campaign-member{display:flex;align-items:center;justify-content:space-between;
+ flex-wrap:wrap;gap:8px;margin-top:10px;padding-top:10px;
+ border-top:1px solid var(--dash-border-soft);overflow-wrap:anywhere}
+.aruba-campaign-member strong{font-size:12px;color:var(--dash-accent-2)}

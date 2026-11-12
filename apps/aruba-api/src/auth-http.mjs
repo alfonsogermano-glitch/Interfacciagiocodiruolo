@@ -64,7 +64,7 @@ class HttpProblem extends Error {
   }
 }
 
-export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, passwordReset = null, signupService = null, campaigns = null,characters = null,entityNotes = null,campaignNotes = null,campaignFolders = null,notesPanelEnabled = false }) {
+export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, passwordReset = null, signupService = null, campaigns = null,characters = null,entityNotes = null,campaignNotes = null,campaignFolders = null,notesPanelEnabled = false,campaignRoster = null }) {
   if(typeof notesPanelEnabled!=='boolean'||(notesPanelEnabled&&(!campaignNotes||!campaignFolders)))
     throw new TypeError('Original Notes panel requires both authenticated Notes and folders');
   const allowedOrigin = new URL(origin);
@@ -81,6 +81,8 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
   }
   if (campaigns !== null && (typeof campaigns.list !== 'function' || typeof campaigns.create !== 'function' || typeof campaigns.update !== 'function'))
     throw new TypeError('Invalid campaign service');
+  if(campaignRoster!==null&&(!campaigns||typeof campaignRoster.list!=='function'))
+    throw new TypeError('Invalid campaign roster service');
   if(characters!==null && (typeof characters.list!=='function'||typeof characters.create!=='function'||typeof characters.save!=='function'||typeof characters.archive!=='function'||!campaigns))
     throw new TypeError('Invalid character service');
   if(entityNotes!==null && (!characters ||
@@ -143,6 +145,18 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         if (req.headers.origin !== origin) throw new HttpProblem(403,'Origine non consentita');
         const body=await readJson(req);
         return response(res,201,await campaigns.create(user.id,body));
+      }
+      // Read-only roster. No membership changes or email addresses in the response.
+      if(campaignRoster && req.method==='GET' &&
+         req.url?.startsWith('/vtt/campaigns/') &&
+         req.url.endsWith('/roster')){
+        const match=/^\/vtt\/campaigns\/([0-9a-f-]{36})\/roster$/i.exec(req.url);
+        if(!match)throw new HttpProblem(400,'Campagna non valida');
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        return response(res,200,await campaignRoster.list(user.id,match[1]));
       }
       if(campaigns && req.url?.startsWith('/vtt/campaigns/') && req.url.length === '/vtt/campaigns/'.length + 36 && req.method==='PATCH'){
         const token=extractSession(req);
@@ -428,6 +442,7 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
           backend:'aruba-staging',
           capabilities:{
             campaigns:{read:!!campaigns,write:!!campaigns},
+            campaignRoster:{read:!!campaignRoster,write:false},
             characters:{read:!!characters,write:!!characters},
             entityNotes:{read:!!entityNotes,write:!!entityNotes},
             campaignNotes:{read:!!campaignNotes,write:!!campaignNotes},

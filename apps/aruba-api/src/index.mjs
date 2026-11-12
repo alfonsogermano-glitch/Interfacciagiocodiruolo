@@ -9,6 +9,7 @@ import { createPasswordResetService } from './password-reset-service.mjs';
 import { createTransactionalMailer } from './transactional-mail.mjs';
 import {createSignupService} from './signup-service.mjs';
 import {createCampaignService} from './campaign-service.mjs';
+import {createCampaignRosterService} from './campaign-roster-service.mjs';
 import {createCharacterService} from './character-service.mjs';
 import {createEntityNotesService} from './entity-notes-service.mjs';
 import {createCampaignNotesService} from './campaign-notes-service.mjs';
@@ -79,6 +80,13 @@ async function main() {
     if (campaignsFlag && campaignsFlag !== 'false' && campaignsFlag !== 'true')
       throw new Error('Unsupported AUTH_VTT_CAMPAIGNS_ENABLED value');
     const campaigns=campaignsFlag==='true'?createCampaignService({pool}):null;
+    const rosterFlag=process.env.AUTH_VTT_CAMPAIGN_ROSTER_ENABLED;
+    if(rosterFlag&&!['true','false'].includes(rosterFlag))
+      throw new Error('Unsupported AUTH_VTT_CAMPAIGN_ROSTER_ENABLED value');
+    if(rosterFlag==='true'&&!campaigns)
+      throw new Error('Campaign roster requires staging campaigns');
+    // Requires migration 026, disabled by default until explicit opt-in.
+    const campaignRoster=rosterFlag==='true'?createCampaignRosterService({pool}):null;
     const characterFlag=process.env.AUTH_VTT_CHARACTERS_ENABLED;
     if(characterFlag && characterFlag!=='false' && characterFlag!=='true')
       throw new Error('Unsupported AUTH_VTT_CHARACTERS_ENABLED value');
@@ -107,7 +115,9 @@ async function main() {
     if(notesPanelFlag==='true' && (!campaignNotes||!campaignFolders))
       throw new Error('Original Notes panel requires campaign Notes and folders');
     const notesPanelEnabled=notesPanelFlag==='true';
-    authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession, passwordReset,signupService,campaigns,characters,entityNotes,campaignNotes,campaignFolders,notesPanelEnabled});
+    authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession, passwordReset,signupService,campaigns,characters,entityNotes,campaignNotes,campaignFolders,notesPanelEnabled,campaignRoster});
+  } else if (process.env.AUTH_VTT_CAMPAIGN_ROSTER_ENABLED === 'true') {
+    throw new Error('Campaign roster requires dedicated auth staging');
   } else if (process.env.AUTH_VTT_ORIGINAL_NOTES_PANEL_ENABLED === 'true') {
     throw new Error('Original Notes panel requires dedicated auth staging');
   } else if (process.env.AUTH_VTT_CAMPAIGN_NOTE_FOLDERS_ENABLED === 'true') {

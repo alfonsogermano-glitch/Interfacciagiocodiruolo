@@ -145,7 +145,7 @@
     {
       "id": "owner-only-campaign-list",
       "state": "open",
-      "detail": "Pilot activeCampaign requires c.ownerId===user.id; joined players cannot open campaign session"
+      "detail": "GM owner read-only roster now available behind server capability, with PostgreSQL authorization and revoked-member filtering. Player-owned campaign discovery and participation actions are not yet migrated."
     },
     {
       "id": "session-workspace-missing",

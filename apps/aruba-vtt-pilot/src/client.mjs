@@ -15,6 +15,9 @@ export function validateBootstrap(data){
   if(!c||typeof c.campaigns?.read!=='boolean'||c.campaigns.read!==c.campaigns.write||
     typeof c.characters?.read!=='boolean'||c.characters.read!==c.characters.write||
     (c.characters.read&&!c.campaigns.read)||
+    (c.campaignRoster!==undefined&&(
+      typeof c.campaignRoster.read!=='boolean'||c.campaignRoster.write!==false||
+      (c.campaignRoster.read&&!c.campaigns.read)))||
     (c.entityNotes!==undefined&&(typeof c.entityNotes.read!=='boolean'||
       c.entityNotes.read!==c.entityNotes.write||
       (c.entityNotes.read&&!c.characters.read)))||
@@ -35,6 +38,7 @@ export function validateBootstrap(data){
   return Object.freeze({
     id:data.user.id,email:data.user.email,displayName:data.user.displayName,role:data.user.role,
     campaignsEnabled:c.campaigns.read,charactersEnabled:c.characters.read,
+    campaignRosterEnabled:c.campaignRoster?.read===true,
     entityNotesEnabled:c.entityNotes?.read===true,
     campaignNotesEnabled:c.campaignNotes?.read===true,
     campaignNoteFoldersEnabled:c.campaignNoteFolders?.read===true,
@@ -192,4 +196,25 @@ export async function archiveOwnedCharacter(fetchImpl,campaignId,characterId,own
  const data=await characterApiJson(response);
  if(data.archivedId!==characterId)throw Error('Archiviazione non confermata');
  return data.archivedId;
+}
+
+export async function listOwnedCampaignRoster(fetchImpl,campaignId){
+ if(typeof campaignId!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(campaignId))
+  throw new Error('Campagna non valida');
+ const res=await fetchImpl('/vtt/campaigns/'+campaignId+'/roster',{
+  method:'GET',credentials:'same-origin',cache:'no-store',redirect:'error',
+ });
+ if(res.status===401)throw new Error('Sessione scaduta');
+ if(res.status===403||res.status===404)throw new Error('Elenco partecipanti non autorizzato');
+ if(!res.ok)throw new Error('Impossibile caricare i partecipanti');
+ const data=await res.json();
+ if(!Array.isArray(data.members)||data.members.length>101)
+  throw new Error('Elenco partecipanti non valido');
+ return data.members.map(m=>{
+  if(!m||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(m.userId)||typeof m.displayName!=='string'||
+   !m.displayName.trim()||!['gm','player'].includes(m.role))
+   throw new Error('Partecipante non valido');
+  return Object.freeze({userId:m.userId,displayName:m.displayName,role:m.role,
+   joinedAt:m.joinedAt});
+ });
 }

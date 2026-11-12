@@ -7,6 +7,7 @@ import {Client} from 'pg';
 import {createApp} from '../src/app.mjs';
 import {createAuthHttpHandler} from '../src/auth-http.mjs';
 import {createCampaignService} from '../src/campaign-service.mjs';
+import {createCampaignRosterService} from '../src/campaign-roster-service.mjs';
 import {createCampaignNotesService} from '../src/campaign-notes-service.mjs';
 import {createCampaignFoldersService} from '../src/campaign-folders-service.mjs';
 import {
@@ -43,6 +44,7 @@ try{
  await runtime.query('SET ROLE hollowgate_api_runtime');
  const pool={query:(sql,args)=>runtime.query(sql,args)};
  const campaigns=createCampaignService({pool});
+ const campaignRoster=createCampaignRosterService({pool});
  const notes=createCampaignNotesService({pool});
  const folders=createCampaignFoldersService({pool});
  server=createApp({checkDatabase:()=>runtime.query('SELECT 1'),
@@ -51,7 +53,7 @@ try{
    getSessionUser:async token=>{
     const id=TOKENS.get(token);
     return id?{id,email:'qa@example.invalid',displayName:'QA'}:null;
-   },revokeSession:async()=>{},campaigns,campaignNotes:notes,
+   },revokeSession:async()=>{},campaigns,campaignRoster,campaignNotes:notes,
    campaignFolders:folders,notesPanelEnabled:true,
   })});
  server.listen(0,'127.0.0.1');
@@ -76,6 +78,31 @@ try{
  assert.match(campaign,/^[0-9a-f-]{36}$/);
  await admin.query('SELECT hollowgate_vtt.set_campaign_membership($1,$2,$3,$4,true)',
   [owner,campaign,player,'player']);
+ // Real read-only roster over restricted SQL service/HTTP. No browser
+ // supplied identity may authorize a foreign campaign membership list.
+ const fetchRoster=async tr=>tr('/vtt/campaigns/'+campaign+'/roster');
+ const oRoster=await readJson(await fetchRoster(ownerFetch));
+ assert.equal(oRoster.members.length,2);
+ assert.deepEqual(oRoster.members.map(m=>m.role),['gm','player']);
+ assert.ok(oRoster.members.every(m=>!Object.hasOwn(m,'email')));
+ assert.equal((await fetchRoster(playerFetch)).status,404);
+ assert.equal((await fetchRoster(outsiderFetch)).status,404);
+ assert.equal((await fetch(base+'/vtt/campaigns/'+campaign+'/roster')).status,401);
+ assert.equal((await ownerFetch('/vtt/campaigns/not-a-uuid/roster')).status,400);
+ const emptyCampaign=(await readJson(await ownerFetch('/vtt/campaigns',{
+  method:'POST',headers:{'content-type':'application/json'},
+  body:JSON.stringify({name:'Campagna vuota',description:'',ruleset:'hsc'}),
+ }))).campaign.id;
+ assert.equal((await readJson(await ownerFetch('/vtt/campaigns/'+emptyCampaign+'/roster'))).members.length,1);
+ const ownerSeen=(await readJson(await ownerFetch('/vtt/campaigns/'+campaign+'/roster'))).members;
+ assert.equal(ownerSeen.find(m=>m.userId===player)?.displayName,'player');
+ await admin.query('SELECT hollowgate_vtt.set_campaign_membership($1,$2,$3,$4,false)',
+  [owner,campaign,player,'player']);
+ const revoked=await readJson(await fetchRoster(ownerFetch));
+ assert.equal(revoked.members.length,1,'Revoked players must vanish from roster');
+ await admin.query('SELECT hollowgate_vtt.set_campaign_membership($1,$2,$3,$4,true)',
+  [owner,campaign,player,'player']);
+
  const root=await createArubaCampaignNote(ownerFetch,campaign,'Nota integrata');
  const child=await createArubaCampaignNote(ownerFetch,campaign,'Sotto-tab integrata',root.id);
  const rich={type:'doc',content:[{type:'paragraph',content:[{type:'text',text:'Persistenza vera PostgreSQL'}]}]};
@@ -120,7 +147,7 @@ try{
  assert.equal(forged.status,403);
  await changeArubaCampaignNoteScope(ownerFetch,campaign,root.id,'gm');
  assert.equal((await listArubaCampaignNotes(playerFetch,campaign)).some(n=>n.id===root.id),false);
- console.log('LIVE_PG_HTTP_NOTES_OK: native API, persisted TipTap after reload, child and folder, restore private, GM/player isolation, CSRF.');
+ console.log('LIVE_PG_HTTP_NOTES_OK: roster SQL isolation, native API, persisted TipTap after reload, child and folder, restore private, GM/player isolation, CSRF.');
 }finally{
  if(server)await new Promise(resolve=>server.close(resolve));
  await runtime.end().catch(()=>{});
