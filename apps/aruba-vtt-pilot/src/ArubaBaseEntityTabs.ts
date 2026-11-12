@@ -15,7 +15,7 @@ type Params={
 };
 /** Aruba adapter for the original EntityTabBar + EntityDetailView tab contract.
  * The original sources remain unchanged, while Supabase/realtime are replaced
- * by owner-scoped cookie endpoints. Unimplemented folders/sub-tabs stay disabled.
+ * by owner-scoped cookie endpoints. Nested tabs and drag order use a two-level model.
  * Note the save queue is per-note, so concurrent edits never reorder writes.
  */
 export function useEntityTabs({
@@ -37,6 +37,10 @@ export function useEntityTabs({
  const [renameDraft,setRenameDraft]=useState('');
  const [openMenuTabId,setOpenMenuTabId]=useState<string|null>(null);
  const [confirmDeleteTabId,setConfirmDeleteTabId]=useState<string|null>(null);
+ const [draggedTabId,setDraggedTabId]=useState<string|null>(null);
+ const [dragOverId,setDragOverId]=useState<string|null>(null);
+ const dragOverIdRef=useRef<string|null>(null);
+ const pointerStartRef=useRef<{x:number;y:number;tabId:string}|null>(null);
  const [error,setError]=useState<string|null>(null);
  const tabsContainerRef=useRef<HTMLDivElement|null>(null);
  const notesRef=useRef<Note[]>([]);
@@ -159,21 +163,69 @@ export function useEntityTabs({
   // most recent JSON. The serialized queue always sends the newest snapshot.
   void persist(id,{content_rich:contentRich});
  };
+ const handlePointerDownTab=(e:React.PointerEvent,tabId:string)=>{
+  if(!supported||!canEdit||renamingTabId===tabId)return;
+  const target=e.target as HTMLElement;
+  if(target.closest('[data-no-drag]')||target.closest('input'))return;
+  pointerStartRef.current={x:e.clientX,y:e.clientY,tabId};
+ };
+ useEffect(()=>{
+  if(!supported||!canEdit)return;
+  const handleMove=(e:PointerEvent)=>{
+   if(draggedTabId){
+    const container=tabsContainerRef.current;
+    if(!container)return;
+    let target:string='END';
+    for(const el of Array.from(container.querySelectorAll<HTMLElement>('[data-tab-id]'))){
+     const rect=el.getBoundingClientRect();
+     if(e.clientX<rect.left+rect.width/2){target=el.dataset.tabId??'END';break;}
+    }
+    dragOverIdRef.current=target;setDragOverId(target);
+    return;
+   }
+   const start=pointerStartRef.current;
+   if(!start)return;
+   const dx=e.clientX-start.x,dy=e.clientY-start.y;
+   if(Math.hypot(dx,dy)>6)setDraggedTabId(start.tabId);
+  };
+  const handleUp=()=>{
+   if(draggedTabId){
+    const before=orderedTabs.map(t=>t.id);
+    const target=dragOverIdRef.current;
+    if(target!==draggedTabId){
+     const order=before.filter(id=>id!==draggedTabId);
+     const idx=target&&target!=='END'?order.indexOf(target):-1;
+     order.splice(idx<0?order.length:idx,0,draggedTabId);
+     if(order.join('|')!==before.join('|')){
+      setTabOrder(order);
+      onPersistTabOrder?.(order);
+     }
+    }
+   }
+   setDraggedTabId(null);setDragOverId(null);
+   dragOverIdRef.current=null;pointerStartRef.current=null;
+  };
+  window.addEventListener('pointermove',handleMove);
+  window.addEventListener('pointerup',handleUp);
+  return ()=>{
+   window.removeEventListener('pointermove',handleMove);
+   window.removeEventListener('pointerup',handleUp);
+  };
+ },[supported,canEdit,draggedTabId,orderedTabs,onPersistTabOrder]);
  const selectTabByClick=(id:string)=>{
   if(orderedTabs.some(tab=>tab.id===id)){
    setCurrentTab(id);setPendingFocusTabId(id);setOpenMenuTabId(null);
   }
  };
- // Deliberately omit original Supabase-bound folder, subtabs and drag
- // actions; their UI requires an Aruba-compatible ownership model.
+ // Folder assignment still requires the original category authorization model.
  const unavailable=()=>{};
  return {
   customTabs,tabOrder,orderedTabs,currentTab,setCurrentTab,pendingFocusTabId,
   selectTabByClick,clearPendingFocusTab:()=>setPendingFocusTabId(null),
   renamingTabId,setRenamingTabId,renameDraft,setRenameDraft,
   openMenuTabId,setOpenMenuTabId,confirmDeleteTabId,setConfirmDeleteTabId,
-  draggedTabId:null,dragOverId:null,tabsContainerRef,
-  handlePointerDownTab:unavailable,handleAddCustomTab,
+  draggedTabId,dragOverId,tabsContainerRef,
+  handlePointerDownTab,handleAddCustomTab,
   handleDuplicateCustomTab,handleMoveCustomTabToFolder:unavailable,
   handlePersistSubTabOrder,handleRenameCustomTab,
   handleToggleHideCustomTab,handleSetNoteVisibility,
