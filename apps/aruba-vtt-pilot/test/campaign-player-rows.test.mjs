@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {composeOwnedCampaignPlayerRows} from '../src/campaign-player-rows.mjs';
 const owner='4a3465ec-47d7-4021-9f0d-e70da8cbd001';
 const player='4a3465ec-47d7-4021-9f0d-e70da8cbd002';
@@ -24,4 +25,12 @@ test('rejected identity mismatch, invalid status, duplicate roster or missing GM
   [[members[1]],[active],owner],
   [members,[{...active,sheetData:null}],owner],
  ])assert.throws(()=>composeOwnedCampaignPlayerRows(m,c,o));
+});
+
+// Keep the character opener and the GM availability button as siblings:
+// nested interactive controls intercept keyboard and screen-reader navigation.
+test('campaign character opener does not wrap the availability button',()=>{
+ const source=readFileSync(new URL('../src/ArubaCampaignPlayerRows.tsx',import.meta.url),'utf8');
+ assert.match(source,/<div role="button" tabIndex=\{0\} className="aruba-campaign-character-open"/);
+ assert.match(source,/onClick=\{\(\)=>onOpenCharacter\(c\.id\)\}\/>\s*<\/div>\s*\{row\.role==='gm'&&availabilityEnabled&&\s*<button/);
 });

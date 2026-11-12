@@ -52,14 +52,17 @@ export function ArubaCampaignPlayerRows({campaignId,ownerId,revision,availabilit
    </div>
    {row.characters.length>0?
     <div className="aruba-campaign-character-grid">
-     {row.characters.map(c=><div key={c.id} role="button" tabIndex={0}
-      data-campaign-character-id={c.id} aria-label={'Apri scheda campagna di '+c.name}
-      onKeyDown={event=>{if(event.target===event.currentTarget&&
-       (event.key==='Enter'||event.key===' ')){event.preventDefault();onOpenCharacter(c.id);}}}>
+     {row.characters.map(c=><div key={c.id} className="aruba-campaign-character-item"
+      data-campaign-character-id={c.id}>
+      <div role="button" tabIndex={0} className="aruba-campaign-character-open"
+       aria-label={'Apri scheda campagna di '+c.name}
+       onKeyDown={event=>{if(event.target===event.currentTarget&&
+        (event.key==='Enter'||event.key===' ')){event.preventDefault();onOpenCharacter(c.id);}}}>
       <EntityCard name={c.name}
        subtitle={[c.sheetData.style,c.sheetData.viaggio].filter(Boolean).join(' · ')}
        secondaryText={typeof c.sheetData.description==='string'?c.sheetData.description:undefined}
        onClick={()=>onOpenCharacter(c.id)}/>
+      </div>
       {row.role==='gm'&&availabilityEnabled&&
        <button type="button" className="aruba-availability-toggle"
         aria-label={'Disponibilità di '+c.name}
