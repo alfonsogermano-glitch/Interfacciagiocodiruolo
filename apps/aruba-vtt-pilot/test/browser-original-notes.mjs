@@ -216,14 +216,17 @@ try{
   // even if the same PG is selected twice in consecutive requests.
   const card=page.locator('[data-campaign-character-id="'+characterId+'"]');
   await card.waitFor();
-  await card.click();
+  // The character opener and availability switch are separate sibling controls.
+  // Target the opener explicitly so layout changes cannot click the switch.
+  const cardOpener=card.getByRole('button',{name:'Apri scheda campagna di Mara di prova'});
+  await cardOpener.click();
   await page.getByRole('region',{name:'Scheda di Mara di prova'}).waitFor();
   await page.locator('[data-entity-context="characters-detail"]')
    .getByRole('button',{name:/Torna ai personaggi/}).click();
   await page.locator('[data-entity-context="characters-detail"]').waitFor({state:'detached'});
   await sessionRail.getByRole('button',{name:'Schede',exact:true}).click();
   await page.locator('.aruba-session-characters-host').waitFor({state:'detached'});
-  await card.focus();
+  await cardOpener.focus();
   await page.keyboard.press('Enter');
   await page.getByRole('region',{name:'Scheda di Mara di prova'}).waitFor();
   await page.locator('[data-entity-context="characters-detail"]')
