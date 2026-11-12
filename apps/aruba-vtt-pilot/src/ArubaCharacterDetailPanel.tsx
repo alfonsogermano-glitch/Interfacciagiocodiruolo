@@ -4,7 +4,6 @@ import {listCharacterDrafts,saveFullCharacterSheet,archiveOwnedCharacter} from '
 import {EntityDetailRail,type EntityDetailRailSection} from '../../../src/app/components/session/shared/EntityDetailRail';
 import {SlideOverPanel} from '../../../src/app/components/session/SlideOverPanel';
 import {EntityDetailView} from '../../../src/app/components/session/shared/EntityDetailView';
-import {TokenStyleEditor} from '../../../src/app/components/shared/TokenStyleEditor';
 import type {Character} from '../../../src/types/character';
 
 type HscCharacter=Character & {player:string;notes:string};
@@ -108,33 +107,13 @@ function ArubaPersistedSheet({draft,ownerId,onChanged,onArchived,registerCloseGu
    {error&&<span className="unsaved" role="alert">{error}</span>}
    {error&&<button type="button" className="character-panel-return" onClick={()=>update(working)}>Riprova salvataggio</button>}
   </div>
-  {section==='scheda'&&<EntityDetailView
+  <EntityDetailView
     entityType="character" entity={working}
     onUpdate={update} canEdit={true}
     campaignId={campaignId} accessToken={null} isHSC={true}
     showOwnerRow={false} showRail={false}
     activeSection={section}
-   />}
-  {section==='token'&&<div className="aruba-token-studio">
-    <TokenStyleEditor
-     name={working.name}
-     crop={{x:0,y:0,scale:1}}
-     tokenColor={working.tokenColor}
-     tokenBackgroundColor={working.tokenBackgroundColor}
-     tokenBorderStyle={working.tokenBorderStyle}
-     tokenBorderThickness={working.tokenBorderThickness}
-     tokenBorderLabel={working.tokenBorderLabel}
-     tokenBorderVisible={working.tokenBorderVisible}
-     onChange={patch=>update({...working,...patch})}
-    />
-    <p className="aruba-token-notice">Il Token Studio originale salva forma, colore, bordo e etichetta su Aruba.
-      La fotografia sarà collegata al sistema immagini Aruba quando sarà migrato.</p>
-   </div>}
-  {section==='immagine'&&<div className="aruba-entity-unmigrated">
-    <h2>Immagine e Avatar</h2>
-    <p>L'editor originale di ritaglio e la raccolta immagini richiedono lo storage Aruba.
-      Nessun upload o modifica ai dati viene simulato in questa fase.</p>
-   </div>}
+   />
   {archiving&&<p>Archiviazione in corso…</p>}
  </section>;
 }
