@@ -35,6 +35,10 @@ function mockApi(page,{enabled=true,authorized=true}={}){
  page.route('**/vtt/**',async route=>{
   const request=route.request(),url=new URL(request.url());
   const path=url.pathname,method=request.method();
+  // Vite also serves its HTML and executable assets under /vtt/; the
+  // sandbox must NEVER replace those frontend files with fixture JSON.
+  if(path==='/vtt/'||path==='/vtt/index.html'||path.startsWith('/vtt/assets/'))
+   return route.continue();
   const raw=request.postData();
   const body=raw?JSON.parse(raw):{};
   store.requests.push({path,method,body});
