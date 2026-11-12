@@ -126,5 +126,15 @@ export function createCampaignNotesService({pool}){
    throw new CampaignRejected('Nota non trovata o non autorizzata',404);
   return {archivedId:noteId};
  }
- return {list,listForMember,create,save,archive,moveToFolder,setTitleIcon,setSubtabOrder};
+ async function changeScope(actorId,campaignId,noteId,scope){
+  [actorId,campaignId,noteId].forEach((v,i)=>id(v,['Utente','Campagna','Nota'][i]));
+  if(!['gm','shared'].includes(scope))throw new CampaignRejected('Sezione Nota non valida',400);
+  const {rows}=await pool.query(
+   'SELECT hollowgate_vtt.move_gm_campaign_note_scope($1,$2,$3,$4) AS id',
+   [actorId,campaignId,noteId,scope]);
+  if(rows[0]?.id!==noteId)
+    throw new CampaignRejected('Nota non trovata o non autorizzata',404);
+  return {noteId,scope};
+ }
+ return {list,listForMember,create,save,archive,moveToFolder,setTitleIcon,setSubtabOrder,changeScope};
 }

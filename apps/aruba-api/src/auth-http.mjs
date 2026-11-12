@@ -292,6 +292,17 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
               {title:body.title,parentId:body.parentId,scope:body.scope}));
         }
         if(req.method==='PATCH' &&
+           req.url?.startsWith('/vtt/campaign-notes/scope/')){
+          const scopeId=req.url.slice('/vtt/campaign-notes/scope/'.length);
+          if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(scopeId)||
+             Object.keys(body).sort().join(',')!=='campaignId,scope'||
+             !['gm','shared'].includes(body.scope)||
+             typeof campaignNotes.changeScope!=='function')
+            throw new HttpProblem(400,'Cambio sezione Nota non valido');
+          return response(res,200,await campaignNotes.changeScope(
+            user.id,body.campaignId,scopeId,body.scope));
+        }
+        if(req.method==='PATCH' &&
            req.url?.startsWith('/vtt/campaign-notes/folder/')){
           const movingId=req.url.slice('/vtt/campaign-notes/folder/'.length);
           if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(movingId))

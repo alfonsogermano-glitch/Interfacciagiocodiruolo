@@ -1,6 +1,7 @@
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import {useArubaCampaignNotesContext} from './ArubaCampaignNotesContext';
 import {moveArubaEntityNote} from './ArubaCampaignNotesEndpoints.mjs';
+import {changeArubaCampaignNoteScope} from './campaign-notes-client.mjs';
 import {
  listArubaEntityNotes,createArubaEntityNote,saveArubaEntityNote,archiveArubaEntityNote,setArubaSubtabOrder,
 } from './ArubaCampaignNotesEndpoints.mjs';
@@ -133,9 +134,16 @@ export function useEntityTabs({
   try{await persist(id,{tab_name:next});}catch(e){fail(e);}
  };
  const handleToggleHideCustomTab=(id:string)=>{
-  // Moving between GM/shared sections is not a visibility flag update:
-  // require an atomic scope-move API before enabling this original command.
-  if(byId(id))setError('Spostamento GM/Campagna non ancora disponibile su Aruba');
+  const note=byId(id);
+  if(!supported||nested||!notesContext.isGm||!note)return;
+  const target=note.hidden?'shared':'gm';
+  void enqueue(id,async()=>{
+   await changeArubaCampaignNoteScope(fetch,scopeCampaignId!,id,target);
+   // Original GM/show move resets both privacy and incompatible folder.
+   // Reconcile with authorized server list so no stale leaf is exposed.
+   await reloadCustomTabs();
+   if(currentTab===id)setCurrentTab('');
+  });
  };
  const handleSetNoteVisibility=(id:string,visibility:'all'|'private')=>
   {void persist(id,{visibility});};

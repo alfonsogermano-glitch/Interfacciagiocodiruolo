@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {listArubaCampaignNotes,createArubaCampaignNote,saveArubaCampaignNote,archiveArubaCampaignNote,moveArubaCampaignNoteToFolder,toOriginalCampaignNoteTab,setArubaCampaignNoteTitleIcon,setArubaCampaignSubtabOrder}
+import {listArubaCampaignNotes,createArubaCampaignNote,saveArubaCampaignNote,archiveArubaCampaignNote,moveArubaCampaignNoteToFolder,toOriginalCampaignNoteTab,setArubaCampaignNoteTitleIcon,setArubaCampaignSubtabOrder,changeArubaCampaignNoteScope}
  from '../src/campaign-notes-client.mjs';
 const campaign='be2f1a87-b8ee-4b34-9da0-07efda11379a';
 const parent='aa2f1a87-b8ee-4b34-9da0-07efda11379a';
@@ -125,4 +125,20 @@ test('original NoteListRow icon and NoteSubTabs order survive Aruba roundtrip',a
  await assert.rejects(()=>setArubaCampaignSubtabOrder(fetcher,campaign,parent,[child,child]),/non valido/);
  await assert.rejects(()=>setArubaCampaignNoteTitleIcon(fetcher,campaign,parent,''),/non valida/);
  assert.equal(calls.length,2,'Invalid write must not reach HTTP');
+});
+
+test('section change client accepts only server-confirmed GM/shared operation',async()=>{
+ const calls=[];
+ const fetcher=async(url,options)=>{
+  calls.push([url,options]);
+  return {ok:true,status:200,headers:{get:()=> 'application/json'},
+    json:async()=>({noteId:parent,scope:'gm'})};
+ };
+ await changeArubaCampaignNoteScope(fetcher,campaign,parent,'gm');
+ assert.equal(calls[0][0],'/vtt/campaign-notes/scope/'+parent);
+ assert.deepEqual(JSON.parse(calls[0][1].body),{campaignId:campaign,scope:'gm'});
+ assert.equal(calls[0][1].credentials,'same-origin');
+ await assert.rejects(()=>changeArubaCampaignNoteScope(fetcher,campaign,parent,'owner'),/non valida/);
+ await assert.rejects(()=>changeArubaCampaignNoteScope(fetcher,campaign,parent,'shared'),/non confermato/);
+ assert.equal(calls.length,2);
 });

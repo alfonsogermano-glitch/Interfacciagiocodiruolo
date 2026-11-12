@@ -135,3 +135,17 @@ test('Note icons and persisted child order use member-scoped SQL and exact ackno
  await assert.rejects(()=>deny.setTitleIcon(owner,campaign,noteId,null),e=>e.status===404);
  await assert.rejects(()=>deny.setSubtabOrder(owner,campaign,noteId,[child]),e=>e.status===404);
 });
+
+test('GM scope transitions use DB permission checks and exact acknowledgements',async()=>{
+ const calls=[];
+ const service=createCampaignNotesService({pool:{query:async(sql,args)=>{
+  calls.push([sql,args]);return {rows:[{id:parent}]};
+ }}});
+ assert.deepEqual(await service.changeScope(owner,campaign,parent,'gm'),{noteId:parent,scope:'gm'});
+ assert.match(calls[0][0],/move_gm_campaign_note_scope/);
+ assert.deepEqual(calls[0][1],[owner,campaign,parent,'gm']);
+ await assert.rejects(()=>service.changeScope(owner,campaign,parent,'invalid'),e=>e.status===400);
+ assert.equal(calls.length,1);
+ const denied=createCampaignNotesService({pool:{query:async()=>({rows:[{id:null}]})}});
+ await assert.rejects(()=>denied.changeScope(owner,campaign,parent,'shared'),e=>e.status===404);
+});

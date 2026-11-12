@@ -148,3 +148,13 @@ export async function setArubaCampaignSubtabOrder(fetcher,campaignId,noteId,tabO
   throw Error('Riordino sottoschede non confermato');
  return tabOrder;
 }
+
+export async function changeArubaCampaignNoteScope(fetcher,campaignId,noteId,scope){
+ safeId(campaignId,'Campagna');safeId(noteId,'Nota');
+ if(!['gm','shared'].includes(scope))throw Error('Sezione Nota non valida');
+ const data=await json(await fetcher('/vtt/campaign-notes/scope/'+noteId,
+  opts('PATCH',{campaignId,scope})));
+ if(data.noteId!==noteId||data.scope!==scope)
+  throw Error('Cambio sezione Nota non confermato');
+ return scope;
+}

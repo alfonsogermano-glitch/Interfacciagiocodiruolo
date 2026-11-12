@@ -150,3 +150,21 @@ test('member Note title icon and subtab order are session-scoped and origin prot
  assert.deepEqual(calls,[['icon',owner,campaign,parent,'book-open'],
   ['order',owner,campaign,parent,[parent]]]);
 });
+
+test('campaign Note section switch requires same-origin GM authorization via SQL',async()=>{
+ const calls=[];
+ const notes={listForMember:async()=>({notes:[]}),create:async()=>{},save:async()=>{},archive:async()=>{},
+  changeScope:async(...args)=>{calls.push(args);return {noteId:parent,scope:args[3]}},
+ };
+ await server(notes,async base=>{
+  const url=base+'/vtt/campaign-notes/scope/'+parent;
+  assert.equal((await fetch(url,{method:'PATCH',headers:cookie})).status,403);
+  assert.equal((await fetch(url,{method:'PATCH',headers:header,
+   body:JSON.stringify({campaignId:campaign,scope:'gm',role:'gm'})})).status,400);
+  assert.equal((await fetch(url,{method:'PATCH',headers:header,
+   body:JSON.stringify({campaignId:campaign,scope:'invalid'})})).status,400);
+  assert.equal((await fetch(url,{method:'PATCH',headers:header,
+   body:JSON.stringify({campaignId:campaign,scope:'gm'})})).status,200);
+ });
+ assert.deepEqual(calls,[[owner,campaign,parent,'gm']]);
+});

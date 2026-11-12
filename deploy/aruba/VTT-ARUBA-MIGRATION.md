@@ -374,3 +374,18 @@ contract build. Character sheets continue using the existing independent
 entity-note adapter. The compile contract is tested in CI and its bundle
 checked for supabase.co endpoints; it is NEVER imported by main.tsx.
 No production deployment or staging feature activation.
+
+## Schema 024 — Nascondi/Mostra tra Note del GM e Note della Campagna
+
+La routine SQL `move_gm_campaign_note_scope` è atomica e richiede ruolo
+GM effettivo nella campagna. Cambia insieme lo scope della nota principale
+e delle sotto-tab, azzera il collegamento a cartelle incompatibili e forza
+`visibility=private` sull'intero sottoalbero. Mostra rende visibile la
+sezione condivisa, **non pubblica automaticamente documenti privati**:
+serve una successiva azione esplicita di visibilità del GM. Tutti i
+documenti TipTap e l'autore rimangono intatti. Un giocatore, un ex GM,
+un'altra campagna o una sottoscheda non possono cambiare sezione.
+
+`PATCH /vtt/campaign-notes/scope/:id`, il client cookie Aruba e
+l'adattatore `ArubaCampaignEntityTabs` usano questa operazione.
+La UI originale resta fuori da `main.tsx`; nessun deploy al VPS.
