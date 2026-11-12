@@ -248,3 +248,11 @@
 .aruba-session-character-row strong{overflow-wrap:anywhere;min-width:0}
 .aruba-session-character-row span{color:var(--dash-muted);font-size:12px;white-space:nowrap}
 .aruba-session-character-row:hover{border-color:var(--dash-accent)}
+
+/* Original CampaignHome two-card grid. Protect long labels and narrow viewports. */
+.aruba-campaign-character-section{margin-top:24px;min-width:0}
+.aruba-campaign-character-section h2{font-size:18px;font-weight:600;margin:0 0 12px}
+.aruba-campaign-character-grid{display:grid;grid-template-columns:repeat(2,minmax(200px,1fr));gap:16px;min-width:0}
+.aruba-campaign-character-grid [role="button"]{min-width:0;outline-offset:3px;border-radius:16px}
+.aruba-campaign-character-grid [role="button"]:focus-visible{outline:2px solid var(--dash-accent)}
+@media(max-width:650px){.aruba-campaign-character-grid{grid-template-columns:minmax(0,1fr)}}

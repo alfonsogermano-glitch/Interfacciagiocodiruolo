@@ -137,3 +137,18 @@ proprietario prima di presentare le righe. Non ci sono dati inventati.
 Le sezioni PNG/Mostri, il percorso card da `CampaignHome` e la
 `SessionCharactersPanel` completa restano da migrare, così come
 la partecipazione dei giocatori. Nessun deploy sul VPS.
+
+## Integrazione 06 — Card originali e richiesta Schede con requestId
+
+Le card PG attive, ottenute dall'API Aruba autenticata, riutilizzano
+`EntityCard` originale e griglia a due colonne con larghezza protetta.
+Ogni click invia alla sessione l'UUID e un `requestId` crescente
+con `kind:'pg'`, come `App.openSessionEntity`.
+Questo permette di aprire, chiudere e riaprire lo stesso personaggio,
+anche usando la tastiera, senza mostrare la schermata riassuntiva legacy.
+La lista sessione preserva la selezione. Il pannello dettaglio mantiene
+`EntityDetailView` e `EntityDetailRail` originali.
+
+Sono ancora assenti il `CampaignHome` definitivo, partecipanti
+giocatori, PNG/Mostri, realtime e le altre card e viste storiche.
+Questo step non costituisce certificazione 100%.

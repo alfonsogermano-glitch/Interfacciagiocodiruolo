@@ -177,6 +177,26 @@ try{
   await page.getByRole('button',{name:'Entra nella campagna'}).click();
   const sessionRail=page.locator('[data-aruba-session-rail="true"]');
   await sessionRail.waitFor();
+  // Real CampaignHome EntityCard must open the contextual Schede detail,
+  // even if the same PG is selected twice in consecutive requests.
+  const card=page.locator('[data-campaign-character-id="'+characterId+'"]');
+  await card.waitFor();
+  await card.click();
+  await page.getByRole('region',{name:'Scheda di Mara di prova'}).waitFor();
+  await page.locator('[data-entity-context="characters-detail"]')
+   .getByRole('button',{name:/Torna ai personaggi/}).click();
+  await page.locator('[data-entity-context="characters-detail"]').waitFor({state:'detached'});
+  await sessionRail.getByRole('button',{name:'Schede',exact:true}).click();
+  await page.locator('.aruba-session-characters-host').waitFor({state:'detached'});
+  await card.focus();
+  await page.keyboard.press('Enter');
+  await page.getByRole('region',{name:'Scheda di Mara di prova'}).waitFor();
+  await page.locator('[data-entity-context="characters-detail"]')
+   .getByRole('button',{name:/Torna ai personaggi/}).click();
+  await page.locator('[data-entity-context="characters-detail"]').waitFor({state:'detached'});
+  await sessionRail.getByRole('button',{name:'Schede',exact:true}).click();
+  await page.locator('.aruba-session-characters-host').waitFor({state:'detached'});
+
   for(const label of ['Chat','Dadi','Incontri','Combatti'])
    assert.equal(await sessionRail.getByRole('button',{name:label,exact:true}).isDisabled(),true,
     label+' must not pretend to be migrated');
@@ -288,4 +308,4 @@ try{
  }
 }finally{await browser.close();}
 if(errors.length)throw Error('Browser console runtime errors: '+errors.join('; '));
-console.log('Original Hollowgate Notes browser QA passed: auth gating, session rail, original slide-over Escape/close, split panel, session character card/detail, root/subtab creation, TipTap save, folder creation and trash restore.');
+console.log('Original Hollowgate Notes browser QA passed: auth gating, session rail, original slide-over Escape/close, split panel, campaign EntityCard repeated selection, session character card/detail, root/subtab creation, TipTap save, folder creation and trash restore.');
