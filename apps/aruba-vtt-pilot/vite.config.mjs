@@ -35,6 +35,9 @@ export default defineConfig({
         };
         if(Object.hasOwn(isolated,id))return resolve(root,'src/'+isolated[id]);
       }
+      if(importer?.endsWith('/src/app/components/session/shared/NoteContextualPickers.tsx') &&
+        (id==='../../../../lib/supabaseClient'||id==='../../../../services/storage/contentAssets'||id==='../../../auth/AuthContext'))
+        return resolve(root,'src/ArubaNoteRuntime.tsx');
       // The real EntityDetailView is retained verbatim. Only its backend
       // dependencies are isolated until native Aruba services are ready.
       if(importer?.endsWith('/src/app/components/session/shared/EntityDetailView.tsx')){
