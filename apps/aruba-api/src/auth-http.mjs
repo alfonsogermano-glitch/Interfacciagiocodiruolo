@@ -84,7 +84,7 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
   if(characterAvailability!==null&&(!characters||
       typeof characterAvailability.list!=='function'||typeof characterAvailability.set!=='function'))
     throw new TypeError('Invalid character availability service');
-  if(playerCharacters!==null&&(!characterAssignments||typeof playerCharacters.list!=='function'))
+  if(playerCharacters!==null&&(!characterAssignments||(typeof playerCharacters.list!=='function'||typeof playerCharacters.listCampaigns!=='function')))
     throw new TypeError('Player character reads require assignments');
   if(characterAssignments!==null&&(!characters||!campaignRoster||!characterAvailability||
       typeof characterAssignments.list!=='function'||typeof characterAssignments.set!=='function'))
@@ -175,6 +175,14 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         const campaignId=req.url.slice('/vtt/campaigns/'.length);
         const body=await readJson(req);
         return response(res,200,await campaigns.update(user.id,campaignId,body));
+      }
+      // Current player memberships are queried independently from GM-owned campaigns.
+      if(playerCharacters&&req.method==='GET'&&req.url==='/vtt/player-campaigns'){
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        return response(res,200,await playerCharacters.listCampaigns(user.id));
       }
       // Read-only player access to CURRENTLY assigned sheets; no owner write API.
       // The SQL function checks the logged-in player, membership and campaign.

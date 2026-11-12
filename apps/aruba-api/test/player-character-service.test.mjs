@@ -25,3 +25,16 @@ test('invalid identities fail closed before hitting the database',async()=>{
  await assert.rejects(()=>service.list(player,'forged'),e=>e.status===400);
  assert.equal(count,0);
 });
+
+test('joined campaign list is a restricted SQL query by cookie player identity',async()=>{
+ const seen=[];
+ const service=createPlayerCharacterService({pool:{query:async(sql,args)=>{
+  seen.push({sql,args});return {rows:[{id:campaign,owner_id:owner,name:'Campagna',
+   description:'',ruleset:'hsc',created_at:'2026-11-12T00:00:00Z'}]};
+ }}});
+ const result=await service.listCampaigns(player);
+ assert.equal(result.campaigns[0].ownerId,owner);
+ assert.deepEqual(seen[0].args,[player]);
+ assert.match(seen[0].sql,/^SELECT \* FROM hollowgate_vtt.list_joined_player_campaigns/);
+ await assert.rejects(()=>service.listCampaigns('invalid'),e=>e.status===400);
+});

@@ -25,6 +25,9 @@ export function validateBootstrap(data){
       (c.characterAssignments.read&&(
        c.characters?.read!==true||c.characterAvailability?.read!==true||
        c.campaignRoster?.read!==true))))||
+    (c.playerCharacters!==undefined&&(
+      typeof c.playerCharacters.read!=='boolean'||c.playerCharacters.write!==false||
+      (c.playerCharacters.read&&c.characterAssignments?.read!==true)))||
     (c.campaignRoster!==undefined&&(
       typeof c.campaignRoster.read!=='boolean'||c.campaignRoster.write!==false||
       (c.campaignRoster.read&&!c.campaigns.read)))||
@@ -50,6 +53,7 @@ export function validateBootstrap(data){
     campaignsEnabled:c.campaigns.read,charactersEnabled:c.characters.read,
     characterAvailabilityEnabled:c.characterAvailability?.read===true,
     characterAssignmentsEnabled:c.characterAssignments?.read===true,
+    playerCharactersEnabled:c.playerCharacters?.read===true,
     campaignRosterEnabled:c.campaignRoster?.read===true,
     entityNotesEnabled:c.entityNotes?.read===true,
     campaignNotesEnabled:c.campaignNotes?.read===true,
@@ -300,4 +304,39 @@ export async function setCharacterAssignment(fetchImpl,campaignId,characterId,pl
  if(data.characterId!==characterId||data.playerId!==playerId)
   throw Error('Conferma assegnazione non valida');
  return data;
+}
+
+/** Assigned-player-only API; no writable character endpoint is used. */
+export async function listJoinedPlayerCampaigns(fetchImpl){
+ const r=await fetchImpl('/vtt/player-campaigns',{method:'GET',credentials:'same-origin',
+  cache:'no-store',redirect:'error'});
+ if(r.status===401)throw Error('Sessione scaduta');
+ if(!r.ok)throw Error('Impossibile caricare le campagne a cui partecipi');
+ const data=await characterApiJson(r);
+ if(!Array.isArray(data.campaigns)||data.campaigns.length>100)
+  throw Error('Elenco campagne non valido');
+ const seen=new Set();
+ return data.campaigns.map(c=>{
+  const row=validateCampaign(c);
+  if(seen.has(row.id))throw Error('Campagna duplicata');
+  seen.add(row.id);return row;
+ });
+}
+export async function listAssignedPlayerCharacters(fetchImpl,campaignId){
+ if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(campaignId))
+  throw Error('Campagna non valida');
+ const r=await fetchImpl('/vtt/player-characters?campaignId='+encodeURIComponent(campaignId),{
+  method:'GET',credentials:'same-origin',cache:'no-store',redirect:'error'});
+ if(r.status===401)throw Error('Sessione scaduta');
+ if(!r.ok)throw Error('Impossibile caricare le schede assegnate');
+ const data=await characterApiJson(r);
+ if(!Array.isArray(data.characters)||data.characters.length>100)
+  throw Error('Elenco schede non valido');
+ const ids=new Set();
+ return data.characters.map(c=>{
+  const row=validateCharacterDraft(c);
+  if(row.campaignId!==campaignId||row.status!=='active'||ids.has(row.id))
+   throw Error('Scheda non autorizzata o duplicata');
+  ids.add(row.id);return row;
+ });
 }

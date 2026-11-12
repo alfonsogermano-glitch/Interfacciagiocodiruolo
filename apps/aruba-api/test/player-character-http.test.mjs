@@ -33,13 +33,19 @@ test('player sheet access disabled by default, capability is read-only',async()=
  });
  assert.throws(()=>createAuthHttpHandler({
   origin,login:async()=>{},getSessionUser:async()=>null,revokeSession:async()=>{},
-  playerCharacters:{list:async()=>({characters:[]})},
+  playerCharacters:{list:async()=>({characters:[]}),listCampaigns:async()=>({campaigns:[]})},
  }),/require assignments/);
 });
 test('player-specific read trusts cookie only, never parameters; no write endpoint',async()=>{
  const calls=[];
- await serve(handler({list:async(...args)=>{calls.push(args);return {characters:[]};}}),async base=>{
+ await serve(handler({
+  list:async(...args)=>{calls.push(['chars',...args]);return {characters:[]};},
+  listCampaigns:async(...args)=>{calls.push(['campaigns',...args]);return {campaigns:[]};},
+ }),async base=>{
   const url=base+'/vtt/player-characters?campaignId='+campaign;
+  assert.equal((await fetch(base+'/vtt/player-campaigns')).status,401);
+  assert.equal((await fetch(base+'/vtt/player-campaigns',{headers:{cookie}})).status,200);
+  assert.equal((await fetch(base+'/vtt/player-campaigns?userId=forged',{headers:{cookie}})).status,404);
   assert.equal((await fetch(url)).status,401);
   assert.equal((await fetch(url,{headers:{cookie}})).status,200);
   assert.equal((await fetch(url+'&playerId=forged',{headers:{cookie}})).status,400);
@@ -49,5 +55,5 @@ test('player-specific read trusts cookie only, never parameters; no write endpoi
   const caps=await (await fetch(base+'/vtt/bootstrap',{headers:{cookie}})).json();
   assert.deepEqual(caps.capabilities.playerCharacters,{read:true,write:false});
  });
- assert.deepEqual(calls,[[player,campaign]]);
+ assert.deepEqual(calls,[['campaigns',player],['chars',player,campaign]]);
 });

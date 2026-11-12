@@ -8,6 +8,16 @@ const map=row=>({
 export function createPlayerCharacterService({pool}){
  if(typeof pool?.query!=='function')throw new TypeError('PostgreSQL pool required');
  return {
+  async listCampaigns(playerId){
+   if(typeof playerId!=='string'||!UUID.test(playerId))
+    throw new CampaignRejected('Utente non valido',400);
+   const {rows}=await pool.query(
+    'SELECT * FROM hollowgate_vtt.list_joined_player_campaigns($1)',[playerId]);
+   return {campaigns:rows.map(r=>({
+    id:r.id,ownerId:r.owner_id,name:r.name,description:r.description,
+    ruleset:r.ruleset,createdAt:r.created_at,
+   }))};
+  },
   async list(playerId,campaignId){
    if(typeof playerId!=='string'||!UUID.test(playerId)||
       typeof campaignId!=='string'||!UUID.test(campaignId))

@@ -289,3 +289,10 @@
  background:var(--dash-surface);color:var(--dash-text);
  border:1px solid var(--dash-border-soft);border-radius:8px}
 .aruba-assignment-label select:disabled{opacity:.55}
+
+.aruba-player-owned-campaigns{margin-bottom:24px;padding:16px;border:1px solid var(--dash-border-soft);border-radius:12px}
+.aruba-player-owned-campaigns h2{font-size:18px;margin:0 0 8px}
+.aruba-player-campaign-button{margin:6px 8px 6px 0;padding:8px 12px;border:1px solid var(--dash-border-soft);border-radius:8px;background:transparent;color:var(--dash-text)}
+.aruba-player-campaign-button[aria-pressed="true"]{border-color:var(--dash-accent);color:var(--dash-accent-2)}
+.aruba-player-character-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-top:14px}
+.aruba-player-character-open{cursor:pointer}

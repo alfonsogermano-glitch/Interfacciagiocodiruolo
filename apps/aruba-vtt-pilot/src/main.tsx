@@ -12,9 +12,10 @@ import {ArubaSessionRightRail} from './ArubaSessionRightRail';
 import {ArubaSessionCharactersPanel} from './ArubaSessionCharactersPanel';
 import {ArubaCampaignCharacterCards,type SessionEntityOpenRequest} from './ArubaCampaignCharacterCards';
 import {ArubaCampaignPlayerRows} from './ArubaCampaignPlayerRows';
+import {ArubaAssignedCharacterPanel} from './ArubaAssignedCharacterPanel';
 import {HouseIcon,UsersThreeIcon,ScrollIcon,GitBranchIcon,PlayIcon,FileTextIcon,IdentificationBadgeIcon,GhostIcon,LightbulbIcon,BookmarkSimpleIcon,MapTrifoldIcon,ImageIcon,SwordIcon} from '@phosphor-icons/react';
 
-type PilotUser={id:string;email:string;displayName:string;role:'admin'|'standard';characterAvailabilityEnabled:boolean;characterAssignmentsEnabled:boolean;campaignsEnabled:boolean;charactersEnabled:boolean;entityNotesEnabled:boolean;campaignNotesEnabled:boolean;campaignNoteFoldersEnabled:boolean;originalNotesPanelEnabled:boolean;campaignRosterEnabled:boolean};
+type PilotUser={id:string;email:string;displayName:string;role:'admin'|'standard';characterAvailabilityEnabled:boolean;characterAssignmentsEnabled:boolean;playerCharactersEnabled:boolean;campaignsEnabled:boolean;charactersEnabled:boolean;entityNotesEnabled:boolean;campaignNotesEnabled:boolean;campaignNoteFoldersEnabled:boolean;originalNotesPanelEnabled:boolean;campaignRosterEnabled:boolean};
 type Campaign={id:string;ownerId:string;name:string;description:string;ruleset:string;createdAt:string};
 type Status={state:'loading'}|{state:'unauthorized'}|{state:'error'}|{state:'ready';user:PilotUser};
 type Section='home'|'campaigns'|'characters'|'session'|'chapters'|'preparation'|'sheets'|'npcs'|'monsters'|'clues'|'equipment'|'map'|'situations'|'phases'|'combat'|'assets';
@@ -189,6 +190,7 @@ function App(){
       {user.campaignsEnabled&&<p className="footnote">Le campagne Aruba sono nuove e separate dai dati storici Supabase. Le partecipazioni dei giocatori non sono ancora abilitate.</p>}
     </>}
     {section==='characters'&&<>
+      {user.playerCharactersEnabled&&<ArubaAssignedCharacterPanel />}
       {user.charactersEnabled?
        <ArubaCharacterDrafts campaigns={campaigns} activeCampaignId={activeCampaignId} ownerId={user.id}
         catalogRevision={characterCatalogRevision} onOpenDetail={(id,campaignId)=>setEntityDetail({kind:'characters-detail',entityType:'character',id,campaignId})}/>:
