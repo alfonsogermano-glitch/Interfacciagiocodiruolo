@@ -266,3 +266,18 @@ Come le altre cartelle, rimangono completamente inattive sul VPS
 senza il flag `AUTH_VTT_CAMPAIGN_NOTE_FOLDERS_ENABLED` e le migrazioni.
 La UI originale e il flusso ripristino dal Cestino richiedono
 ulteriore lavoro.
+
+## Client Aruba cartelle — adattamento al contratto UI originale
+
+Il modulo `apps/aruba-vtt-pilot/src/campaign-folders-client.mjs`
+espone il trasporto cookie per elenco, creazione, cambio di nome/genitore,
+icona/posizione e archiviazione semplice/con contenuto. I campi dei record
+sono mappati sui nomi `Folder` originali (`entityType`,
+`campaignId`, `parentFolderId`) e gli update parziali rileggono
+prima la cartella autorizzata, perché le routine Aruba richiedono
+una coppia completa nome+genitore oppure icona+posizione.
+L'adapter non accetta ownerId, ruoli, Bearer/Supabase, né oggetti
+di una sezione diversa da `gmnotes` o `campaignnotes`.
+`validateBootstrap` verifica anche `campaignNoteFolders` e richiede
+`campaignNotes` abilitato prima di accettare la capability.
+La UI originale NON è ancora montata e il VPS non è stato modificato.
