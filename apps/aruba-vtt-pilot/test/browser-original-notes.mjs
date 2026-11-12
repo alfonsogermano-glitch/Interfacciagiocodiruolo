@@ -185,7 +185,8 @@ try{
   await page.getByRole('button',{name:'Apri scheda di Mara di prova'}).waitFor();
   await page.getByRole('button',{name:'Apri scheda di Mara di prova'}).click();
   try{
-   await page.locator('[data-entity-context="characters-detail"]').waitFor({timeout:6000});
+   await page.locator('[data-entity-context="characters-detail"]').waitFor({state:'attached',timeout:6000});
+   await page.getByRole('region',{name:'Scheda di Mara di prova'}).waitFor({timeout:6000});
   }catch(e){
    console.error('CHARACTER_OPEN_DEBUG',JSON.stringify({
     text:(await page.locator('body').innerText()).slice(0,1900),
