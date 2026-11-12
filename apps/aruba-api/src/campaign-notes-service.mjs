@@ -18,6 +18,7 @@ const exact=(value,fields)=>{
 const map=row=>({
  id:row.id,title:row.title,contentRich:row.content_rich,
  parentId:row.parent_note_id,position:row.tab_position,visibility:row.visibility,
+ scope:row.scope??'shared',folderId:row.folder_id??null,
 });
 export function createCampaignNotesService({pool}){
  if(typeof pool?.query!=='function')throw new TypeError('PostgreSQL pool required');
@@ -35,21 +36,27 @@ export function createCampaignNotesService({pool}){
   id(userId,'Utente');id(campaignId,'Campagna');
   if(parentId!==null)id(parentId,'Nota padre');
   const {rows}=await pool.query(
-   'SELECT * FROM hollowgate_vtt.list_member_campaign_notes($1,$2,$3)',
+   'SELECT * FROM hollowgate_vtt.list_member_campaign_notes_with_folders($1,$2,$3)',
    [userId,campaignId,parentId]);
   return {notes:rows.map(map)};
  }
  async function create(ownerId,campaignId,data){
   id(ownerId,'Utente');id(campaignId,'Campagna');
-  exact(data,['title','parentId']);
+  exact(data,data.scope===undefined?['title','parentId']:['title','parentId','scope']);
   const title=name(data.title);
   const parent=data.parentId===null?null:id(data.parentId,'Nota padre');
+  if(data.scope!==undefined &&
+   (!['gm','shared'].includes(data.scope)||parent!==null))
+   throw new CampaignRejected('Sezione Nota non valida',400);
+  const rootScope=data.scope??'shared';
   const {rows}=await pool.query(
-   'SELECT hollowgate_vtt.create_owned_campaign_note($1,$2,$3,$4) AS id',
-   [ownerId,campaignId,title,parent]);
+   parent===null?
+    'SELECT hollowgate_vtt.create_owned_campaign_note_scoped($1,$2,$3,$4) AS id':
+    'SELECT hollowgate_vtt.create_owned_campaign_note($1,$2,$3,$4) AS id',
+   [ownerId,campaignId,title,parent===null?rootScope:parent]);
   const noteId=rows[0]?.id;
   if(!noteId)throw new CampaignRejected('Nota non trovata o non autorizzata',404);
-  const notes=await list(ownerId,campaignId,parent);
+  const notes=await listForMember(ownerId,campaignId,parent);
   const note=notes.notes.find(item=>item.id===noteId);
   if(!note)throw new Error('Created note missing from authorized list');
   return {note};
@@ -75,6 +82,16 @@ export function createCampaignNotesService({pool}){
   // Never reread only the root list: that would drop saved child tabs.
   return {savedId:noteId};
  }
+ async function moveToFolder(ownerId,campaignId,noteId,folderId){
+  [ownerId,campaignId,noteId].forEach((value,i)=>id(value,['Utente','Campagna','Nota'][i]));
+  if(folderId!==null)id(folderId,'Cartella');
+  const {rows}=await pool.query(
+   'SELECT hollowgate_vtt.assign_owned_campaign_note_folder($1,$2,$3,$4) AS id',
+   [ownerId,campaignId,noteId,folderId]);
+  if(rows[0]?.id!==noteId)
+   throw new CampaignRejected('Nota o cartella non trovata o non autorizzata',404);
+  return {noteId,folderId};
+ }
  async function archive(ownerId,campaignId,noteId){
   [ownerId,campaignId,noteId].forEach((v,i)=>id(v,['Utente','Campagna','Nota'][i]));
   const {rows}=await pool.query(
@@ -84,5 +101,5 @@ export function createCampaignNotesService({pool}){
    throw new CampaignRejected('Nota non trovata o non autorizzata',404);
   return {archivedId:noteId};
  }
- return {list,listForMember,create,save,archive};
+ return {list,listForMember,create,save,archive,moveToFolder};
 }

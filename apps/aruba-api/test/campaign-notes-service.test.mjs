@@ -10,7 +10,7 @@ test('campaign note service uses only owner-scoped routines and separate note ID
  const pool={query:async(sql,args)=>{
   calls.push({sql,args});
   if(sql.includes('create_owned_campaign_note'))return {rows:[{id:child}]};
-  if(sql.includes('list_owned_campaign_notes'))return {rows:[{
+  if(sql.includes('list_member_campaign_notes_with_folders'))return {rows:[{
    id:child,title:'Pagina',parent_note_id:parent,content_rich:{type:'doc'},
    tab_position:2,visibility:'private',
   }]};
@@ -54,10 +54,39 @@ test('member reads use the database membership and privacy gate, never owner-onl
  }}});
  const result=await notes.listForMember(member,campaign,parent);
  assert.deepEqual(result.notes,[{id:child,title:'Condivisa',contentRich:{type:'doc'},
-  parentId:parent,position:0,visibility:'all'}]);
+  parentId:parent,position:0,visibility:'all',scope:'shared',folderId:null}]);
  assert.match(calls[0][0],/list_member_campaign_notes/);
  assert.doesNotMatch(calls[0][0],/list_owned_campaign_notes/);
  assert.deepEqual(calls[0][1],[member,campaign,parent]);
  await assert.rejects(()=>notes.listForMember(member,campaign,'bad'),e=>e.status===400);
  assert.equal(calls.length,1,'Invalid parent must not query DB');
+});
+
+test('owner can create a GM container but not force GM scope onto a child',async()=>{
+ const calls=[];
+ const notes=createCampaignNotesService({pool:{query:async(sql,args)=>{
+  calls.push([sql,args]);
+  if(sql.includes('create_owned_campaign_note_scoped'))return {rows:[{id:parent}]};
+  return {rows:[{id:parent,title:'Segreto',content_rich:null,
+   parent_note_id:null,tab_position:0,visibility:'private',scope:'gm',folder_id:null}]};
+ }}});
+ const created=await notes.create(owner,campaign,{title:'Segreto',parentId:null,scope:'gm'});
+ assert.equal(created.note.scope,'gm');
+ assert.match(calls[0][0],/create_owned_campaign_note_scoped/);
+ assert.deepEqual(calls[0][1],[owner,campaign,'Segreto','gm']);
+ assert.match(calls[1][0],/list_member_campaign_notes_with_folders/);
+ await assert.rejects(()=>notes.create(owner,campaign,{title:'Figlio',parentId:parent,scope:'gm'}),e=>e.status===400);
+ assert.equal(calls.length,2);
+});
+test('note folder move requires authenticated owner and database confirmation',async()=>{
+ const calls=[];
+ const notes=createCampaignNotesService({pool:{query:async(sql,args)=>{
+  calls.push([sql,args]);return {rows:[{id:child}]};
+ }}});
+ assert.deepEqual(await notes.moveToFolder(owner,campaign,child,parent),
+  {noteId:child,folderId:parent});
+ assert.deepEqual(calls[0][1],[owner,campaign,child,parent]);
+ await assert.rejects(()=>notes.moveToFolder(owner,campaign,child,'bad'),e=>e.status===400);
+ const denied=createCampaignNotesService({pool:{query:async()=>({rows:[{id:null}]})}});
+ await assert.rejects(()=>denied.moveToFolder(owner,campaign,child,parent),e=>e.status===404);
 });

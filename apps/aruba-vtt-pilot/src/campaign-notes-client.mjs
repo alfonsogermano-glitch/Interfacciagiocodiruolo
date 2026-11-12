@@ -21,7 +21,11 @@ function normalize(note,campaignId,parentId){
   (note.parentId!==null&&!UUID.test(note.parentId)))
   throw Error('Documento Note non valido');
  if(note.parentId!==parentId)throw Error('Sottoscheda di una nota differente');
- return Object.freeze({...note,campaignId});
+ if(note.scope!==undefined&&!['shared','gm'].includes(note.scope))throw Error('Sezione Nota non valida');
+ if(note.folderId!==undefined&&note.folderId!==null&&!UUID.test(note.folderId))
+  throw Error('Cartella Nota non valida');
+ return Object.freeze({...note,scope:note.scope??'shared',
+  folderId:note.folderId??null,campaignId});
 }
 export async function listArubaCampaignNotes(fetcher,campaignId,parentId=null){
  safeId(campaignId,'Campagna');if(parentId!==null)safeId(parentId,'Nota padre');
@@ -32,11 +36,13 @@ export async function listArubaCampaignNotes(fetcher,campaignId,parentId=null){
  if(new Set(notes.map(n=>n.id)).size!==notes.length)throw Error('Note duplicate');
  return notes;
 }
-export async function createArubaCampaignNote(fetcher,campaignId,title,parentId=null){
+export async function createArubaCampaignNote(fetcher,campaignId,title,parentId=null,scope=undefined){
  safeId(campaignId,'Campagna');if(parentId!==null)safeId(parentId,'Nota padre');
  if(typeof title!=='string'||!title.trim()||title.trim().length>120)throw Error('Titolo Nota non valido');
+ if(scope!==undefined && (!['gm','shared'].includes(scope)||parentId!==null))
+  throw Error('Sezione Nota non valida');
  const data=await json(await fetcher('/vtt/campaign-notes',opts('POST',
-  {campaignId,title:title.trim(),parentId})));
+  {campaignId,title:title.trim(),parentId,...(scope===undefined?{}:{scope})})));
  return normalize(data.note,campaignId,parentId);
 }
 export async function saveArubaCampaignNote(fetcher,campaignId,note){
@@ -57,4 +63,14 @@ export async function archiveArubaCampaignNote(fetcher,campaignId,noteId){
  const data=await json(await fetcher('/vtt/campaign-notes/'+noteId,opts('DELETE',{campaignId})));
  if(data.archivedId!==noteId)throw Error('Archiviazione Nota non confermata');
  return noteId;
+}
+
+export async function moveArubaCampaignNoteToFolder(fetcher,campaignId,noteId,folderId){
+ safeId(campaignId,'Campagna');safeId(noteId,'Nota');
+ if(folderId!==null)safeId(folderId,'Cartella');
+ const data=await json(await fetcher('/vtt/campaign-notes/folder/'+noteId,
+  opts('PATCH',{campaignId,folderId})));
+ if(data.noteId!==noteId||data.folderId!==folderId)
+  throw Error('Spostamento Nota non confermato');
+ return folderId;
 }

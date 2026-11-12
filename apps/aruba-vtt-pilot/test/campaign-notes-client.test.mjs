@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {listArubaCampaignNotes,createArubaCampaignNote,saveArubaCampaignNote,archiveArubaCampaignNote}
+import {listArubaCampaignNotes,createArubaCampaignNote,saveArubaCampaignNote,archiveArubaCampaignNote,moveArubaCampaignNoteToFolder}
  from '../src/campaign-notes-client.mjs';
 const campaign='be2f1a87-b8ee-4b34-9da0-07efda11379a';
 const parent='aa2f1a87-b8ee-4b34-9da0-07efda11379a';
@@ -42,4 +42,26 @@ test('campaign note transport rejects mismatched parents and bad confirmations',
  await assert.rejects(()=>saveArubaCampaignNote(async()=>{},campaign,{...note,campaignId:campaign,contentRich:{text:'x'.repeat(50000)}}),/non validi/);
  await assert.rejects(()=>saveArubaCampaignNote(async()=>json({savedId:parent}),campaign,{...note,campaignId:campaign}),/non confermato/);
  await assert.rejects(()=>archiveArubaCampaignNote(async()=>json({archivedId:parent}),campaign,child),/non confermata/);
+});
+
+test('client keeps GM scope, folder IDs, and only trusted same-origin move body',async()=>{
+ const campaignId=campaign,folderId=parent;
+ const root={id:child,title:'Diario GM',parentId:null,contentRich:{type:'doc'},
+  position:0,visibility:'private',scope:'gm',folderId:null};
+ const calls=[];
+ const fetcher=async(path,options)=>{
+  calls.push({path,options});
+  return json(options.method==='POST'?{note:root}:{noteId:child,folderId});
+ };
+ const created=await createArubaCampaignNote(fetcher,campaignId,'Diario GM',null,'gm');
+ assert.equal(created.scope,'gm');
+ assert.equal(created.folderId,null);
+ assert.equal(JSON.parse(calls[0].options.body).scope,'gm');
+ await moveArubaCampaignNoteToFolder(fetcher,campaignId,child,folderId);
+ assert.equal(calls[1].path,'/vtt/campaign-notes/folder/'+child);
+ assert.deepEqual(JSON.parse(calls[1].options.body),{campaignId,folderId});
+ assert.equal(calls[1].options.credentials,'same-origin');
+ await assert.rejects(()=>createArubaCampaignNote(fetcher,campaign,'Figlio',parent,'gm'),/non valida/);
+ await assert.rejects(()=>moveArubaCampaignNoteToFolder(fetcher,campaign,child,'invalid'),/non valido/);
+ await assert.rejects(()=>listArubaCampaignNotes(async()=>json({notes:[{...root,scope:'unknown'}]}),campaign),/non valida/);
 });

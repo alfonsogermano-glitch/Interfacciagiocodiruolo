@@ -97,3 +97,32 @@ test('campaign note HTTP rejects an implementation lacking member-scoped reads',
   campaigns,campaignNotes:{list:async()=>{},create:async()=>{},save:async()=>{},archive:async()=>{}},
  }),/Invalid campaign notes service/);
 });
+
+test('root GM Note creation and folder moves are session scoped and CSRF protected',async()=>{
+ const calls=[];
+ const notes={
+  listForMember:async()=>({notes:[]}),
+  create:async(...args)=>{calls.push(['create',...args]);return {note:{id:parent}};},
+  save:async()=>{},archive:async()=>{},
+  moveToFolder:async(...args)=>{calls.push(['move',...args]);return {noteId:parent,folderId:parent};},
+ };
+ await server(notes,async base=>{
+  const path=base+'/vtt/campaign-notes';
+  const root={campaignId:campaign,title:'Segreti',parentId:null,scope:'gm'};
+  assert.equal((await fetch(path,{method:'POST',headers:header,
+   body:JSON.stringify(root)})).status,201);
+  const bad={campaignId:campaign,title:'Figlio',parentId:parent,scope:'gm'};
+  assert.equal((await fetch(path,{method:'POST',headers:header,
+   body:JSON.stringify({...bad,ownerId:owner})})).status,400);
+  const movePath=path+'/folder/'+parent;
+  assert.equal((await fetch(movePath,{method:'PATCH',headers:cookie})).status,403);
+  assert.equal((await fetch(movePath,{method:'PATCH',headers:header,
+   body:JSON.stringify({campaignId:campaign,folderId:parent,role:'gm'})})).status,400);
+  assert.equal((await fetch(movePath,{method:'PATCH',headers:header,
+   body:JSON.stringify({campaignId:campaign,folderId:parent})})).status,200);
+ });
+ assert.deepEqual(calls,[
+  ['create',owner,campaign,{title:'Segreti',parentId:null,scope:'gm'}],
+  ['move',owner,campaign,parent,parent],
+ ]);
+});

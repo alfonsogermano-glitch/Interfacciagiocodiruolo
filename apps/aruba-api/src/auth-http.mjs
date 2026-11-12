@@ -283,10 +283,24 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         const body=await readJson(req,65536);
         if(req.method==='POST'){
           if(req.url!=='/vtt/campaign-notes'||
-             Object.keys(body).sort().join(',')!=='campaignId,parentId,title')
+             !['campaignId,parentId,title','campaignId,parentId,scope,title']
+             .includes(Object.keys(body).sort().join(',')))
             throw new HttpProblem(400,'Creazione nota non valida');
           return response(res,201,await campaignNotes.create(user.id,body.campaignId,
-            {title:body.title,parentId:body.parentId}));
+            body.scope===undefined?
+              {title:body.title,parentId:body.parentId}:
+              {title:body.title,parentId:body.parentId,scope:body.scope}));
+        }
+        if(req.method==='PATCH' &&
+           req.url?.startsWith('/vtt/campaign-notes/folder/')){
+          const movingId=req.url.slice('/vtt/campaign-notes/folder/'.length);
+          if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(movingId))
+            throw new HttpProblem(400,'Nota non valida');
+          if(Object.keys(body).sort().join(',')!=='campaignId,folderId' ||
+             typeof campaignNotes.moveToFolder!=='function')
+            throw new HttpProblem(400,'Spostamento Nota non valido');
+          return response(res,200,await campaignNotes.moveToFolder(
+            user.id,body.campaignId,movingId,body.folderId));
         }
         const noteId=req.url?.startsWith('/vtt/campaign-notes/')?
           req.url.slice('/vtt/campaign-notes/'.length):'';

@@ -224,3 +224,21 @@ Nessuna modifica distruttiva ai documenti TipTap esistenti.
 **CI isolata soltanto**: API HTTP per spostamento, archiviazione delle
 cartelle, riordino/icona e montaggio della UI originale ancora da completare.
 Non installare lo schema 018 sul VPS finché l'intero percorso non è collaudato.
+
+## API e client per spostamenti Note/cartelle — integrazione 018
+
+`GET /vtt/campaign-notes` usa `list_member_campaign_notes_with_folders`,
+che espone sezione e cartella soltanto dopo la verifica nel database.
+`POST /vtt/campaign-notes` accetta scope `gm|shared` opzionale SOLO per
+note principali; le sotto-tab ereditano la sezione del padre.
+`PATCH /vtt/campaign-notes/folder/:id` assegna o rimuove la cartella
+(`folderId=null`) tramite `assign_owned_campaign_note_folder`,
+verificando campagna, sezione e proprietà server-side.
+Il client Aruba mantiene cookie same-origin, conferma delle scritture
+e controlli incrociati su identificativi di nota e cartella.
+
+Nessuna di queste rotte è disponibile senza
+`AUTH_VTT_CAMPAIGN_NOTES_ENABLED=true`; schema 018 NON viene installato
+sul VPS, e il VTT originale non è ancora montato. Manca tuttora la
+gestione completa cartelle (archivio/cascade, drag, riordino e icone)
+e il modello di scrittura per-GM/per-creatore oltre all'owner.
