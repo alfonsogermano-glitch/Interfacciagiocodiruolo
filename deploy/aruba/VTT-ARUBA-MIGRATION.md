@@ -169,3 +169,20 @@ La UI originale `useCampaignNotesSection` usa cartelle, le sezioni GM/shared,
 `NoteListRow` e `NoteSubTabs`. **Non è stata ancora montata**: occorre
 prima supportare sul backend cartelle e permessi di scrittura per nota,
 senza costruire una lista semplificata sostitutiva. Nessun deploy sul VPS.
+
+## Schema 017 — Cartelle originali Note (ancora solo CI)
+
+La nuova tabella `campaign_note_folders` supporta scope indipendenti
+`gm` e `shared`, annidamento fino a cinque livelli, nome, icona, posizione,
+e autorizzazione basata sul ruolo verificato nella campagna.
+Le routine SQL sono `list_member_note_folders`,
+`create_owned_note_folder` e `update_owned_note_folder`.
+L'aggiornamento impedisce cicli, sforamento del limite a 5 livelli,
+spostamenti fra scope e campagne e modifiche da parte di non proprietari.
+I membri revocati e i giocatori non leggono le cartelle GM.
+
+**Non ancora operativa in UI**: prima del montaggio dell'originale
+`useFolderSection` servono assegnazione effettiva delle Note alle cartelle,
+gestione archivio/cascade, riordino/icon picker e endpoint HTTP. Nessun
+servizio Supabase originale viene importato nel bundle Aruba, nessun SQL
+017 sul VPS e nessuna attivazione nel bootstrap.
