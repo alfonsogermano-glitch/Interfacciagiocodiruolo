@@ -30,7 +30,7 @@ export function maskArubaSessionNotesTrashHeader(source){
  if(typeof source!=='string')throw TypeError('Notes panel source required');
  let result=removeOnce(source,
   '                extraAction={\n                  openSections.trash && trash.count > 0 ? (',
-  '\n                 }',
+  '\n                }',
   'Original trash header restore-all/empty actions');
  result=result.replace('                onToggle={() => toggleSection(\'trash\')}',
   '                onToggle={() => toggleSection(\'trash\')}\n                extraAction={undefined}');
