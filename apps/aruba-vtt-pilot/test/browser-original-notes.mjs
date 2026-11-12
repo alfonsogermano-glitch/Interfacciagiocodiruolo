@@ -35,7 +35,8 @@ function mockApi(page,{enabled=true,authorized=true}={}){
  page.route('**/vtt/**',async route=>{
   const request=route.request(),url=new URL(request.url());
   const path=url.pathname,method=request.method();
-  const body=request.postDataJSON?.()??{};
+  const raw=request.postData();
+  const body=raw?JSON.parse(raw):{};
   store.requests.push({path,method,body});
   if(path==='/vtt/bootstrap')return send(route,authorized?200:401,
    authorized?capability(enabled):{error:'Non autenticato'});
@@ -103,7 +104,14 @@ try{
   page.on('pageerror',e=>errors.push('unauthenticated '+e.message));
   mockApi(page,{authorized:false});
   await page.goto(base,{waitUntil:'domcontentloaded'});
-  await page.getByText('Il varco è chiuso').waitFor();
+  try{await page.getByText('Il varco è chiuso').waitFor({timeout:7000});}
+  catch(error){
+   console.error('UNAUTORED BROWSER STATE',JSON.stringify({
+    url:page.url(),body:(await page.locator('body').innerText()).slice(0,1800),
+    errors,requests:(await page.evaluate(()=>performance.getEntriesByType('resource').map(x=>x.name))).slice(-10),
+   }));
+   throw error;
+  }
   assert.equal(await page.getByRole('button',{name:'Note',exact:true}).count(),0);
   await page.close();
  }
