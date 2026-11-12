@@ -6,6 +6,7 @@ import './legacy-wizard.css';
 import IconStudy from './icon-study';
 import {ArubaQuickDice} from './ArubaQuickDice';
 import {ArubaCharacterDrafts} from './ArubaCharacterDrafts';
+import {ArubaCharacterDetailPanel} from './ArubaCharacterDetailPanel';
 import {HouseIcon,UsersThreeIcon,ScrollIcon,GitBranchIcon,PlayIcon,FileTextIcon,IdentificationBadgeIcon,GhostIcon,LightbulbIcon,BookmarkSimpleIcon,MapTrifoldIcon,ImageIcon,SwordIcon} from '@phosphor-icons/react';
 
 type PilotUser={id:string;email:string;displayName:string;role:'admin'|'standard';campaignsEnabled:boolean;charactersEnabled:boolean};
@@ -37,6 +38,10 @@ const menu=[...leftMenu,...gmMenu];
 function App(){
  const [status,setStatus]=useState<Status>({state:'loading'});
  const [section,setSection]=useState<Section>('home');
+ // Same architectural contract as original App.tsx/rightSidebarContext.
+ // Detail selection belongs to App, not to the catalog or a legacy inline sheet.
+ const [entityDetail,setEntityDetail]=useState<{kind:'characters-detail';entityType:'character';id:string;campaignId:string}|null>(null);
+ const [characterCatalogRevision,setCharacterCatalogRevision]=useState(0);
  const [campaigns,setCampaigns]=useState<Campaign[]>([]);
  const [activeCampaignId,setActiveCampaignId]=useState<string|null>(null);
  const [campaignError,setCampaignError]=useState<string|null>(null);
@@ -56,7 +61,7 @@ function App(){
  const activeCampaign=user?.campaignsEnabled?campaigns.find(c=>c.id===activeCampaignId&&c.ownerId===user.id)??null:null;
  function openCampaign(id:string){
   if(!user?.campaignsEnabled||!campaigns.some(c=>c.id===id&&c.ownerId===user.id))return;
-  setActiveCampaignId(id);setSection('campaigns');
+  setActiveCampaignId(id);setSection('campaigns');setEntityDetail(null);
  }
  useEffect(()=>{
   if(!user?.campaignsEnabled)return;
@@ -119,7 +124,7 @@ function App(){
     {leftMenu.map(({id,label,Icon})=><button key={id} type="button" aria-label={label}
       aria-current={section===id?'page':undefined}
       className={'primary-link'+(section===id?' active':'')}
-      onClick={()=>setSection(id)}><Icon size={22} weight="duotone" aria-hidden="true"/><span>{label}</span></button>)}
+      onClick={()=>{setSection(id);setEntityDetail(null);}}><Icon size={22} weight="duotone" aria-hidden="true"/><span>{label}</span></button>)}
    </nav>
    <div className="primary-campaigns" aria-label="Campagne">
     {campaigns.slice(0,4).map(c=><button key={c.id} type="button" title={c.name}
@@ -166,7 +171,8 @@ function App(){
     </>}
     {section==='characters'&&<>
       {user.charactersEnabled?
-       <ArubaCharacterDrafts campaigns={campaigns} activeCampaignId={activeCampaignId} ownerId={user.id}/>:
+       <ArubaCharacterDrafts campaigns={campaigns} activeCampaignId={activeCampaignId} ownerId={user.id}
+        catalogRevision={characterCatalogRevision} onOpenDetail={(id,campaignId)=>setEntityDetail({kind:'characters-detail',entityType:'character',id,campaignId})}/>:
        <div className="empty">Servizio personaggi in preparazione.</div>}
     </>}
     {!['home','campaigns','characters'].includes(section)&&<>
@@ -182,12 +188,19 @@ function App(){
   {section!=='characters'&&<aside className="gm-sidebar" aria-label="Strumenti Game Master">
    {gmMenu.map(({id,label,Icon},i)=><div key={id} className={i===7?'gm-group-break':''}>
     <button type="button" aria-label={label} aria-current={section===id?'page':undefined}
-      className={'gm-link'+(section===id?' active':'')} onClick={()=>setSection(id)}>
+      className={'gm-link'+(section===id?' active':'')} onClick={()=>{setSection(id);setEntityDetail(null);}}>
       <Icon size={19} weight="duotone" aria-hidden="true"/><span>{label}</span>
     </button></div>)}
   </aside>}
    </div>
   </div>
+  {section==='characters'&&entityDetail&&user.charactersEnabled&&
+   <ArubaCharacterDetailPanel key={entityDetail.campaignId+':'+entityDetail.id}
+    characterId={entityDetail.id} campaignId={entityDetail.campaignId} ownerId={user.id}
+    onClose={()=>setEntityDetail(null)}
+    onChanged={()=>setCharacterCatalogRevision(n=>n+1)}
+    onArchived={()=>{setCharacterCatalogRevision(n=>n+1);setEntityDetail(null);}}
+   />}
   {activeCampaign&&<ArubaQuickDice campaignId={activeCampaign.id} userId={user.id} rollerName={user.displayName}/>}
   {showEdit&&activeCampaign&&user.campaignsEnabled&&<div className="modal-backdrop" role="presentation" onClick={()=>setShowEdit(false)}>
     <form onSubmit={event=>void editCampaign(event)} className="modal" aria-label="Modifica campagna" onClick={event=>event.stopPropagation()} key={activeCampaign.id}>

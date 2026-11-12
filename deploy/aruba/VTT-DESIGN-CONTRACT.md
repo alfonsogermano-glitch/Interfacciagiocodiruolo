@@ -10,3 +10,11 @@ Le icone **Phosphor Duotone** della navigazione sono state approvate: nel portal
 Obiettivo: sito utilizzabile il più presto possibile. Non lavorare su redesign generali mentre la migrazione delle funzioni è incompleta.
 
 **Posizione vincolante della barra destra:** come nell'originale `AppShell`, la barra superiore occupa tutta l'area a destra della navigazione principale (compresi gli 80 px della futura barra GM). La colonna GM comincia solo **sotto** la barra superiore; la colonna sinistra da 100 px resta a tutta altezza. La zona centrale e la colonna GM scorrono indipendentemente. Non simulare il risultato con margini o overlay.
+
+## Contratto di integrazione delle entità — NON ripristinare pagine legacy
+
+Nel VTT originale il flusso è `App.tsx/rightSidebarContext` → `MyCharactersPage.tsx` → card `onOpenDetail` → pannello `SlideOverPanel` → `EntityDetailView` con rail contestuale `EntityDetailRail` (Scheda/Immagine/Token). La rail è fixed e non modifica la larghezza della griglia centrale. Nel contesto di sessione esiste invece `SessionRightSidebar` e il pannello Schede della sessione: condividono il modello di entità ma **non devono essere scambiati**.
+
+Primo riallineamento Aruba: il contesto di dettaglio è stato **sollevato all'App**, il clic sulla card apre la vera `SlideOverPanel` e la vera `EntityDetailRail` invece di aggiungere una scheda sotto l'archivio. Il dettaglio è caricato nuovamente tramite l'API Aruba e l'identità della sessione. **Attenzione: contenuto Scheda ancora temporaneo**: fino all'integrazione completa di `EntityDetailView` con i servizi Aruba, `ArubaPersistedSheet` riutilizza il precedente tracker HSC (che salva correttamente) *esclusivamente all'interno* del pannello. Immagine e Token indicano esplicitamente la dipendenza dallo storage non ancora migrato. Non presentare questa versione come parità funzionale, non chiedere il deploy né rimuovere lo staging precedente prima di integrare la vista moderna.
+
+L'obiettivo successivo è l'estrazione/riuso integrale di `EntityDetailView` con adapter per immagini, token, note e schede custom; evitare di importarlo con chiamate Supabase vive o di ricrearne versioni ridotte scollegate dai pannelli. Testare insieme apertura/chiusura, contesto, cambio tab, lettura/salvataggio e sincronizzazione con la lista.

@@ -215,7 +215,7 @@ test('Aruba full-sheet client preserves original mechanics but does not trust wi
 });
 
 test('original complete character sheet uses real Aruba save and owner-only soft archive',async()=>{
- const source=readFileSync(new URL('../src/ArubaCharacterDrafts.tsx',import.meta.url),'utf8');
+ const source=readFileSync(new URL('../src/ArubaCharacterDetailPanel.tsx',import.meta.url),'utf8');
  const original=readFileSync(new URL('../../../src/app/components/CompleteCharacterSheet.tsx',import.meta.url),'utf8');
  const vite=readFileSync(new URL('../vite.config.mjs',import.meta.url),'utf8');
  assert.match(source,/import \{CompleteCharacterSheet\} from/);
@@ -280,7 +280,29 @@ test('global personaggi catalog loads all owned Aruba campaigns without requirin
  assert.match(main,/<ArubaCharacterDrafts campaigns=\{campaigns\} activeCampaignId=\{activeCampaignId\} ownerId=\{user.id\}/);
  assert.match(page,/Promise\.all\(campaigns.map\(c=>listCharacterDrafts\(fetch,c.id,ownerId\)\)\)/);
  assert.match(page,/campaignNameFor\(d.campaignId\)/);
- assert.match(page,/campaignId=\{viewing.campaignId\}/);
+ assert.match(page,/onOpenDetail\(d.id,d.campaignId\)/);
  assert.match(page,/Seleziona una campagna High School Cthulhu/);
  assert.doesNotMatch(page,/localStorage|sessionStorage|supabase\.from/);
+});
+
+test('catalog opens original context rail and side panel via shared App state, never inline below archive',()=>{
+ const app=readFileSync(new URL('../src/main.tsx',import.meta.url),'utf8');
+ const archive=readFileSync(new URL('../src/ArubaCharacterDrafts.tsx',import.meta.url),'utf8');
+ const bridge=readFileSync(new URL('../src/ArubaCharacterDetailPanel.tsx',import.meta.url),'utf8');
+ const originalRail=readFileSync(new URL('../../../src/app/components/session/shared/EntityDetailRail.tsx',import.meta.url),'utf8');
+ const originalPanel=readFileSync(new URL('../../../src/app/components/session/SlideOverPanel.tsx',import.meta.url),'utf8');
+ const css=readFileSync(new URL('../src/styles.css',import.meta.url),'utf8');
+ assert.match(app,/\[entityDetail,setEntityDetail\]=useState/);
+ assert.match(app,/onOpenDetail=\{\(id,campaignId\)=>setEntityDetail/);
+ assert.match(app,/<ArubaCharacterDetailPanel key=/);
+ assert.doesNotMatch(archive,/CompleteCharacterSheet|ArubaCharacterSheetView|viewingId/);
+ assert.match(archive,/onOpenDetail\(d.id,d.campaignId\)/);
+ assert.match(bridge,/import \{EntityDetailRail,type EntityDetailRailSection\} from/);
+ assert.match(bridge,/import \{SlideOverPanel\} from/);
+ assert.match(bridge,/<SlideOverPanel isOpen onClose=\{onClose\} rightOffset="80px"/);
+ assert.match(originalRail,/Scheda/);assert.match(originalRail,/Immagine/);assert.match(originalRail,/Token/);
+ assert.match(originalPanel,/data-session-slide-over/);
+ assert.match(css,/\.aruba-entity-rail\{position:fixed;top:76px;right:0;bottom:0/);
+ assert.match(css,/\.aruba-entity-overlay \[data-session-slide-over="true"\]/);
+ assert.match(bridge,/salvataggio|Salvataggio/);
 });

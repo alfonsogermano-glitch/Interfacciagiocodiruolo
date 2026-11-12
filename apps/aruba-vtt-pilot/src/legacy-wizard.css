@@ -48,3 +48,6 @@
 .aruba-character-library .aruba-character-cards>.group{min-height:115px}
 .aruba-character-library .aruba-character-cards.list>.group{min-height:64px}
 .aruba-character-library .aruba-character-cards>.group .aruba-character-edit{border-radius:50%;padding:5px}
+@source "../../../src/app/components/session/shared/EntityDetailRail.tsx";
+@source "../../../src/app/components/session/SlideOverPanel.tsx";
+@source "../../../apps/aruba-vtt-pilot/src/ArubaCharacterDetailPanel.tsx";

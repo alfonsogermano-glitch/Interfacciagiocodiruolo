@@ -1,6 +1,5 @@
-import {useEffect,useRef,useState,type FormEvent} from 'react';
-import {listCharacterDrafts,createCharacterDraft,saveFullCharacterSheet,archiveOwnedCharacter} from './client.mjs';
-import {CompleteCharacterSheet} from '../../../src/app/components/CompleteCharacterSheet';
+import {useEffect,useRef,useState} from 'react';
+import {listCharacterDrafts,createCharacterDraft,saveFullCharacterSheet} from './client.mjs';
 import {CharacterCreationWizard} from '../../../src/app/components/gm/CharacterCreationWizard';
 import {EntityFilterToolbar,type SortMode,type ViewMode} from '../../../src/app/components/session/shared/EntityFilterToolbar';
 import {EntityCard} from '../../../src/app/components/session/shared/EntityCard';
@@ -12,15 +11,15 @@ type HscCharacter=Character & {player:string;notes:string};
 type Draft={id:string;campaignId:string;ownerId:string;name:string;status:'draft'|'active';sheetData:Record<string,unknown>;createdAt?:string;updatedAt?:string};
 
 type OwnedCampaign={id:string;name:string;ruleset:string};
-export function ArubaCharacterDrafts({campaigns,activeCampaignId,ownerId}:{
- campaigns:OwnedCampaign[];activeCampaignId:string|null;ownerId:string;
+export function ArubaCharacterDrafts({campaigns,activeCampaignId,ownerId,onOpenDetail,catalogRevision}:{
+ campaigns:OwnedCampaign[];activeCampaignId:string|null;ownerId:string;catalogRevision:number;
+ onOpenDetail:(id:string,campaignId:string)=>void;
 }){
  const [drafts,setDrafts]=useState<Draft[]>([]);
  const [loading,setLoading]=useState(true);
  const [pending,setPending]=useState(false);
  const [creating,setCreating]=useState(false);
  const [editingId,setEditingId]=useState<string|null>(null);
- const [viewingId,setViewingId]=useState<string|null>(null);
  const [error,setError]=useState<string|null>(null);
  const [tab,setTab]=useState<'characters'|'npcs'|'monsters'>('characters');
  const [search,setSearch]=useState('');
@@ -35,13 +34,13 @@ export function ArubaCharacterDrafts({campaigns,activeCampaignId,ownerId}:{
  const savingRef=useRef(false);
  useEffect(()=>{
   let active=true;
-  setDrafts([]);setEditingId(null);setViewingId(null);setCreating(false);setLoading(true);setError(null);
+  setDrafts([]);setEditingId(null);setCreating(false);setLoading(true);setError(null);
   void Promise.all(campaigns.map(c=>listCharacterDrafts(fetch,c.id,ownerId))).then(groups=>{
    if(active)setDrafts(groups.flat());
   }).catch(e=>{if(active)setError(e instanceof Error?e.message:'Errore caricamento');})
    .finally(()=>{if(active)setLoading(false);});
   return ()=>{active=false;};
- },[campaigns,ownerId]);
+ },[campaigns,ownerId,catalogRevision]);
  useEffect(()=>setPage(1),[search,sort,filter,campaignFilter,statusFilter,tab,pageSize]);
  const activeCampaign=campaigns.find(c=>c.id===activeCampaignId);
  const canCreate=activeCampaign?.ruleset==='hsc';
@@ -58,7 +57,6 @@ export function ArubaCharacterDrafts({campaigns,activeCampaignId,ownerId}:{
   (Date.parse(b.createdAt??'')||0)-(Date.parse(a.createdAt??'')||0));
  const {pageItems,totalPages,safePage,startIndex,endIndex}=paginateItems(filtered,page,pageSize);
  const editing=drafts.find(d=>d.id===editingId);
- const viewing=drafts.find(d=>d.id===viewingId&&d.status==='active');
  // New character: the ORIGINAL wizard asks the name. No extra name input
  // or empty draft is created until the wizard confirms the full character.
  async function save(character:HscCharacter){
@@ -132,7 +130,7 @@ export function ArubaCharacterDrafts({campaigns,activeCampaignId,ownerId}:{
         subtitle={[d.sheetData.style,d.sheetData.viaggio].filter(Boolean).join(' · ')||'Personaggio'}
         secondaryText={campaignNameFor(d.campaignId)+' · '+(d.status==='active'?'Scheda completata':'Bozza')}
         badge={<span className="aruba-character-ruleset">High School Cthulhu</span>}
-        onClick={()=>{setError(null);if(d.status==='active')setViewingId(d.id);else if(rulesetFor(d.campaignId)==='hsc')setEditingId(d.id);}}
+        onClick={()=>{setError(null);if(d.status==='active')onOpenDetail(d.id,d.campaignId);else if(rulesetFor(d.campaignId)==='hsc')setEditingId(d.id);}}
         cornerAction={<button className="aruba-character-edit" type="button"
          disabled={rulesetFor(d.campaignId)!=='hsc'}
          aria-label={'Modifica '+d.name} onClick={()=>{setError(null);setEditingId(d.id);}}>
@@ -144,12 +142,6 @@ export function ArubaCharacterDrafts({campaigns,activeCampaignId,ownerId}:{
       totalPages={totalPages} startIndex={startIndex} endIndex={endIndex}
       totalItems={filtered.length} itemLabelPlural="personaggi"/>
     </>}
-   {viewing&&rulesetFor(viewing.campaignId)==='hsc'&&<ArubaCharacterSheetView
-     key={viewing.id} draft={viewing} campaignId={viewing.campaignId} ownerId={ownerId}
-     onClose={()=>setViewingId(null)}
-     onSaved={value=>setDrafts(list=>list.map(item=>item.id===value.id?value:item))}
-     onArchived={id=>{setDrafts(list=>list.filter(item=>item.id!==id));setViewingId(null);}}
-   />}
    {(editing||creating)&&(creating?canCreate:editing&&rulesetFor(editing.campaignId)==='hsc')&&
     <div className="aruba-original-wizard" key={editing?.id??'new-character'}>
      <CharacterCreationWizard
@@ -164,68 +156,5 @@ export function ArubaCharacterDrafts({campaigns,activeCampaignId,ownerId}:{
      {pending&&<p className="aruba-wizard-error" role="status">Salvataggio sul server Aruba…</p>}
      {error&&<p className="aruba-wizard-error" role="alert">{error}</p>}
    </div>}
- </section>;
-}
-
-function ArubaCharacterSheetView({draft,campaignId,ownerId,onClose,onSaved,onArchived}:{
- draft:Draft;campaignId:string;ownerId:string;
- onClose:()=>void;onSaved:(value:Draft)=>void;onArchived:(id:string)=>void;
-}){
- const [working,setWorking]=useState<HscCharacter>(()=>({
-  ...draft.sheetData,id:draft.id,name:draft.name,
-  player:'',notes:String(draft.sheetData.notes??''),
- } as HscCharacter));
- const [saving,setSaving]=useState(false);
- const [error,setError]=useState<string|null>(null);
- const [archiving,setArchiving]=useState(false);
- const queue=useRef<Promise<void>>(Promise.resolve());
- const busy=useRef(false);
- const revision=useRef(0);
- function update(next:HscCharacter){
-  if(archiving||busy.current)return;
-  const currentRevision=++revision.current;
-  setWorking(next);setSaving(true);setError(null);
-  // Requests are serialized and only the LAST revision controls the save indicator.
-  queue.current=queue.current.catch(()=>{}).then(async()=>{
-   try{
-    const result=await saveFullCharacterSheet(fetch,campaignId,draft.id,next,ownerId);
-    onSaved(result);
-    if(currentRevision===revision.current)setError(null);
-   }catch(e){
-    if(currentRevision===revision.current)
-     setError(e instanceof Error?e.message:'Salvataggio non riuscito');
-    throw e;
-   }
-  }).finally(()=>{if(currentRevision===revision.current)setSaving(false);});
- }
- async function close(){
-  if(archiving)return;
-  try{await queue.current;onClose();}
-  catch{setError('Le modifiche non sono state salvate. Riprova prima di chiudere la scheda.');}
- }
- async function archive(){
-  if(busy.current)return;
-  busy.current=true;setArchiving(true);setError(null);
-  try{
-   await queue.current;
-   const id=await archiveOwnedCharacter(fetch,campaignId,draft.id,ownerId);
-   onArchived(id);
-  }catch(e){setError(e instanceof Error?e.message:'Archiviazione non riuscita');setArchiving(false);busy.current=false;}
- }
- return <section className="aruba-character-sheet" aria-label={'Scheda completa di '+working.name}>
-  <div className="aruba-character-sheet-status">
-   <button type="button" className="character-panel-return" onClick={()=>void close()} disabled={archiving}>Torna ai personaggi</button>
-   <span>{saving?'Salvataggio in corso…':error?'Modifiche non confermate':'Scheda salvata su Aruba'}</span>
-   {error&&<span className="unsaved" role="alert">{error}</span>}
-   {error&&<button type="button" className="character-panel-return" onClick={()=>update(working)}>Riprova salvataggio</button>}
-  </div>
-  <CompleteCharacterSheet
-   character={working}
-   audacia={working.audacia}
-   onAudaciaUpdate={value=>update({...working,audacia:value})}
-   onUpdate={update}
-   onDelete={()=>void archive()}
-  />
-  {archiving&&<p>Archiviazione in corso…</p>}
  </section>;
 }
