@@ -390,3 +390,14 @@ test('notes feature stays off until the Aruba API advertises capability in a ver
  assert.throws(()=>validateBootstrap({...common,capabilities:{...common.capabilities,
   characters:{read:false,write:false},entityNotes:{read:true,write:true}}}));
 });
+
+test('the original character detail keeps direct RichTextEditor tabs, not Campaign NoteSubTabs',()=>{
+ const detail=readFileSync(new URL('../../../src/app/components/session/shared/EntityDetailView.tsx',import.meta.url),'utf8');
+ const campaignNotes=readFileSync(new URL('../../../src/app/components/session/shared/NoteSubTabs.tsx',import.meta.url),'utf8');
+ const vite=readFileSync(new URL('../vite.config.mjs',import.meta.url),'utf8');
+ assert.match(detail,/tabs.customTabs.map\(tab =>/);
+ assert.match(detail,/onChangeRich=\{\(json\) => tabs.handleCustomTabRichContentChange\(tab.id, json\)\}/);
+ assert.match(campaignNotes,/entityType: 'note'/);
+ assert.doesNotMatch(vite,/code\.replace\(fromRich,replacement\)/);
+ assert.doesNotMatch(vite,/import \{NoteSubTabs\} from '\.\/NoteSubTabs'/);
+});

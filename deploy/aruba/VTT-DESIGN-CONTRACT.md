@@ -47,3 +47,6 @@ configurazione di staging. La migrazione 013 è eseguita nel database usa-e-gett
 della CI, non nell'attivazione del VPS finché tutto il sottosistema non
 è pronto e verificato. Nessuna nuova richiesta al vecchio Supabase deve
 essere introdotta.
+
+## Correzione del confine Note / Personaggi
+Il dettaglio originale di Personaggi (EntityDetailView.tsx) usa editor rich text direttamente nelle tab personalizzate. Il componente originale NoteSubTabs.tsx appartiene invece alle Note di campagna e ha profondità fissa di due livelli. Non sostituire le tab di Personaggi con NoteSubTabs: il backend 014 per l'annidamento resta predisposto e testato, ma deve essere collegato al contesto Note di campagna senza introdurre una nuova UI. Questo vincolo viene testato automaticamente.
