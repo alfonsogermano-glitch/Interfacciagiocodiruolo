@@ -12,6 +12,7 @@ import {createCampaignService} from './campaign-service.mjs';
 import {createCharacterService} from './character-service.mjs';
 import {createEntityNotesService} from './entity-notes-service.mjs';
 import {createCampaignNotesService} from './campaign-notes-service.mjs';
+import {createCampaignFoldersService} from './campaign-folders-service.mjs';
 
 const required = (name) => {
   const value = process.env[name];
@@ -94,7 +95,15 @@ async function main() {
     if(campaignNotesFlag==='true' && !campaigns)
       throw new Error('Campaign notes require staging campaigns');
     const campaignNotes=campaignNotesFlag==='true'?createCampaignNotesService({pool}):null;
-    authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession, passwordReset,signupService,campaigns,characters,entityNotes,campaignNotes});
+    const campaignFoldersFlag=process.env.AUTH_VTT_CAMPAIGN_NOTE_FOLDERS_ENABLED;
+    if(campaignFoldersFlag && !['true','false'].includes(campaignFoldersFlag))
+      throw new Error('Unsupported AUTH_VTT_CAMPAIGN_NOTE_FOLDERS_ENABLED value');
+    if(campaignFoldersFlag==='true' && !campaignNotes)
+      throw new Error('Campaign Note folders require campaign Notes');
+    const campaignFolders=campaignFoldersFlag==='true'?createCampaignFoldersService({pool}):null;
+    authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession, passwordReset,signupService,campaigns,characters,entityNotes,campaignNotes,campaignFolders});
+  } else if (process.env.AUTH_VTT_CAMPAIGN_NOTE_FOLDERS_ENABLED === 'true') {
+    throw new Error('Campaign Note folders require dedicated staging');
   } else if (process.env.AUTH_VTT_CAMPAIGN_NOTES_ENABLED === 'true') {
     throw new Error('Campaign notes require dedicated staging');
   } else if (process.env.AUTH_VTT_ENTITY_NOTES_ENABLED === 'true') {

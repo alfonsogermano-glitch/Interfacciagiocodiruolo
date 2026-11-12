@@ -64,7 +64,7 @@ class HttpProblem extends Error {
   }
 }
 
-export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, passwordReset = null, signupService = null, campaigns = null,characters = null,entityNotes = null,campaignNotes = null }) {
+export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, passwordReset = null, signupService = null, campaigns = null,characters = null,entityNotes = null,campaignNotes = null,campaignFolders = null }) {
   const allowedOrigin = new URL(origin);
   if (allowedOrigin.protocol !== 'https:' || allowedOrigin.origin !== origin ||
       !allowedOrigin.hostname) throw new TypeError('HTTPS origin required');
@@ -87,6 +87,9 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
   if(campaignNotes!==null && (!campaigns ||
    ['listForMember','create','save','archive'].some(key=>typeof campaignNotes[key]!=='function')))
     throw new TypeError('Invalid campaign notes service');
+  if(campaignFolders!==null && (!campaignNotes ||
+   ['list','create','update'].some(key=>typeof campaignFolders[key]!=='function')))
+    throw new TypeError('Invalid campaign folders service');
   return async (req, res) => {
     try {
       if (req.url === '/auth/login' && req.method === 'POST') {
@@ -300,6 +303,42 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
           throw new HttpProblem(400,'Archiviazione nota non valida');
         return response(res,200,await campaignNotes.archive(user.id,body.campaignId,noteId));
       }
+      // Campaign folder operations: authenticated session, isolated from PG tabs.
+      // No client-provided role/owner/scope escalation. Explicit staging-only service.
+      if(campaignFolders && ['GET','POST','PATCH'].includes(req.method) &&
+       (req.url==='/vtt/campaign-note-folders'||
+        req.url?.startsWith('/vtt/campaign-note-folders?')||
+        req.url?.startsWith('/vtt/campaign-note-folders/'))){
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.method==='GET'){
+          const url=new URL(req.url,origin);
+          if(url.pathname!=='/vtt/campaign-note-folders'||
+           [...url.searchParams.keys()].sort().join(',')!=='campaignId,scope'||
+           url.searchParams.getAll('campaignId').length!==1||
+           url.searchParams.getAll('scope').length!==1)
+            throw new HttpProblem(400,'Query cartelle non valida');
+          return response(res,200,await campaignFolders.list(user.id,
+           url.searchParams.get('campaignId'),url.searchParams.get('scope')));
+        }
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        const body=await readJson(req);
+        if(req.method==='POST'){
+          if(req.url!=='/vtt/campaign-note-folders'||
+           Object.keys(body).sort().join(',')!=='campaignId,name,parentId,scope')
+            throw new HttpProblem(400,'Creazione cartella non valida');
+          return response(res,201,await campaignFolders.create(user.id,body));
+        }
+        const folderId=req.url?.startsWith('/vtt/campaign-note-folders/')?
+          req.url.slice('/vtt/campaign-note-folders/'.length):'';
+        if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(folderId))
+          throw new HttpProblem(400,'Cartella non valida');
+        if(Object.keys(body).sort().join(',')!=='campaignId,name,parentId')
+          throw new HttpProblem(400,'Aggiornamento cartella non valido');
+        return response(res,200,await campaignFolders.update(user.id,folderId,body));
+      }
       // Isolated read-only React pilot. A session is NEVER interpreted as
       // a Supabase token. Campaign data remains unavailable by design.
       if (req.url === '/vtt/bootstrap' && req.method === 'GET') {
@@ -315,6 +354,7 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
             characters:{read:!!characters,write:!!characters},
             entityNotes:{read:!!entityNotes,write:!!entityNotes},
             campaignNotes:{read:!!campaignNotes,write:!!campaignNotes},
+            campaignNoteFolders:{read:!!campaignFolders,write:!!campaignFolders},
             gameSession:false,
           },
         });

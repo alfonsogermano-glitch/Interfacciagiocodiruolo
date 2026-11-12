@@ -186,3 +186,20 @@ I membri revocati e i giocatori non leggono le cartelle GM.
 gestione archivio/cascade, riordino/icon picker e endpoint HTTP. Nessun
 servizio Supabase originale viene importato nel bundle Aruba, nessun SQL
 017 sul VPS e nessuna attivazione nel bootstrap.
+
+## HTTP cartelle delle Note — step isolato
+
+Il servizio `campaign-folders-service.mjs` usa esclusivamente le funzioni
+SECURITY DEFINER 017 per elenco, creazione e modifica nome/genitore.
+La route `GET/POST /vtt/campaign-note-folders` e
+`PATCH /vtt/campaign-note-folders/:id` autentica il cookie Aruba,
+verifica Origin sulle scritture e rifiuta owner/role nel payload.
+Il GET restituisce solo le cartelle GM/shared consentite dal database.
+Creazione e spostamento sono consentiti soltanto al proprietario
+attivo della campagna. Non comprende ancora cestino, icon picker,
+riordino e assegnazione delle Note: non collegare `useFolderSection`
+prima che il suo contratto sia soddisfatto.
+
+Flag `AUTH_VTT_CAMPAIGN_NOTE_FOLDERS_ENABLED` assente di default,
+dipendente da `AUTH_VTT_CAMPAIGN_NOTES_ENABLED` e dallo schema 017.
+Nessuna modifica alla configurazione del VPS o alla UI esistente.
