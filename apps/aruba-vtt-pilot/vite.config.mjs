@@ -11,7 +11,12 @@ export default defineConfig({
   plugins:[{
     name:'aruba-legacy-image-safety',
     enforce:'pre',
-    resolveId(id,importer){
+    async resolveId(id,importer){
+      // Original sources live above the isolated VTT npm project. Resolve
+      // their TipTap imports from this project's real dependency tree; do NOT
+      // force nested TipTap extension imports into nonexistent top-level dirs.
+      if(id.startsWith('@tiptap/') && importer?.includes('/src/app/'))
+        return this.resolve(id,resolve(root,'src/ArubaEntityDependencies.tsx'),{skipSelf:true});
       if(importer?.includes('/src/app/components/') && id.endsWith('/campaigns/RulesetContext'))
         return resolve(root,'src/ArubaEntityDependencies.tsx');
       if(importer?.includes('/src/app/components/') && /^(?:\.\.\/)*ui\/tooltip$/.test(id))
@@ -67,7 +72,6 @@ export default defineConfig({
     react:resolve(root,'node_modules/react'),
     'lucide-react':resolve(root,'node_modules/lucide-react'),
     '@':resolve(root,'../../src'),
-    '@tiptap':resolve(root,'node_modules/@tiptap'),
   }},
   base:'/vtt/',
   build:{
