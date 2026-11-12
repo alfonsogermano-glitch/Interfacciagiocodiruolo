@@ -23,8 +23,8 @@ test('native campaign notes preserve parent and TipTap without leaking roles or 
  assert.equal(made.title,'Figlia');
  await saveArubaCampaignNote(fetcher,campaign,made);
  await archiveArubaCampaignNote(fetcher,campaign,child);
- assert.deepEqual(JSON.parse(calls[1].options.body),{campaignId,title:'Figlia',parentId:parent});
- assert.deepEqual(JSON.parse(calls[2].options.body),{campaignId,title:'Figlia',contentRich:{type:'doc'},position:0,visibility:'private'});
+ assert.deepEqual(JSON.parse(calls[1].options.body),{campaignId:campaign,title:'Figlia',parentId:parent});
+ assert.deepEqual(JSON.parse(calls[2].options.body),{campaignId:campaign,title:'Figlia',contentRich:{type:'doc'},position:0,visibility:'private'});
  for(const call of calls){
   assert.equal(call.options.credentials,'same-origin');
   assert.equal(call.options.redirect,'error');
