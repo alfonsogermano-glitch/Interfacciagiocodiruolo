@@ -190,3 +190,17 @@ PG dei giocatori, inclusa la distinzione fra precompilati disponibili,
 PG rivendicati, personaggi orfani e l'accesso delle campagne joined.
 Questo adattatore è un sottoinsieme corretto, non la
 `CampaignHome` completa. PNG, Mostri e realtime restano da migrare.
+
+## Integrazione 09 — Precompilati GM disponibili, senza trasferimento proprietà
+
+La migrazione 027 introduce `available_for_players` (false per default)
+nei PG del GM; funzioni SQL `SECURITY DEFINER` e servizi HTTP del GM
+consentono lettura/modifica esclusivamente per PG attivi della sua
+campagna. L'endpoint e la nuova UI sono disattivati di default e
+richiedono `AUTH_VTT_CHARACTER_AVAILABILITY_ENABLED=true` nello
+staging con migrazione applicata. Il GM può rendere disponibile il
+PG e revocare la disponibilità senza perdere la proprietà.
+Questa operazione **non** assegna, rivendica o copia personaggi.
+Nessuna autorizzazione di modifica dei personaggi viene concessa ai
+giocatori. Per assegnare PG serve ancora un flusso di claim atomico,
+con revoche e titolarità per ruolo.

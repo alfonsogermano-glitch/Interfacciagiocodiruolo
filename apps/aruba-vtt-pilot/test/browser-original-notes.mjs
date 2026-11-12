@@ -23,6 +23,7 @@ const capability=enabled=>({
   campaigns:{read:true,write:true},
   campaignRoster:{read:true,write:false},
   characters:{read:true,write:true},
+  characterAvailability:{read:true,write:true},
   entityNotes:{read:false,write:false},
   campaignNotes:{read:true,write:true},
   campaignNoteFolders:{read:true,write:true},
@@ -36,6 +37,7 @@ const send=(route,status,body)=>route.fulfill({
 });
 function mockApi(page,{enabled=true,authorized=true}={}){
  const store={notes:[],trash:[],folders:[],requests:[],next:0,
+  characterAvailability:new Map([[characterId,false]]),
   characters:[{id:characterId,campaignId:campaign,ownerId:user,name:'Mara di prova',
    status:'active',sheetData:{
     name:'Mara di prova',style:'Jock',viaggio:'Campione',
@@ -62,6 +64,14 @@ function mockApi(page,{enabled=true,authorized=true}={}){
   if(path==='/vtt/bootstrap')return send(route,authorized?200:401,
    authorized?capability(enabled):{error:'Non autenticato'});
   if(!authorized)return send(route,401,{error:'Non autenticato'});
+  if(path==='/vtt/character-availability'&&method==='GET')
+   return send(route,200,{characters:[...store.characterAvailability]
+    .map(([id,availableForPlayers])=>({id,availableForPlayers}))});
+  if(path==='/vtt/character-availability/'+characterId&&method==='PATCH'){
+   if(typeof body.availableForPlayers!=='boolean')return send(route,400,{error:'invalid flag'});
+   store.characterAvailability.set(characterId,body.availableForPlayers);
+   return send(route,200,{id:characterId,availableForPlayers:body.availableForPlayers});
+  }
   if(path==='/vtt/characters'&&method==='GET')
    return send(route,200,{characters:store.characters});
   if(path==='/vtt/campaigns/'+campaign+'/roster'&&method==='GET')
@@ -181,6 +191,15 @@ try{
   await page.getByRole('region',{name:'Partecipanti campagna'}).waitFor();
   const ownerRow=page.getByRole('region',{name:'Partecipante GM di prova'});
   await ownerRow.waitFor();
+  const availableButton=ownerRow.getByRole('button',{name:'Disponibilità di Mara di prova'});
+  await availableButton.waitFor();
+  assert.equal(await availableButton.getAttribute('aria-pressed'),'false');
+  await availableButton.click();
+  await page.waitForFunction(()=>document.querySelector('[aria-label="Disponibilità di Mara di prova"]')?.getAttribute('aria-pressed')==='true');
+  assert.equal(store.characterAvailability.get(characterId),true);
+  await availableButton.click();
+  await page.waitForFunction(()=>document.querySelector('[aria-label="Disponibilità di Mara di prova"]')?.getAttribute('aria-pressed')==='false');
+  assert.equal(store.characterAvailability.get(characterId),false);
   assert.equal(await ownerRow.locator('[data-campaign-character-id="'+characterId+'"]').count(),1,
    'A real GM-owned PG must appear under its verified owner');
   assert.equal(await page.locator('[data-campaign-character-id="'+characterId+'"]').count(),1,

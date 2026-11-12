@@ -15,6 +15,10 @@ export function validateBootstrap(data){
   if(!c||typeof c.campaigns?.read!=='boolean'||c.campaigns.read!==c.campaigns.write||
     typeof c.characters?.read!=='boolean'||c.characters.read!==c.characters.write||
     (c.characters.read&&!c.campaigns.read)||
+    (c.characterAvailability!==undefined&&(
+     typeof c.characterAvailability.read!=='boolean'||
+     c.characterAvailability.read!==c.characterAvailability.write||
+     (c.characterAvailability.read&&!c.characters.read)))||
     (c.campaignRoster!==undefined&&(
       typeof c.campaignRoster.read!=='boolean'||c.campaignRoster.write!==false||
       (c.campaignRoster.read&&!c.campaigns.read)))||
@@ -38,6 +42,7 @@ export function validateBootstrap(data){
   return Object.freeze({
     id:data.user.id,email:data.user.email,displayName:data.user.displayName,role:data.user.role,
     campaignsEnabled:c.campaigns.read,charactersEnabled:c.characters.read,
+    characterAvailabilityEnabled:c.characterAvailability?.read===true,
     campaignRosterEnabled:c.campaignRoster?.read===true,
     entityNotesEnabled:c.entityNotes?.read===true,
     campaignNotesEnabled:c.campaignNotes?.read===true,
@@ -217,4 +222,38 @@ export async function listOwnedCampaignRoster(fetchImpl,campaignId){
   return Object.freeze({userId:m.userId,displayName:m.displayName,role:m.role,
    joinedAt:m.joinedAt});
  });
+}
+
+export async function listCharacterAvailability(fetchImpl,campaignId){
+ if(!/^[0-9a-f-]{36}$/i.test(campaignId))throw Error('Campagna non valida');
+ const r=await fetchImpl('/vtt/character-availability?campaignId='+encodeURIComponent(campaignId),
+ {method:'GET',credentials:'same-origin',cache:'no-store',redirect:'error'});
+ if(r.status===401)throw Error('Sessione scaduta');
+ if(!r.ok)throw Error('Disponibilità personaggi non disponibile');
+ const data=await characterApiJson(r);
+ if(!Array.isArray(data.characters)||data.characters.length>100)throw Error('Elenco disponibilità non valido');
+ const map=new Map();
+ for(const item of data.characters){
+  if(!item||!/^[0-9a-f-]{36}$/i.test(item.id)||
+   typeof item.availableForPlayers!=='boolean'||map.has(item.id))
+   throw Error('Dato disponibilità non valido');
+  map.set(item.id,item.availableForPlayers);
+ }
+ return map;
+}
+export async function setCharacterAvailability(fetchImpl,campaignId,characterId,value){
+ if(!/^[0-9a-f-]{36}$/i.test(campaignId)||!/^[0-9a-f-]{36}$/i.test(characterId)||
+  typeof value!=='boolean')throw Error('Dati disponibilità non validi');
+ const r=await fetchImpl('/vtt/character-availability/'+characterId,{
+  method:'PATCH',credentials:'same-origin',cache:'no-store',redirect:'error',
+  headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({campaignId,availableForPlayers:value}),
+ });
+ if(r.status===401)throw Error('Sessione scaduta');
+ if(r.status===404)throw Error('Personaggio non autorizzato');
+ if(!r.ok)throw Error('Impossibile cambiare disponibilità');
+ const data=await characterApiJson(r);
+ if(data.id!==characterId||data.availableForPlayers!==value)
+  throw Error('Risposta disponibilità non valida');
+ return data;
 }

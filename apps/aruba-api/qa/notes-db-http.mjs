@@ -8,6 +8,8 @@ import {createApp} from '../src/app.mjs';
 import {createAuthHttpHandler} from '../src/auth-http.mjs';
 import {createCampaignService} from '../src/campaign-service.mjs';
 import {createCampaignRosterService} from '../src/campaign-roster-service.mjs';
+import {createCharacterService} from '../src/character-service.mjs';
+import {createCharacterAvailabilityService} from '../src/character-availability-service.mjs';
 import {createCampaignNotesService} from '../src/campaign-notes-service.mjs';
 import {createCampaignFoldersService} from '../src/campaign-folders-service.mjs';
 import {
@@ -44,6 +46,8 @@ try{
  await runtime.query('SET ROLE hollowgate_api_runtime');
  const pool={query:(sql,args)=>runtime.query(sql,args)};
  const campaigns=createCampaignService({pool});
+ const characters=createCharacterService({pool});
+ const characterAvailability=createCharacterAvailabilityService({pool});
  const campaignRoster=createCampaignRosterService({pool});
  const notes=createCampaignNotesService({pool});
  const folders=createCampaignFoldersService({pool});
@@ -53,7 +57,7 @@ try{
    getSessionUser:async token=>{
     const id=TOKENS.get(token);
     return id?{id,email:'qa@example.invalid',displayName:'QA'}:null;
-   },revokeSession:async()=>{},campaigns,campaignRoster,campaignNotes:notes,
+   },revokeSession:async()=>{},campaigns,campaignRoster,characters,characterAvailability,campaignNotes:notes,
    campaignFolders:folders,notesPanelEnabled:true,
   })});
  server.listen(0,'127.0.0.1');
@@ -103,6 +107,53 @@ try{
  await admin.query('SELECT hollowgate_vtt.set_campaign_membership($1,$2,$3,$4,true)',
   [owner,campaign,player,'player']);
 
+
+ // Original GM pre-made flag: persisted independently from ownership, no
+ // player edit/claim capability is created by this flag.
+ const createChar=await readJson(await ownerFetch('/vtt/characters',{
+  method:'POST',headers:{'content-type':'application/json'},
+  body:JSON.stringify({campaignId:campaign,name:'Premade GM'}),
+ }));
+ const charId=createChar.character.id;
+ const sheet={name:'Premade GM',style:'Jock',viaggio:'Campione',
+  ambiti:{Fisico:2,Scuola:1,Carisma:1,Strada:1},
+  abilita:{Muscoli:1},tratti:[],equipment:[],freschezza:12,follia:9};
+ await readJson(await ownerFetch('/vtt/characters/'+charId,{
+  method:'PUT',headers:{'content-type':'application/json'},
+  body:JSON.stringify({campaignId:campaign,name:'Premade GM',sheetData:sheet}),
+ }));
+ const availabilityPath='/vtt/character-availability?campaignId='+campaign;
+ const initialFlags=await readJson(await ownerFetch(availabilityPath));
+ assert.deepEqual(initialFlags.characters,[{id:charId,availableForPlayers:false}]);
+ const availabilityUrl='/vtt/character-availability/'+charId;
+ const change=async(fetcher,value,targetCampaign=campaign)=>fetcher(availabilityUrl,{
+  method:'PATCH',headers:{'content-type':'application/json'},
+  body:JSON.stringify({campaignId:targetCampaign,availableForPlayers:value}),
+ });
+ assert.equal((await change(playerFetch,true)).status,404);
+ assert.equal((await change(outsiderFetch,true)).status,404);
+ assert.equal((await change(ownerFetch,true,emptyCampaign)).status,404);
+ assert.equal((await change(ownerFetch,'true')).status,400);
+ const foreignOrigin=await fetch(base+availabilityUrl,{
+  method:'PATCH',headers:{origin:'https://evil.invalid',
+   cookie:'__Host-hg_session='+'A'.repeat(43),
+   'content-type':'application/json'},
+  body:JSON.stringify({campaignId:campaign,availableForPlayers:true}),
+ });
+ assert.equal(foreignOrigin.status,403);
+ const approved=await readJson(await change(ownerFetch,true));
+ assert.deepEqual(approved,{id:charId,availableForPlayers:true});
+ assert.deepEqual((await readJson(await ownerFetch(availabilityPath))).characters,
+  [{id:charId,availableForPlayers:true}]);
+ assert.equal((await playerFetch(availabilityPath)).status===200,false,
+  'Member must not access GM-only availability listing');
+ const charUnchanged=(await readJson(await ownerFetch(
+  '/vtt/characters?campaignId='+campaign))).characters.find(c=>c.id===charId);
+ assert.equal(charUnchanged.ownerId,owner);
+ assert.deepEqual(charUnchanged.sheetData,sheet);
+ await readJson(await change(ownerFetch,false));
+ assert.equal((await readJson(await ownerFetch(availabilityPath)))
+  .characters[0].availableForPlayers,false);
  const root=await createArubaCampaignNote(ownerFetch,campaign,'Nota integrata');
  const child=await createArubaCampaignNote(ownerFetch,campaign,'Sotto-tab integrata',root.id);
  const rich={type:'doc',content:[{type:'paragraph',content:[{type:'text',text:'Persistenza vera PostgreSQL'}]}]};
@@ -147,7 +198,7 @@ try{
  assert.equal(forged.status,403);
  await changeArubaCampaignNoteScope(ownerFetch,campaign,root.id,'gm');
  assert.equal((await listArubaCampaignNotes(playerFetch,campaign)).some(n=>n.id===root.id),false);
- console.log('LIVE_PG_HTTP_NOTES_OK: roster SQL isolation, native API, persisted TipTap after reload, child and folder, restore private, GM/player isolation, CSRF.');
+ console.log('LIVE_PG_HTTP_NOTES_OK: roster SQL isolation, owner-only availability toggles, native API, persisted TipTap after reload, child and folder, restore private, GM/player isolation, CSRF.');
 }finally{
  if(server)await new Promise(resolve=>server.close(resolve));
  await runtime.end().catch(()=>{});

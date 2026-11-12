@@ -275,3 +275,11 @@
 .aruba-campaign-player-row .aruba-campaign-member{margin:0 0 12px;padding:0 0 10px}
 .aruba-campaign-player-row .aruba-campaign-member strong{font-size:14px;color:var(--dash-text)}
 .aruba-no-assigned-character{font-size:12px;margin:0}
+
+/* Server-confirmed availability flag; never implies player ownership. */
+.aruba-availability-toggle{display:block;margin-top:10px;width:100%;padding:9px 12px;
+ border:1px solid var(--dash-border-soft);border-radius:8px;background:transparent;
+ color:var(--dash-text);font-size:12px}
+.aruba-availability-toggle[aria-pressed="true"]{border-color:var(--dash-accent);
+ color:var(--dash-accent-2)}
+.aruba-availability-toggle:disabled{opacity:.55}

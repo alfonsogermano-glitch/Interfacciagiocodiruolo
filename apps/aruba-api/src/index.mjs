@@ -11,6 +11,7 @@ import {createSignupService} from './signup-service.mjs';
 import {createCampaignService} from './campaign-service.mjs';
 import {createCampaignRosterService} from './campaign-roster-service.mjs';
 import {createCharacterService} from './character-service.mjs';
+import {createCharacterAvailabilityService} from './character-availability-service.mjs';
 import {createEntityNotesService} from './entity-notes-service.mjs';
 import {createCampaignNotesService} from './campaign-notes-service.mjs';
 import {createCampaignFoldersService} from './campaign-folders-service.mjs';
@@ -92,6 +93,14 @@ async function main() {
       throw new Error('Unsupported AUTH_VTT_CHARACTERS_ENABLED value');
     if(characterFlag==='true' && !campaigns)throw new Error('Characters require campaigns');
     const characters=characterFlag==='true'?createCharacterService({pool}):null;
+    const availabilityFlag=process.env.AUTH_VTT_CHARACTER_AVAILABILITY_ENABLED;
+    if(availabilityFlag&&!['true','false'].includes(availabilityFlag))
+      throw new Error('Unsupported AUTH_VTT_CHARACTER_AVAILABILITY_ENABLED value');
+    if(availabilityFlag==='true'&&!characters)
+      throw new Error('Availability requires staging characters');
+    // Requires migration 027. Staging opt-in only, no player claiming.
+    const characterAvailability=availabilityFlag==='true'?
+      createCharacterAvailabilityService({pool}):null;
     const entityNotesFlag=process.env.AUTH_VTT_ENTITY_NOTES_ENABLED;
     if(entityNotesFlag && !['true','false'].includes(entityNotesFlag))
       throw new Error('Unsupported AUTH_VTT_ENTITY_NOTES_ENABLED value');
@@ -115,7 +124,9 @@ async function main() {
     if(notesPanelFlag==='true' && (!campaignNotes||!campaignFolders))
       throw new Error('Original Notes panel requires campaign Notes and folders');
     const notesPanelEnabled=notesPanelFlag==='true';
-    authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession, passwordReset,signupService,campaigns,characters,entityNotes,campaignNotes,campaignFolders,notesPanelEnabled,campaignRoster});
+    authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession, passwordReset,signupService,campaigns,characters,entityNotes,campaignNotes,campaignFolders,notesPanelEnabled,campaignRoster,characterAvailability});
+  } else if (process.env.AUTH_VTT_CHARACTER_AVAILABILITY_ENABLED === 'true') {
+    throw new Error('Character availability requires dedicated auth staging');
   } else if (process.env.AUTH_VTT_CAMPAIGN_ROSTER_ENABLED === 'true') {
     throw new Error('Campaign roster requires dedicated auth staging');
   } else if (process.env.AUTH_VTT_ORIGINAL_NOTES_PANEL_ENABLED === 'true') {

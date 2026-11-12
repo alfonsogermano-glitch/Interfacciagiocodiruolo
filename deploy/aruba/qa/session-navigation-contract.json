@@ -145,7 +145,7 @@
     {
       "id": "owner-only-campaign-list",
       "state": "open",
-      "detail": "Owner-authorized roster and actual GM-owned active character cards are now combined in CampaignHome-like Players rows. Joined players without assigned PGs show empty rows; no character reassignment, joined-campaign discovery or player editing exists yet."
+      "detail": "GM-only pre-made availability now persists as explicit bool on active owned PGs through opt-in migration 027, without altering ownership. Actual player claiming, joined campaign listing, role-based editing and transferring characters are still unavailable."
     },
     {
       "id": "session-workspace-missing",

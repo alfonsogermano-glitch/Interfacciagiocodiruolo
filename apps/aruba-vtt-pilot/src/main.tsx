@@ -14,7 +14,7 @@ import {ArubaCampaignCharacterCards,type SessionEntityOpenRequest} from './Aruba
 import {ArubaCampaignPlayerRows} from './ArubaCampaignPlayerRows';
 import {HouseIcon,UsersThreeIcon,ScrollIcon,GitBranchIcon,PlayIcon,FileTextIcon,IdentificationBadgeIcon,GhostIcon,LightbulbIcon,BookmarkSimpleIcon,MapTrifoldIcon,ImageIcon,SwordIcon} from '@phosphor-icons/react';
 
-type PilotUser={id:string;email:string;displayName:string;role:'admin'|'standard';campaignsEnabled:boolean;charactersEnabled:boolean;entityNotesEnabled:boolean;campaignNotesEnabled:boolean;campaignNoteFoldersEnabled:boolean;originalNotesPanelEnabled:boolean;campaignRosterEnabled:boolean};
+type PilotUser={id:string;email:string;displayName:string;role:'admin'|'standard';characterAvailabilityEnabled:boolean;campaignsEnabled:boolean;charactersEnabled:boolean;entityNotesEnabled:boolean;campaignNotesEnabled:boolean;campaignNoteFoldersEnabled:boolean;originalNotesPanelEnabled:boolean;campaignRosterEnabled:boolean};
 type Campaign={id:string;ownerId:string;name:string;description:string;ruleset:string;createdAt:string};
 type Status={state:'loading'}|{state:'unauthorized'}|{state:'error'}|{state:'ready';user:PilotUser};
 type Section='home'|'campaigns'|'characters'|'session'|'chapters'|'preparation'|'sheets'|'npcs'|'monsters'|'clues'|'equipment'|'map'|'situations'|'phases'|'combat'|'assets';
@@ -202,6 +202,7 @@ function App(){
       {user.campaignRosterEnabled&&user.charactersEnabled&&
        <ArubaCampaignPlayerRows key={activeCampaign.id} campaignId={activeCampaign.id}
         ownerId={user.id} revision={characterCatalogRevision}
+        availabilityEnabled={user.characterAvailabilityEnabled}
         onOpenCharacter={openSessionCharacter}/>}
       {user.charactersEnabled&&!user.campaignRosterEnabled&&<ArubaCampaignCharacterCards
        key={activeCampaign.id} campaignId={activeCampaign.id} ownerId={user.id}

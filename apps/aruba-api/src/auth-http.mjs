@@ -64,7 +64,7 @@ class HttpProblem extends Error {
   }
 }
 
-export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, passwordReset = null, signupService = null, campaigns = null,characters = null,entityNotes = null,campaignNotes = null,campaignFolders = null,notesPanelEnabled = false,campaignRoster = null }) {
+export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, passwordReset = null, signupService = null, campaigns = null,characters = null,entityNotes = null,campaignNotes = null,campaignFolders = null,notesPanelEnabled = false,campaignRoster = null,characterAvailability = null }) {
   if(typeof notesPanelEnabled!=='boolean'||(notesPanelEnabled&&(!campaignNotes||!campaignFolders)))
     throw new TypeError('Original Notes panel requires both authenticated Notes and folders');
   const allowedOrigin = new URL(origin);
@@ -81,6 +81,9 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
   }
   if (campaigns !== null && (typeof campaigns.list !== 'function' || typeof campaigns.create !== 'function' || typeof campaigns.update !== 'function'))
     throw new TypeError('Invalid campaign service');
+  if(characterAvailability!==null&&(!characters||
+      typeof characterAvailability.list!=='function'||typeof characterAvailability.set!=='function'))
+    throw new TypeError('Invalid character availability service');
   if(campaignRoster!==null&&(!campaigns||typeof campaignRoster.list!=='function'))
     throw new TypeError('Invalid campaign roster service');
   if(characters!==null && (typeof characters.list!=='function'||typeof characters.create!=='function'||typeof characters.save!=='function'||typeof characters.archive!=='function'||!campaigns))
@@ -167,6 +170,34 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         const campaignId=req.url.slice('/vtt/campaigns/'.length);
         const body=await readJson(req);
         return response(res,200,await campaigns.update(user.id,campaignId,body));
+      }
+      // Availability is a GM-only preparatory flag; it never assigns a PG.
+      if(characterAvailability&&req.method==='GET'&&
+         req.url?.startsWith('/vtt/character-availability?')){
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        const url=new URL(req.url,origin);
+        if(url.pathname!=='/vtt/character-availability'||
+           [...url.searchParams.keys()].join(',')!=='campaignId'||
+           url.searchParams.getAll('campaignId').length!==1)
+          throw new HttpProblem(400,'Query non valida');
+        return response(res,200,await characterAvailability.list(user.id,url.searchParams.get('campaignId')));
+      }
+      if(characterAvailability&&req.method==='PATCH'&&
+         req.url?.startsWith('/vtt/character-availability/')){
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        const charId=req.url.slice('/vtt/character-availability/'.length);
+        const body=await readJson(req);
+        if(Object.keys(body).sort().join(',')!=='availableForPlayers,campaignId')
+          throw new HttpProblem(400,'Dati disponibilità non validi');
+        return response(res,200,await characterAvailability.set(user.id,
+          body.campaignId,charId,body.availableForPlayers));
       }
       if(characters && req.url?.startsWith('/vtt/characters?') && req.method==='GET'){
         const token=extractSession(req);
@@ -444,6 +475,7 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
             campaigns:{read:!!campaigns,write:!!campaigns},
             campaignRoster:{read:!!campaignRoster,write:false},
             characters:{read:!!characters,write:!!characters},
+            characterAvailability:{read:!!characterAvailability,write:!!characterAvailability},
             entityNotes:{read:!!entityNotes,write:!!entityNotes},
             campaignNotes:{read:!!campaignNotes,write:!!campaignNotes},
             campaignNoteFolders:{read:!!campaignFolders,write:!!campaignFolders},
