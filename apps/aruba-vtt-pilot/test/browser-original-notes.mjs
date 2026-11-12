@@ -9,6 +9,8 @@ const campaign='b0da2f75-f700-454c-9ba4-65bc0c8838ef';
 const user='d4df2562-a83d-4d8d-92d4-e49b19c7810e';
 const initialNote='fab34aae-beaf-4bca-9cce-9b497e114b94';
 const secondNote='cf317f44-a915-4839-8cd6-9c8c2295599d';
+const archivedNote='af3aa8a5-6333-4cbb-b2f1-ecbb394542e6';
+const folderId='46fb111f-61b3-4a60-b122-54e8d7689c0e';
 const campaignRow={
  id:campaign,ownerId:user,name:'Campagna prova Note',description:'Solo browser test',
  ruleset:'hsc',createdAt:'2026-11-12T00:00:00.000Z',
@@ -31,7 +33,7 @@ const send=(route,status,body)=>route.fulfill({
  headers:{'cache-control':'no-store'},body:JSON.stringify(body),
 });
 function mockApi(page,{enabled=true,authorized=true}={}){
- const store={notes:[],trash:[],requests:[],next:0};
+ const store={notes:[],trash:[],folders:[],requests:[],next:0};
  page.route('**/vtt/**',async route=>{
   const request=route.request(),url=new URL(request.url());
   const path=url.pathname,method=request.method();
@@ -48,7 +50,12 @@ function mockApi(page,{enabled=true,authorized=true}={}){
   if(path==='/vtt/campaigns'&&method==='GET')
    return send(route,200,{campaigns:[campaignRow]});
   if(path==='/vtt/campaign-note-folders'&&method==='GET')
-   return send(route,200,{folders:[]});
+   return send(route,200,{folders:store.folders.filter(f=>f.scope===url.searchParams.get('scope'))});
+  if(path==='/vtt/campaign-note-folders'&&method==='POST'){
+   store.folders.push({id:folderId,name:body.name,scope:body.scope,
+    parentId:body.parentId??null,position:0,icon:null});
+   return send(route,200,{folderId});
+  }
   if(path==='/vtt/campaign-notes/trash'&&method==='GET')
    return send(route,200,{notes:store.trash.map(note=>({
     id:note.id,tab_name:note.title,content:'',
@@ -138,6 +145,11 @@ try{
   const page=await browser.newPage({viewport:{width:1440,height:900}});
   page.on('pageerror',e=>errors.push('enabled '+e.message));
   const store=mockApi(page);
+  // An archived note is available before mounting the real Notes panel:
+  // this tests recovery through the ORIGINAL Cestino row, not a fake button.
+  store.trash.push({id:archivedNote,title:'Nota da ripristinare',
+   parentId:null,scope:'shared',visibility:'private',contentRich:{type:'doc'},
+   position:0,folderId:null,creatorId:user,editorOwnerId:user});
   await page.goto(base,{waitUntil:'domcontentloaded'});
   assert.equal(await page.getByRole('button',{name:'Note',exact:true}).count(),0,
    'No Note tab before a selected campaign');
@@ -174,9 +186,39 @@ try{
    r.path==='/vtt/campaign-notes/'+secondNote&&
    JSON.stringify(r.body.contentRich??{}).includes('Test TipTap Aruba')),
    'Editor must persist a real TipTap JSON document via Aruba API');
+
+  // Use the existing original shared-section folder button. A successful
+  // API POST must be followed by a reload to obtain the authoritative row.
+  const folders=page.locator('[data-note-sidebar="true"] button[aria-label="Nuova cartella"]');
+  await Promise.all([
+   page.waitForResponse(r=>new URL(r.url()).pathname==='/vtt/campaign-note-folders'&&
+    r.request().method()==='POST'&&r.status()===200),
+   folders.last().click(),
+  ]);
+  assert.equal(store.folders.length,1);
+  assert.equal(store.folders[0].scope,'shared');
+  assert.ok(store.requests.some(r=>r.path==='/vtt/campaign-note-folders'&&
+   r.method==='POST'&&r.body.name==='Nuova cartella'));
+
+  // Open the ORIGINAL Cestino accordion and restore an archived note. The
+  // restored record must leave the trash and retain its private visibility.
+  await page.getByRole('button',{name:/Cestino/}).click();
+  await page.getByText('Nota da ripristinare').waitFor();
+  await Promise.all([
+   page.waitForResponse(r=>new URL(r.url()).pathname==='/vtt/campaign-notes/trash/restore'&&
+    r.request().method()==='POST'&&r.status()===200),
+   page.getByRole('button',{name:'Ripristina'}).click(),
+  ]);
+  await page.getByText('Nota da ripristinare').waitFor({state:'hidden'});
+  assert.equal(store.trash.length,0);
+  assert.equal(store.notes.find(n=>n.id===archivedNote)?.visibility,'private');
+  assert.ok(store.requests.some(r=>r.path==='/vtt/campaign-notes/trash/restore'&&
+   r.body.itemId===archivedNote&&r.body.kind==='note'));
+  assert.equal(await page.getByRole('button',{name:'Elimina definitivamente'}).count(),0);
+
   assert.equal(errors.length,0,'Browser runtime errors: '+errors.join('; '));
   await page.close();
  }
 }finally{await browser.close();}
 if(errors.length)throw Error('Browser console runtime errors: '+errors.join('; '));
-console.log('Original Hollowgate Notes browser QA passed: auth gating, GM rail, split panel, root/subtab creation, TipTap save.');
+console.log('Original Hollowgate Notes browser QA passed: auth gating, GM rail, split panel, root/subtab creation, TipTap save, folder creation and trash restore.');
