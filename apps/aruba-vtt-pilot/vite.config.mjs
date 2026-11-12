@@ -15,6 +15,8 @@ export default defineConfig({
       // Original sources live above the isolated VTT npm project. Resolve
       // their TipTap imports from this project's real dependency tree; do NOT
       // force nested TipTap extension imports into nonexistent top-level dirs.
+      if(["class-variance-authority","clsx","tailwind-merge","react-popper","@popperjs/core","react-resizable-panels"].includes(id) && importer?.includes('/src/app/'))
+        return this.resolve(id,resolve(root,'src/ArubaEntityDependencies.tsx'),{skipSelf:true});
       if((id.startsWith('@radix-ui/')||id==='@iconify/react'||id==='sonner') &&
         importer?.includes('/src/app/'))
         return this.resolve(id,resolve(root,'src/ArubaEntityDependencies.tsx'),{skipSelf:true});
