@@ -21,7 +21,7 @@ CREATE INDEX campaign_notes_campaign_parent_idx
 REVOKE ALL ON hollowgate_vtt.campaign_notes FROM PUBLIC,hollowgate_api_runtime;
 CREATE FUNCTION hollowgate_vtt.list_owned_campaign_notes(p_owner uuid,p_campaign uuid,p_parent uuid DEFAULT NULL)
 RETURNS TABLE(id uuid,title text,content_rich jsonb,parent_note_id uuid,
- position integer,visibility text)
+ tab_position integer,visibility text)
 LANGUAGE sql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
  SELECT n.id,n.title,n.content_rich,n.parent_note_id,n.position,n.visibility
  FROM hollowgate_vtt.campaign_notes n
