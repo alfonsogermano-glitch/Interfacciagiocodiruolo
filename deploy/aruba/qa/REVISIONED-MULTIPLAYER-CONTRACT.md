@@ -29,3 +29,25 @@ Keep the current fail-closed release parity gate enabled. Do not deploy or enabl
 A single synchronous commit prepares the next state and every recipient's projection **before** changing the state or incrementing any revisions. A failed projector aborts the whole transaction. Each verified connection starts a new revision sequence with its initial snapshot; only the events visible to that recipient advance its counter. A hidden GM-only event does not even consume a revision or reveal its existence. The source registers the stream's delivery callback before requesting an asynchronous snapshot, so intervening committed events can be reconciled against the snapshot's revision.
 
 **Important:** This is not yet the original campaign state reducer, it does not persist or replay events, and does not provide a cross-process transaction or authenticated peer discovery. The application must verify the GM and each participant before invoking it, ensure the snapshot projection and event projection are semantically consistent, and reconnect with a fresh verified peer ID. Do not enable without the full original-state parity tests and source-driven visibility review.
+
+## Isolated player revision receiver
+
+`ArubaRevisionedPlayerReceiver.mjs` supplies a **separate opt-in browser-side
+receiver**, not mounted in the production Hollowgate UI. The caller must bind
+it only to the authenticated GM DataChannel and provide synchronous
+`applySnapshot` and `applyDelta` callbacks that validate the original
+campaign/map state schema and return `true` on successful application.
+
+The receiver requires `initial-snapshot` on each fresh channel, accepts
+only original Hollowgate broadcast event names, rejects additional envelope
+fields, malformed and oversized frames, duplicate initial snapshots, and
+missing or out-of-order visible revisions. A replayed revision already
+applied is ignored; a gap closes the channel so the app can explicitly
+establish a fresh authenticated session and full state.
+
+**This does not itself authorize players or enforce the original map/notes
+visibility rules.** Those remain duties of the GM's trusted source and
+projection callbacks; a custom UI reducer must also reject invalid data.
+Passing unit tests does not demonstrate all original map assets and state
+fields, persisted revisions, snapshot chunking, or physical-network behavior.
+Do not turn this on in the VTT until those requirements are verified.
