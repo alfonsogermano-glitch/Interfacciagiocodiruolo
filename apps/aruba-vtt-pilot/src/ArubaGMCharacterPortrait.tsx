@@ -2,8 +2,8 @@ import {useEffect,useState} from 'react';
 import {ImageCropCore} from '../../../src/app/components/shared/ImageCropCore';
 import {readCharacterPortrait,saveCharacterPortrait,readCharacterPortraitSource,saveCharacterPortraitSource} from './client.mjs';
 /** GM-only isolated Aruba transport into the ORIGINAL cropper.
- * Source originals, asset picker and cover editor are deliberately not
- * mounted until they have dedicated Aruba persistence. */
+ * Original sources are kept in a separate GM-only store. Shared asset
+ * picker and cover editor remain disabled pending their migration. */
 export function ArubaGMCharacterPortrait({campaignId,characterId,name,onSaved}:{
  campaignId:string;characterId:string;name:string;onSaved?:(url:string)=>void;
 }){

@@ -41,7 +41,8 @@ test('size, mime and ids reject before any binary transmission',async()=>{
 test('portrait capability checks explicit dependencies and the original cropper retains legacy transport by default',()=>{
  const source=readFileSync(new URL('../../../src/app/components/shared/ImageCropCore.tsx',import.meta.url),'utf8');
  assert.match(source,/uploadCropped \? await uploadCropped\(blob\) : await uploadContentAsset/);
- assert.match(source,/selectedFile && preserveSource && !uploadCropped/);
+ assert.match(source,/selectedFile && preserveSource && !uploadSource && !uploadCropped/);
+ assert.match(source,/selectedFile && preserveSource && uploadSource/);
  const panel=readFileSync(new URL('../src/ArubaCharacterDetailPanel.tsx',import.meta.url),'utf8');
  assert.match(panel,/arubaPortraitEditor=\{portraitsEnabled\?/);
  assert.match(panel,/<ArubaGMCharacterPortrait/);

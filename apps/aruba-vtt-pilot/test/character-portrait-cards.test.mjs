@@ -22,6 +22,8 @@ test('GM sheet image and token use only in-memory Aruba portrait and original de
  assert.match(sheet,/readCharacterPortrait\(fetch,campaignId,draft\.id\)/);
  assert.match(sheet,/portraitImageUrl:portrait\?\?undefined,portraitSourceImageUrl:undefined,portraitCropArea:null/);
  assert.match(sheet,/onSaved=\{setPortrait\}/);
- assert.match(editor,/onUploaded=\{url=>\{setPreview\(url\);setError\(null\);onSaved\?\.\(url\)/);
+ assert.match(editor,/onUploaded=\{\(url,extra\)=>\{setPreview\(url\)/);
+ assert.match(editor,/if\(extra\?\.sourceUrl\)setSource\(extra.sourceUrl\)/);
+ assert.match(editor,/onSaved\?\.\(url\)/);
  assert.match(sheet,/<EntityDetailView/);
 });
