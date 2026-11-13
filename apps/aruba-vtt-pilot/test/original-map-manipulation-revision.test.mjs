@@ -50,7 +50,7 @@ test('original SessionWorkspace retains owner authority and player ownership/pin
  }
  assert.match(original,/if \(isOwner\) runAsHistoryActor\(message\?\.payload, \(\) => playerMapLayerActionHandlerRef\.current\(message\?\.payload\)\)/);
  assert.match(original,/!object\.pinned && \(actorProfileId === currentUserId \|\| \(!object\.locked && object\.createdByProfileId === actorProfileId\)\)/);
- assert.match(original,/!token\.locked && !token\.pinned &&\s*token\.createdByProfileId === payload\.actorProfileId/);
+ assert.match(original,/!token\.locked &&\s*!token\.pinned &&\s*token\.createdByProfileId === payload\.actorProfileId/);
  assert.match(original,/!poi\.locked &&\s*!poi\.pinned/);
  assert.match(original,/!drawing\.locked && !drawing\.pinned/);
  assert.match(original,/Object\.keys\(update\)\.length === 1 && update\.pinned === false/);
