@@ -5,4 +5,6 @@
 @source "../../../src/app/layout";
 @source "../../../src/app/components/ui";
 @source "./ArubaOriginalShellParity.tsx";
+@source "./ArubaOriginalTopBarQA.tsx";
+@source "../../../src/app/layout/TopBar.tsx";
 @import "./styles.css";

@@ -3,6 +3,7 @@ import {AppShell} from '../../../src/app/layout/AppShell';
 import {LeftSidebar} from '../../../src/app/layout/LeftSidebar';
 import {GmSectionSidebar} from '../../../src/app/layout/GmSectionSidebar';
 import type {Campaign} from '../../../src/app/campaigns/campaignTypes';
+import {ArubaOriginalTopBarQA} from './ArubaOriginalTopBarQA';
 
 /** Internal parity QA harness, NOT a substitute VTT and never a production
  * route. Original components are mounted unchanged, without legacy auth.
@@ -15,8 +16,10 @@ const fixtureCampaign:Campaign={
  ownerId:'00000000-0000-4000-8000-000000000002',
  createdAt:'2026-11-13T00:00:00.000Z',updatedAt:'2026-11-13T00:00:00.000Z',
 };
-export function ArubaOriginalShellParity({campaigns=[fixtureCampaign],displayName='GM di collaudo'}:{
+export function ArubaOriginalShellParity({campaigns=[fixtureCampaign],displayName='GM di collaudo',
+ qaUser=null}:{
  campaigns?:Campaign[];displayName?:string;
+ qaUser?:{id:string;email:string;displayName:string;role:'standard'|'admin'}|null;
 }={}){
  const [view,setView]=useState<'home'|'dashboard'|'campaign-home'>('dashboard');
  const [section,setSection]=useState('chapters');
@@ -35,7 +38,7 @@ export function ArubaOriginalShellParity({campaigns=[fixtureCampaign],displayNam
     onGoToCharacters={()=>go('characters')}
     onGoToCampaigns={()=>go('campaigns')}
     onSelectCampaign={value=>{setCampaign(value);setView('campaign-home');setSection('campaign-home');}}/>}
-   topbar={<header data-original-topbar-slot="pending-Aruba-adapter"
+   topbar={qaUser?<ArubaOriginalTopBarQA user={qaUser} section={section}/>:<header data-original-topbar-slot="pending-Aruba-adapter"
     className="flex h-[76px] shrink-0 items-center justify-between border-b border-[var(--dash-border)] px-6">
     <strong>HOLLOWGATE · {displayName}</strong>
     <span className="text-xs text-[var(--dash-muted)]">TopBar originale non ancora collegata</span>

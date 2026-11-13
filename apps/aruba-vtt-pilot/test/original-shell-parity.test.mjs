@@ -38,3 +38,20 @@ test('authenticated QA shell uses cookie bootstrap and owner-scoped Aruba campai
  const config=read('../vite.original-shell.config.mjs');
  assert.match(config,/original-shell-auth\.html/);
 });
+
+test('the exact original TopBar mounts in authenticated QA only, with fail-closed Supabase boundary',()=>{
+ const config=read('../vite.original-shell.config.mjs');
+ const topbar=read('../src/ArubaOriginalTopBarQA.tsx');
+ const runtime=read('../src/ArubaOriginalTopBarAdapter.tsx');
+ const shell=read('../src/ArubaOriginalShellParity.tsx');
+ assert.match(topbar,/import \{TopBar\} from/);
+ assert.match(shell,/qaUser\?<ArubaOriginalTopBarQA/);
+ assert.match(topbar,/sessionWorkspaceActive=\{false\}/);
+ assert.match(config,/aruba-original-topbar-qa-isolation/);
+ for(const name of ['AuthContext','NotificationsContext','CampaignContext','charactersService'])
+  assert.ok(config.includes(name),'missing isolated legacy dependency '+name);
+ assert.match(runtime,/useAuth\(\).*useContext\(Context\)/);
+ assert.match(runtime,/notifications:\[\] as NotificationRow\[\]/);
+ assert.doesNotMatch(runtime,/fetch\(|supabase\.storage|localStorage|sessionStorage/);
+ assert.doesNotMatch(read('../src/main.tsx'),/ArubaOriginalTopBarQA|ArubaOriginalTopBarAdapter/);
+});
