@@ -55,14 +55,18 @@ async function safeIceRoute(pc){
 export function createArubaWebRtcSignalingClient({
  campaignId,role,WebSocketCtor,PeerConnectionCtor,origin,
  rtcConfig={},onState=()=>{},onError=()=>{},
+ now=()=>Date.now(),
 }){
  if(!UUID.test(campaignId)||!['host','player'].includes(role)||
   typeof WebSocketCtor!=='function'||typeof PeerConnectionCtor!=='function'||
   typeof origin!=='string'||!origin.startsWith('https://')||
   new URL(origin).origin!==origin||
-  typeof onState!=='function'||typeof onError!=='function')
+  typeof onState!=='function'||typeof onError!=='function'||
+  typeof now!=='function')
   throw new TypeError('Invalid signaling client configuration');
  const validatedRtcConfig=validateRtcConfig(rtcConfig);
+ let effectiveRtcConfig=validatedRtcConfig;
+ let preparingTurn=false;
  const peers=new Map();
  let ws=null,active=false,connected=false,localPeerId=null,chain=Promise.resolve();
  let generation=0;
@@ -87,7 +91,7 @@ export function createArubaWebRtcSignalingClient({
  function peer(id){
   let record=peers.get(id);
   if(record)return record;
-  const pc=new PeerConnectionCtor(validatedRtcConfig);
+  const pc=new PeerConnectionCtor(effectiveRtcConfig);
   record={pc,pending:[],remote:false,channel:null};
   peers.set(id,record);
   pc.onicecandidate=event=>{
@@ -185,7 +189,7 @@ export function createArubaWebRtcSignalingClient({
   if(current){current.onmessage=null;current.onclose=null;current.onerror=null;current.close();}
  }
  function connect(){
-  if(active)throw new Error('Already connected');
+  if(active||preparingTurn)throw new Error('Already connected');
   generation+=1;
   const epoch=generation;
   chain=Promise.resolve();
@@ -207,7 +211,42 @@ export function createArubaWebRtcSignalingClient({
   socket.onerror=()=>{if(ws===socket)emit('connection-error',null);};
   return socket;
  }
- return Object.freeze({connect,disconnect,get connected(){return connected;},
+ // The caller must explicitly select TURN mode. No background fetch or
+ // silent direct-connection fallback after a failed relay credential request.
+ async function connectWithTurn(fetchImpl,{iceTransportPolicy='all'}={}){
+  if(active||preparingTurn||typeof fetchImpl!=='function'||
+     !['all','relay'].includes(iceTransportPolicy))
+   throw new TypeError('Invalid TURN connection request');
+  preparingTurn=true;
+  const epoch=generation;
+  try{
+   const response=await fetchImpl('/vtt/ice-credentials',{
+    method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',
+    headers:{'content-type':'application/json','accept':'application/json'},
+    body:JSON.stringify({campaignId,role}),
+   });
+   if(response?.status===401||response?.status===403)
+    throw new Error('Sessione o accesso alla campagna non valido');
+   if(!response?.ok)throw new Error('Credenziali TURN non disponibili');
+   const data=await response.json();
+   const expiry=data?.expiresAt;
+   const seconds=Math.floor(now()/1000);
+   if(!Number.isSafeInteger(seconds)||!Number.isSafeInteger(expiry)||
+      expiry<=seconds+30||expiry>seconds+900)
+    throw new Error('Credenziali TURN scadute o non valide');
+   const config=validateRtcConfig({
+    iceServers:data.iceServers,iceTransportPolicy,
+   });
+   if(!config.iceServers.length||
+      !config.iceServers.some(s=>s.urls.some(u=>/^turns?:/i.test(u))))
+    throw new Error('Nessun relay TURN disponibile');
+   if(active||generation!==epoch)throw new Error('Connessione annullata');
+   // Turn preparation must have finished before a socket is created.
+   effectiveRtcConfig=config;
+  }finally{preparingTurn=false;}
+  return connect();
+ }
+ return Object.freeze({connect,connectWithTurn,disconnect,get connected(){return connected;},
   get peerCount(){return peers.size;},
   async inspectConnections(){
    // Never expose candidate addresses, TURN credentials or raw SDP.

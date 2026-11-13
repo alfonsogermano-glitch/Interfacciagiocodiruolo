@@ -203,3 +203,70 @@ test('ICE diagnostics expose only route and connection state, never credentials 
  client.disconnect();
  assert.deepEqual(await client.inspectConnections(),[]);
 });
+
+test('authenticated TURN response supplies ICE settings before opening signaling',async()=>{
+ const created=[];
+ class ConfigPeer extends Peer{
+  constructor(config){super();created.push(config);}
+ }
+ const client=createArubaWebRtcSignalingClient({
+  campaignId:campaign,role:'host',WebSocketCtor:Socket,PeerConnectionCtor:ConfigPeer,
+  origin:'https://staging.hollowgate.quest',now:()=>1000000,
+ });
+ const calls=[];
+ const fetchImpl=async(url,options)=>{
+  calls.push({url,options});
+  return {ok:true,status:200,json:async()=>({
+   expiresAt:1300,
+   iceServers:[{urls:['turn:relay.example.org:3478?transport=udp'],
+    username:'1300:verified-user',credential:'ephemeral-only'}],
+  })};
+ };
+ const ws=await client.connectWithTurn(fetchImpl,{iceTransportPolicy:'relay'});
+ assert.equal(calls.length,1);
+ assert.equal(calls[0].url,'/vtt/ice-credentials');
+ assert.equal(calls[0].options.credentials,'same-origin');
+ assert.equal(calls[0].options.cache,'no-store');
+ assert.deepEqual(JSON.parse(calls[0].options.body),{campaignId:campaign,role:'host'});
+ ws.receive({type:'ready',role:'host',peerId:member});await flush();
+ ws.receive({type:'peer-joined',peerId:member});await flush();
+ assert.equal(created[0].iceTransportPolicy,'relay');
+ assert.deepEqual(created[0].iceServers[0].urls,
+  ['turn:relay.example.org:3478?transport=udp']);
+ client.disconnect();
+});
+test('invalid, expired or unauthorized TURN response never opens a socket',async()=>{
+ const invalid=[
+  {status:401,ok:false},
+  {status:404,ok:false},
+  {ok:true,status:200,json:async()=>({expiresAt:1001,iceServers:[]})},
+  {ok:true,status:200,json:async()=>({expiresAt:1300,iceServers:[]})},
+  {ok:true,status:200,json:async()=>({expiresAt:1300,iceServers:[
+   {urls:'turn:relay.example.org:3478',username:'user',credential:'token',extra:'secret'}]})},
+ ];
+ for(const response of invalid){
+  const client=createArubaWebRtcSignalingClient({
+   campaignId:campaign,role:'player',WebSocketCtor:Socket,PeerConnectionCtor:Peer,
+   origin:'https://staging.hollowgate.quest',now:()=>1000000,
+  });
+  const count=Socket.instances.length;
+  await assert.rejects(client.connectWithTurn(async()=>response,{iceTransportPolicy:'relay'}));
+  assert.equal(Socket.instances.length,count);
+  assert.equal(client.connected,false);
+ }
+});
+test('TURN credential request in flight does not permit manual connection',async()=>{
+ let release;
+ const fetchImpl=()=>new Promise(resolve=>{release=resolve;});
+ const client=createArubaWebRtcSignalingClient({
+  campaignId:campaign,role:'host',WebSocketCtor:Socket,PeerConnectionCtor:Peer,
+  origin:'https://staging.hollowgate.quest',now:()=>1000000,
+ });
+ const pending=client.connectWithTurn(fetchImpl,{iceTransportPolicy:'relay'});
+ assert.throws(()=>client.connect());
+ release({ok:false,status:503});
+ await assert.rejects(pending);
+ const ws=client.connect();
+ assert.ok(ws);
+ client.disconnect();
+});
