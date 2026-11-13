@@ -177,6 +177,8 @@ interface EntityDetailViewProps {
    *  image editors and campaign asset loaders in the read-only image tab.
    *  Default false leaves the entire original GM workflow unchanged. */
   arubaReadOnlyMedia?: boolean;
+  /** Optional isolated Aruba GM image editor rendered inside the original media rail. */
+  arubaPortraitEditor?: ReactNode;
 }
 
 export function EntityDetailView({
@@ -197,6 +199,7 @@ export function EntityDetailView({
   onActiveSectionChange,
   monsterAudaciaExtraAction,
   arubaReadOnlyMedia = false,
+  arubaPortraitEditor,
 }: EntityDetailViewProps) {
   const [internalActiveSection, setInternalActiveSection] = useState<EntityDetailRailSection>('scheda');
   const activeSection = controlledActiveSection ?? internalActiveSection;
@@ -1482,6 +1485,7 @@ export function EntityDetailView({
         )}
 
         {activeSection === 'immagine' && (
+          arubaPortraitEditor !== undefined ? arubaPortraitEditor :
           arubaReadOnlyMedia && !canEdit ? (
             <div className="space-y-5" data-aruba-readonly-media="true">
               <section className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-5">

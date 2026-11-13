@@ -116,17 +116,16 @@ function ArubaPersistedSheet({draft,ownerId,onChanged,onArchived,registerCloseGu
    {error&&<span className="unsaved" role="alert">{error}</span>}
    {error&&<button type="button" className="character-panel-return" onClick={()=>update(working)}>Riprova salvataggio</button>}
   </div>
-  {section==='immagine'?(
-   portraitsEnabled?<ArubaGMCharacterPortrait campaignId={campaignId}
-    characterId={draft.id} name={working.name} />:
-    <p className="muted" role="status">Archivio ritratti Aruba non abilitato. Nessuna modifica alle immagini è consentita.</p>
-  ):<EntityDetailView
+  <EntityDetailView
     entityType="character" entity={working}
     onUpdate={update} canEdit={true}
     campaignId={campaignId} accessToken={null} isHSC={true}
     showOwnerRow={false} showRail={false}
     activeSection={section}
-   />}
+    arubaPortraitEditor={portraitsEnabled?
+     <ArubaGMCharacterPortrait campaignId={campaignId} characterId={draft.id} name={working.name}/>:
+     <p className="muted" role="status">Archivio ritratti Aruba non abilitato. Nessuna modifica alle immagini è consentita.</p>}
+   />
   {archiving&&<p>Archiviazione in corso…</p>}
  </section>;
 }
