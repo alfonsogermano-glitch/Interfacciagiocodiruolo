@@ -97,7 +97,7 @@ test('failing visibility projection aborts entire GM state transition, no partia
  assert.equal(a.revision,0);assert.equal(b.revision,0);
  assert.equal(ca.sent.length,1);assert.equal(cb.sent.length,1);
  assert.equal(a.snapshot().payload.scene,'start');
- assert.equal(b.snapshot().payload.scene,'start');
+ assert.deepEqual(b.snapshot().payload,{viewer:bob});
  assert.deepEqual(errors,['Visibility database unavailable']);
  source.close();
 });
