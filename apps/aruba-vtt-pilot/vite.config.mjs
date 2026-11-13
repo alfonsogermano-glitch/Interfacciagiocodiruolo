@@ -35,6 +35,12 @@ export default defineConfig({
         return resolve(root,'src/ArubaEntityDependencies.tsx');
       if(importer?.includes('/src/app/components/') && /^(?:\.\.\/)*ui\/tooltip$/.test(id))
         return resolve(root,'src/ArubaTooltip.tsx');
+      // The original ImageCropCore is reused for its GUI, but all old
+      // authentication/storage imports are inert in the Aruba pilot.
+      // The new uploadCropped prop supplies the only writable transport.
+      if(importer?.endsWith('/src/app/components/shared/ImageCropCore.tsx') &&
+         ['../../auth/AuthContext','../../../services/storage/contentAssets'].includes(id))
+        return resolve(root,'src/ArubaNoteRuntime.tsx');
       // The original NoteListRow needs the true authenticated cookie context,
       // not the generic disabled editor fallback, in the Campaign Notes build.
       if(process.env.HG_CAMPAIGN_NOTES_CONTRACT==='1' &&
