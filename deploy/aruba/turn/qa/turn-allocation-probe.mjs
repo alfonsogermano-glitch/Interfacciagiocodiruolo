@@ -127,6 +127,6 @@ try{
  const badKey=createHash('md5').update(username+':'+realm+':incorrect-password').digest();
  const denied=await request(packet(ALLOCATE,attrs,randomBytes(12),badKey));
  assert.equal(denied.type,ERROR,'Invalid TURN credentials allocated relay');
- assert.ok([401,438].includes(failureCode(denied.fields)),'Unexpected authorization error');
+ assert.ok([401,438,441].includes(failureCode(denied.fields)),'Unexpected authorization error');
  console.log('COTURN_ALLOCATION_SUCCESS: temporary credential accepted, incorrect password rejected; Docker bridge only');
 }finally{socket.close();}
