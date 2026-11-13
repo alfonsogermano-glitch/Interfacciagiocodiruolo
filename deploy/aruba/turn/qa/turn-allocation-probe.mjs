@@ -117,16 +117,19 @@ try{
  const attrs=[
   utf(ATTR.username,username),utf(ATTR.realm,realm),utf(ATTR.nonce,nonce),transport(),
  ];
+ // Reject bad credentials before creating a successful allocation:
+ // a second Allocate on the same 5-tuple would produce 437 Allocation Mismatch,
+ // making it unsuitable for credential verification.
+ const badKey=createHash('md5').update(username+':'+realm+':incorrect-password').digest();
+ const denied=await request(packet(ALLOCATE,attrs,randomBytes(12),badKey));
+ assert.equal(denied.type,ERROR,'Invalid TURN credentials allocated relay');
+ assert.ok([401,438,441].includes(failureCode(denied.fields)),
+  'Unexpected TURN authorization response code '+failureCode(denied.fields));
  const validKey=createHash('md5').update(username+':'+realm+':'+credential).digest();
  const granted=await request(packet(ALLOCATE,attrs,randomBytes(12),validKey));
  assert.equal(granted.type,SUCCESS,'Valid temporary TURN credentials were rejected');
  assert.ok(granted.fields.get(ATTR.relayed)?.length>=8,'Missing relay allocation address');
  const life=granted.fields.get(ATTR.lifetime);
  assert.ok(life&&life.length===4&&life.readUInt32BE(0)>0,'No allocation lifetime');
- // Separate unauthorized credentials must never be accepted.
- const badKey=createHash('md5').update(username+':'+realm+':incorrect-password').digest();
- const denied=await request(packet(ALLOCATE,attrs,randomBytes(12),badKey));
- assert.equal(denied.type,ERROR,'Invalid TURN credentials allocated relay');
- assert.ok([401,438,441].includes(failureCode(denied.fields)),'Unexpected authorization error');
  console.log('COTURN_ALLOCATION_SUCCESS: temporary credential accepted, incorrect password rejected; Docker bridge only');
 }finally{socket.close();}
