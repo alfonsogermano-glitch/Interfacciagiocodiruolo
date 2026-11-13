@@ -17,7 +17,12 @@ class PreflightError(Exception):
     pass
 
 def validated_identity(host, ip, resolved):
-    if not re.fullmatch(r"(?=.{1,253}$)[a-zA-Z0-9](?:[a-zA-Z0-9.-]*[a-zA-Z0-9])?", host):
+    # Reject numeric aliases, empty labels, labels starting/ending in '-',
+    # and input that cannot be a standards-compliant DNS hostname.
+    labels = host.split(".") if isinstance(host, str) else []
+    if (not labels or len(host) > 253 or len(labels) < 2 or
+        any(not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?", label)
+            for label in labels) or labels[-1].isdigit()):
         raise PreflightError("TURN hostname non valido")
     try:
         public = ipaddress.ip_address(ip)
@@ -50,6 +55,10 @@ def certificate_check(cert, key, hostname, command=subprocess.run):
     if "does match certificate" not in name_check.decode("utf8", "replace"):
         raise PreflightError("Certificato TLS non valido per hostname TURN")
     openssl("x509", "-in", str(cert), "-noout", "-checkend", "604800")
+    # OpenSSL uses the system CA store by default. A leaf certificate being
+    # syntactically valid is not proof that browsers will trust its issuer.
+    openssl("verify", "-purpose", "sslserver", "-verify_hostname", hostname,
+            "-untrusted", str(cert), str(cert))
     cert_public = openssl("x509", "-in", str(cert), "-pubkey", "-noout")
     key_public = openssl("pkey", "-in", str(key), "-pubout")
     if cert_public.strip() != key_public.strip():

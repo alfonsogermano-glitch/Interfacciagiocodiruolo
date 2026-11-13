@@ -19,6 +19,10 @@ class TurnPreflightTests(unittest.TestCase):
             ("turn.example.org", "192.168.1.1", {"192.168.1.1"}),
             ("turn.example.org", "8.8.8.8", {"1.1.1.1"}),
             ("bad hostname", "8.8.8.8", {"8.8.8.8"}),
+            ("turn..example.org", "8.8.8.8", {"8.8.8.8"}),
+            ("-turn.example.org", "8.8.8.8", {"8.8.8.8"}),
+            ("turn-.example.org", "8.8.8.8", {"8.8.8.8"}),
+            ("turn.example.org.", "8.8.8.8", {"8.8.8.8"}),
         ]:
             with self.assertRaises(module.PreflightError):
                 module.validated_identity(host, ip, dns)
@@ -60,6 +64,12 @@ class TurnPreflightTests(unittest.TestCase):
             return good(cmd,**kwargs)
         with self.assertRaises(module.PreflightError):
             module.certificate_check(pathlib.Path("cert"),pathlib.Path("key"),"turn.example.org",mismatch)
+        def untrusted(cmd,**kwargs):
+            if len(cmd)>1 and cmd[1]=="verify":
+                return Mock(returncode=2,stdout=b"",stderr=b"untrusted")
+            return good(cmd,**kwargs)
+        with self.assertRaises(module.PreflightError):
+            module.certificate_check(pathlib.Path("cert"),pathlib.Path("key"),"turn.example.org",untrusted)
         def wrong(cmd,**kwargs):
             if "-pubout" in cmd:
                 return Mock(returncode=0,stdout=b"OTHER\n")
