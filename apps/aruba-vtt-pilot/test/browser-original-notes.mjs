@@ -17,7 +17,7 @@ const campaignRow={
  id:campaign,ownerId:user,name:'Campagna prova Note',description:'Solo browser test',
  ruleset:'hsc',createdAt:'2026-11-12T00:00:00.000Z',
 };
-const capability=(enabled,assignmentsEnabled=false)=>({
+const capability=(enabled,assignmentsEnabled=false,portraitsEnabled=false)=>({
  backend:'aruba-staging',
  user:{id:user,email:'qa-notes@example.invalid',displayName:'GM di prova',role:'standard'},
  capabilities:{
@@ -26,6 +26,7 @@ const capability=(enabled,assignmentsEnabled=false)=>({
   characters:{read:true,write:true},
   characterAvailability:{read:true,write:true},
   characterAssignments:{read:assignmentsEnabled,write:assignmentsEnabled},
+  characterPortraits:{read:portraitsEnabled,write:portraitsEnabled},
   entityNotes:{read:false,write:false},
   campaignNotes:{read:true,write:true},
   campaignNoteFolders:{read:true,write:true},
@@ -37,11 +38,12 @@ const send=(route,status,body)=>route.fulfill({
  status,contentType:'application/json; charset=utf-8',
  headers:{'cache-control':'no-store'},body:JSON.stringify(body),
 });
-function mockApi(page,{enabled=true,authorized=true,assignmentsEnabled=false}={}){
+function mockApi(page,{enabled=true,authorized=true,assignmentsEnabled=false,portraitsEnabled=false}={}){
  const store={notes:[],trash:[],folders:[],requests:[],next:0,
   characterAvailability:new Map([[characterId,assignmentsEnabled]]),
   characterAssignments:new Map(),
   rejectNextAssignment:false,
+  portrait:null,
   characters:[{id:characterId,campaignId:campaign,ownerId:user,name:'Mara di prova',
    status:'active',sheetData:{
     name:'Mara di prova',style:'Jock',viaggio:'Campione',
@@ -66,8 +68,20 @@ function mockApi(page,{enabled=true,authorized=true,assignmentsEnabled=false}={}
   const body=raw?JSON.parse(raw):{};
   store.requests.push({path,method,body});
   if(path==='/vtt/bootstrap')return send(route,authorized?200:401,
-   authorized?capability(enabled,assignmentsEnabled):{error:'Non autenticato'});
+   authorized?capability(enabled,assignmentsEnabled,portraitsEnabled):{error:'Non autenticato'});
   if(!authorized)return send(route,401,{error:'Non autenticato'});
+  if(portraitsEnabled&&path==='/vtt/character-portrait/'+characterId){
+   if(url.searchParams.get('campaignId')!==campaign)return send(route,400,{error:'Invalid campaign'});
+   if(method==='GET')return store.portrait?
+    send(route,200,{characterId,mimeType:'image/jpeg',dataBase64:store.portrait}):
+    send(route,404,{error:'No portrait'});
+   if(method==='PUT'){
+    if(body.campaignId!==campaign||body.mimeType!=='image/jpeg'||
+       typeof body.dataBase64!=='string')return send(route,400,{error:'Invalid portrait'});
+    store.portrait=body.dataBase64;
+    return send(route,200,{stored:true,characterId});
+   }
+  }
   if(assignmentsEnabled&&path==='/vtt/character-assignments'&&method==='GET'){
    if(url.searchParams.get('campaignId')!==campaign)return send(route,400,{error:'Invalid campaign'});
    return send(route,200,{assignments:[...store.characterAssignments]
@@ -189,6 +203,44 @@ try{
   assert.equal(await page.getByRole('button',{name:'Note',exact:true}).isDisabled(),true);
   assert.equal(await page.locator('[data-note-split-panel="true"]').count(),0);
   assert.equal(await page.locator('[data-note-split-panel="true"]').count(),0);
+  await page.close();
+ }
+ // Real GM portrait cropping uses the ORIGINAL ImageCropCore, with
+ // in-memory isolated Aruba PUT/GET. No production media is touched.
+ {
+  const page=await browser.newPage({viewport:{width:1440,height:900}});
+  page.on('pageerror',e=>errors.push('portrait '+e.message));
+  const store=mockApi(page,{assignmentsEnabled:true,portraitsEnabled:true});
+  await page.goto(base,{waitUntil:'domcontentloaded'});
+  await page.getByRole('button',{name:'Personaggi',exact:true}).click();
+  const archive=page.getByRole('region',{name:'Archivio personaggi'});
+  await archive.getByText('Mara di prova').first().click();
+  await page.getByRole('region',{name:'Scheda di Mara di prova'}).waitFor();
+  const rail=page.getByLabel('Barra contestuale personaggio');
+  await rail.getByRole('button',{name:'Immagine'}).click();
+  const media=page.getByRole('region',{name:'Immagine di Mara di prova'});
+  await media.waitFor();
+  await media.getByText(/Ritaglio con l'editor originale Hollowgate/).waitFor();
+  assert.equal(store.portrait,null);
+  // Valid 1x1 PNG pixel, browser canvas exports the cropped JPEG.
+  const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRk0AAAAASUVORK5CYII=','base64');
+  await media.locator('input[type="file"]').setInputFiles({
+   name:'qa-portrait.png',mimeType:'image/png',buffer:png,
+  });
+  const confirm=media.locator('[data-image-crop-action="confirm"]');
+  await confirm.waitFor();
+  await confirm.click();
+  await page.waitForFunction(()=>true); // wait below for the in-memory API's PUT
+  await page.waitForTimeout(200);
+  assert.ok(store.portrait&&store.portrait.length>16,
+   'Original cropper must PUT a generated JPEG into Aruba media API');
+  const writes=store.requests.filter(r=>r.path==='/vtt/character-portrait/'+characterId&&r.method==='PUT');
+  assert.equal(writes.length,1);
+  assert.equal(writes[0].body.campaignId,campaign);
+  assert.equal(writes[0].body.mimeType,'image/jpeg');
+  assert.equal(store.requests.some(r=>/supabase|storage\/v1/.test(r.path)),false);
+  await rail.getByRole('button',{name:'Scheda'}).click();
+  await page.locator('[data-tab-id="summary"] button').first().waitFor();
   await page.close();
  }
  // Browser contract for the REAL campaign Players rows, original EntityCard
