@@ -8,6 +8,10 @@ cleanup() { docker rm -f "$name" >/dev/null 2>&1 || true; rm -rf "$tmp"; }
 trap cleanup EXIT
 mkdir -p "$tmp/tls"
 openssl rand -hex 32 > "$tmp/turn_shared_secret"
+# Keep an equally protected runner-owned copy for the isolated API probe;
+# the container's secret is subsequently chowned to its unprivileged UID.
+cp "$tmp/turn_shared_secret" "$tmp/turn_secret_probe"
+chmod 600 "$tmp/turn_secret_probe"
 openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=turn.example.invalid -keyout "$tmp/tls/turn-privkey.pem" -out "$tmp/tls/turn-fullchain.pem" >/dev/null 2>&1
 chmod 600 "$tmp/turn_shared_secret" "$tmp/tls/"*.pem
 sudo chown 65534:65534 "$tmp/turn_shared_secret" "$tmp/tls/"*.pem
@@ -23,4 +27,9 @@ if [ "$(docker inspect -f '{{.State.Running}}' "$name")" != true ]; then
   exit 1
 fi
 docker exec "$name" sh -c 'test -s /run/hollowgate/turnserver.conf && test -f /run/hollowgate/turnserver.pid'
+relay_ip="$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$name")"
+[ -n "$relay_ip" ] || { echo 'Container bridge IP unavailable' >&2; exit 1; }
+TURN_TEST_HOST="$relay_ip" TURN_TEST_PORT=3478 \
+  TURN_TEST_SECRET_FILE="$tmp/turn_secret_probe" \
+  node ../../deploy/aruba/turn/qa/turn-allocation-probe.mjs
 echo 'COTURN_ISOLATED_RUNTIME_SUCCESS'

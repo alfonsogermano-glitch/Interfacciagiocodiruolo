@@ -50,6 +50,13 @@ class TurnStagingConfigTest(unittest.TestCase):
         for port in ["3478/udp", "3478/tcp", "5349/tcp", "49160-49200/udp"]:
             self.assertIn(port, readme)
         self.assertIn("TURN_SHARED_SECRET_FILE", readme)
+        smoke = (TURN / "qa" / "verify-coturn-runtime.sh").read_text()
+        probe = (TURN / "qa" / "turn-allocation-probe.mjs").read_text()
+        self.assertIn("turn-allocation-probe.mjs", smoke)
+        self.assertIn("TURN_TEST_HOST", smoke)
+        self.assertIn("createTurnCredentialService", probe)
+        self.assertIn("ATTR.integrity", probe)
+        self.assertIn("COTURN_ALLOCATION_SUCCESS", probe)
 
 if __name__ == "__main__":
     unittest.main()

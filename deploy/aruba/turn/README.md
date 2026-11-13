@@ -33,3 +33,6 @@ The official Alpine image runs as `nobody:nogroup` (65534:65534). Its `/run/holl
 
 ### Hardened derived image
 The upstream Alpine image sets the executable file capability `CAP_NET_BIND_SERVICE`, which is unnecessary for ports 3478/5349 but conflicts with `cap_drop: [ALL]` and `no-new-privileges` on process start. The accompanying Dockerfile removes that capability during image construction and then returns to `nobody:nogroup`. The isolated CI smoke must build this derived image and run the exact startup script with all runtime capabilities dropped. Manual operation uses `docker compose build` before `up`, only following review.
+
+### Real TURN Allocate acceptance test
+The isolated runner now performs an actual RFC 5766 TURN Allocate handshake over UDP, obtains an unauthenticated 401 nonce challenge, then uses an ephemeral Aruba service-generated username and password to request an allocation. It verifies a relayed address and positive lifetime and confirms that an incorrect password cannot allocate. The probe sends to a private Docker bridge address without publishing ports to the runner's public interface. This is **not** a PC-to-Android or externally reachable TURN certification.
