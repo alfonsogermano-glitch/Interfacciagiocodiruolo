@@ -56,6 +56,12 @@ jobs:
           npm run test:original-campaign-notes
           npm run test:original-session-notes
           npm run test:notes-navigation
+          npm run test:original-shell
+          test -f ../../deploy/aruba/dist/vtt-original-shell-qa/original-shell.html
+          if grep -R -i -l 'supabase\\.co' ../../deploy/aruba/dist/vtt-original-shell-qa; then
+            echo "Supabase backend detected in original AppShell QA build" >&2
+            exit 1
+          fi
           test -f ../../deploy/aruba/dist/vtt-notes-navigation-preview/index.html
           if grep -R -i -l 'supabase\\.co' ../../deploy/aruba/dist/vtt-notes-navigation-preview; then
             echo "Legacy Supabase backend found in mounted original Notes preview" >&2
@@ -179,6 +185,19 @@ jobs:
       - name: Compile real original Notes navigation for disposable browser
         working-directory: apps/aruba-vtt-pilot
         run: npm run test:notes-navigation
+      - name: Browser QA for original AppShell, left/right rails and topbar slot
+        working-directory: apps/aruba-vtt-pilot
+        run: |
+          npm run test:original-shell
+          npx vite preview --config vite.original-shell.config.mjs --host 127.0.0.1 --port 4175 --strictPort > /tmp/hg-shell-preview.log 2>&1 &
+          echo $! > /tmp/hg-shell-preview.pid
+          trap 'kill $(cat /tmp/hg-shell-preview.pid) 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:4175/original-shell.html >/dev/null; then break; fi
+            sleep 1
+          done
+          curl --silent --fail http://127.0.0.1:4175/original-shell.html >/dev/null
+          node test/browser-original-shell.mjs
       - name: Check real original Note panel in Chromium against in-memory API
         working-directory: apps/aruba-vtt-pilot
         run: |
