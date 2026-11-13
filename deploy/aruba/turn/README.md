@@ -62,3 +62,16 @@ This preflight checks, **without modifying the VPS**, that:
 **Do not enable any feature flag or start the container just because this command succeeds.** DNS resolution is not proof of public UDP reachability, and this cannot inspect Aruba's external firewall, NAT path, TLS from remote clients, public DNS propagation or PC/Android behavior. The operator must separately inspect Aruba's firewall and host rules, TLS renewals and existing services. If preflight fails, resolve the discrepancy without exposing secrets or opening unrelated ports.
 
 Rollback after a subsequently authorized *manual-only* staging trial: stop only this distinct Compose project/service, disable `AUTH_VTT_TURN_ENABLED`, and restore the prior firewall rules under the operator's change plan. Do not stop the production API, change `main`, alter existing Caddy routes or touch unrelated services.
+
+
+### External network reachability — after a separately approved manual staging trial
+
+Run the **unauthenticated**, read-only probe from a computer on a *different network* than the Aruba VPS (for example PC on another ISP, and subsequently Android with its own browser diagnostics):
+
+```sh
+node deploy/aruba/turn/qa/external-turn-probe.mjs --hostname <verified-turn-dns-name>
+```
+
+The command sends a standard unauthenticated TURN Allocate request over UDP port 3478 and requires a proper 401 nonce challenge. It then establishes a TLS connection to port 5349, validating the server certificate chain and that the hostname matches. The test sends **no TURN credential, cookie, gameplay event or session identifier**. A successful probe verifies external reachability and a trusted TLS listener **from that specific network**; it does not prove relay allocation, browser interoperability, the TCP fallback, session revocation, latency or other networks. Test multiple carriers separately.
+
+This command must **not** run as part of production deployment or periodic monitoring until explicitly authorized. If it reports `TURN_EXTERNAL_REACHABILITY_BLOCKED`, keep the API TURN feature flag disabled and diagnose DNS, both firewalls, port ownership or certificate renewal manually. Never bypass TLS validation or publish the shared secret to debug it.

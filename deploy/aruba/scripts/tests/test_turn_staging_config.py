@@ -64,6 +64,11 @@ class TurnStagingConfigTest(unittest.TestCase):
         self.assertIn("--cap-drop ALL", relay_script)
         self.assertIn("TURN_TEST_SECRET_FILE", relay_script)
         self.assertIn("browser-webrtc-relay.mjs", relay_script)
+        external_probe = (TURN / "qa" / "external-turn-probe.mjs").read_text()
+        self.assertIn("TURN_EXTERNAL_REACHABILITY_SUCCESS", external_probe)
+        self.assertIn("rejectUnauthorized:true", external_probe)
+        self.assertNotIn("rejectUnauthorized:false", external_probe)
+        self.assertIn("parseChallenge", external_probe)
 
 if __name__ == "__main__":
     unittest.main()

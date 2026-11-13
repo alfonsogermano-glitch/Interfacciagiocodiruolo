@@ -245,6 +245,8 @@ jobs:
       - run: sh -n ../../deploy/aruba/turn/start-turn.sh
       - run: bash -n ../../deploy/aruba/turn/qa/verify-coturn-runtime.sh
       - run: bash -n ../../deploy/aruba/turn/qa/verify-browser-relay.sh
+      - name: Test external TURN UDP and TLS probes against disposable local endpoints
+        run: node --test ../../deploy/aruba/turn/qa/test-external-turn-probe.mjs
       - name: Verify isolated TURN Compose configuration (no deployment)
         run: |
           TURN_HOSTNAME=turn.example.org TURN_PUBLIC_IPV4=203.0.113.10 \
