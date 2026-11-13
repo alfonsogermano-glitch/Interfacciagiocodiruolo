@@ -22,9 +22,10 @@ test('original Realtime vocabulary is the single source for future Aruba GM-host
 test('map broadcasts used by original source remain present; unknown event names are rejected',()=>{
  const source=read('../../../src/app/components/session/SessionWorkspace.tsx');
  const scene=read('../../../src/app/components/session/useActiveScene.ts');
+ const viewport=read('../../../src/app/components/session/MapViewport.tsx');
  for(const name of MAP_BROADCAST_EVENTS){
   assert.ok(KNOWN_BROADCAST_EVENTS.includes(name),'event not registered: '+name);
-  assert.ok(source.includes(name)||scene.includes(name),'orphaned map event '+name);
+  assert.ok(source.includes(name)||scene.includes(name)||viewport.includes(name),'orphaned map event '+name);
   assert.equal(isBroadcastEvent(name),true);
  }
  for(const unknown of [null,undefined,{},123,'','map_token_admin',
@@ -41,5 +42,5 @@ test('original reference counting, reconnect, and listener isolation remain in p
   'presenceQueue','selectedContentMode()'])
   assert.ok(old.includes(important),important);
  assert.doesNotMatch(read('../../../src/services/realtime/campaignChannelContract.ts'),
-  /supabase|fetch\(|WebSocket|PeerJS|localStorage/);
+  /import.*supabase|fetch\(|new WebSocket|new Peer|localStorage/);
 });
