@@ -399,6 +399,12 @@ jobs:
       - name: Verify joined-player campaign scope and revocation
         run: |
           docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_joined_player_campaigns.sql
+      - name: Install isolated portrait binary storage 031
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/031_vtt_character_portraits.sql
+      - name: Verify portrait owner/player permissions and revocation
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_character_portraits.sql
       - name: Verify character draft isolation
         run: |
           docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_character_drafts.sql
