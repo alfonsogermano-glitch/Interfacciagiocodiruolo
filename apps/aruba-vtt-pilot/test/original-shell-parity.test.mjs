@@ -108,7 +108,9 @@ test('original SessionWorkspace revokes shared map state when campaign context u
  const original=read('../../../src/app/components/session/SessionWorkspace.tsx');
  const store=read('../../../src/app/components/session/mapToolStore.ts');
  assert.match(original,/resetSessionMapRuntime,/);
- assert.match(original,/useEffect\(\(\) => \(\) => resetSessionMapRuntime\(\), \[campaignId\]\)/);
+ assert.match(original,/return \(\) => resetSessionMapRuntime\(\)/);
+ assert.match(original,/\[campaignId, currentUserId\]/);
+ assert.match(original,/setSessionMapCurrentUserId\(currentUserId\)/);
  assert.match(original,/useActiveScene\(campaignId\)/);
  assert.match(original,/useCampaignChannel\(campaignId/);
  assert.match(store,/export function resetSessionMapRuntime\(\)/);

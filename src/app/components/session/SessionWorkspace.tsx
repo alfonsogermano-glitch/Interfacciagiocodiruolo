@@ -175,7 +175,13 @@ export function SessionWorkspace({
   // Session-scoped cleanup of the ORIGINAL shared map store: campaign changes
   // must discard callbacks and permissions even if the map renderer unmounts.
   // Key only by campaignId: changing the active scene must not wipe a battle.
-  useEffect(() => () => resetSessionMapRuntime(), [campaignId]);
+  useEffect(() => {
+    // React StrictMode replays effect cleanup and setup: reassert the current
+    // actor after every replay, otherwise cleanup would leave the global
+    // owner pointer null despite an active authenticated workspace.
+    setSessionMapCurrentUserId(currentUserId);
+    return () => resetSessionMapRuntime();
+  }, [campaignId, currentUserId]);
   const { activeScene, channelReady, publish, publishMapPatch } = useActiveScene(campaignId);
   // Avviso di connessione persa: senza questo indicatore un giocatore il cui
   // WebSocket cade resta davanti a una mappa congelata senza capire perche'.
