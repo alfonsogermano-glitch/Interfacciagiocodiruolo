@@ -83,6 +83,18 @@ try{
  assert.equal(states.flat().some(x=>x.state==='error'),false);
  await host.evaluate(()=>window.probe.disconnect());
  await guest.waitForFunction(()=>!window.probe.connected,null,{timeout:10000});
+ // Recreate a fresh room on the same TLS gateway, proving manual recovery
+ // after the GM's prior socket closes and the player is disconnected.
+ await host.evaluate(()=>{window.probeStates=[];window.probe.connect();});
+ await host.waitForFunction(()=>window.probeStates.some(s=>s.state==='ready'),null,{timeout:10000});
+ await guest.evaluate(()=>{window.probeStates=[];window.probe.connect();});
+ await guest.waitForFunction(()=>window.probeStates.some(s=>s.state==='ready'),null,{timeout:10000});
+ await Promise.all([
+  host.waitForFunction(()=>window.probeStates.some(s=>s.state==='peer-connected'),null,{timeout:20000}),
+  guest.waitForFunction(()=>window.probeStates.some(s=>s.state==='peer-connected'),null,{timeout:20000}),
+ ]);
+ assert.equal(await host.evaluate(()=>window.probe.peerCount),1);
+ assert.equal(await guest.evaluate(()=>window.probe.peerCount),1);
  await Promise.all([gmContext.close(),playerContext.close(),ctx.close()]);
  console.log('BROWSER_WEBRTC_SIGNALING_SUCCESS: two Chromium contexts, real ICE, no gameplay payload');
 }finally{

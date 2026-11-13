@@ -13,6 +13,7 @@ export function createArubaWebRtcSignalingClient({
   throw new TypeError('Invalid signaling client configuration');
  const peers=new Map();
  let ws=null,active=false,connected=false,localPeerId=null,chain=Promise.resolve();
+ let generation=0;
  const emit=(state,peerId)=>onState({state,peerId});
  const transmit=(kind,payload,peerId)=>{
   if(!connected||ws?.readyState!==1||!SIGNAL_KINDS.has(kind))return false;
@@ -52,31 +53,36 @@ export function createArubaWebRtcSignalingClient({
   pc.ondatachannel=event=>{event.channel.onmessage=()=>{};};
   return record;
  }
- async function accept(id,kind,payload){
+ async function accept(id,kind,payload,epoch){
   if(!active||!UUID.test(id)||!payload||typeof payload!=='object'||Array.isArray(payload))return;
   const r=peer(id);
+  const valid=()=>active&&generation===epoch&&peers.get(id)===r;
   if(kind==='ice'){
    if(!payload.candidate||typeof payload.candidate!=='object')return;
    if(!r.remote){r.pending.push(payload.candidate);return;}
-   await r.pc.addIceCandidate(payload.candidate);return;
+   if(valid())await r.pc.addIceCandidate(payload.candidate);return;
   }
   if(kind==='offer'&&role==='player'){
    if(typeof payload.sdp!=='string'||r.remote)return;
    await r.pc.setRemoteDescription({type:'offer',sdp:payload.sdp});
+   if(!valid())return;
    r.remote=true;
    for(const candidate of r.pending.splice(0))await r.pc.addIceCandidate(candidate);
    const answer=await r.pc.createAnswer();
+   if(!valid())return;
    await r.pc.setLocalDescription(answer);
+   if(!valid())return;
    transmit('answer',{sdp:r.pc.localDescription?.sdp??answer.sdp},id);
   }else if(kind==='answer'&&role==='host'){
    if(typeof payload.sdp!=='string'||r.remote)return;
    await r.pc.setRemoteDescription({type:'answer',sdp:payload.sdp});
+   if(!valid())return;
    r.remote=true;
    for(const candidate of r.pending.splice(0))await r.pc.addIceCandidate(candidate);
   }
  }
- async function handle(message){
-  if(!active||!message||typeof message!=='object'||Array.isArray(message))return;
+ async function handle(message,epoch){
+  if(!active||generation!==epoch||!message||typeof message!=='object'||Array.isArray(message))return;
   if(message.type==='ready'&&message.role===role&&UUID.test(message.peerId??'')){
    connected=true;localPeerId=message.peerId;emit('ready',localPeerId);return;
   }
@@ -86,23 +92,28 @@ export function createArubaWebRtcSignalingClient({
   }
   if(message.type==='peer-joined'&&role==='host'&&UUID.test(message.peerId??'')){
    const id=message.peerId;
+   if(peers.has(id))return; // Duplicate peer-joined never renegotiates.
    const r=peer(id);
    // Connectivity probe only: no outgoing application message path.
    r.channel=r.pc.createDataChannel('hollowgate-connection-probe');
    r.channel.onmessage=()=>{};
    const offer=await r.pc.createOffer();
+   if(!active||generation!==epoch||peers.get(id)!==r)return;
    await r.pc.setLocalDescription(offer);
+   if(!active||generation!==epoch||peers.get(id)!==r)return;
    transmit('offer',{sdp:r.pc.localDescription?.sdp??offer.sdp},id);
    return;
   }
   if(message.type==='signal'&&SIGNAL_KINDS.has(message.kind)){
    if(role==='host'&&UUID.test(message.peerId??'')&&peers.has(message.peerId))
-    await accept(message.peerId,message.kind,message.payload);
+    await accept(message.peerId,message.kind,message.payload,epoch);
    else if(role==='player'&&!Object.hasOwn(message,'peerId'))
-    await accept(campaignId,message.kind,message.payload);
+    await accept(campaignId,message.kind,message.payload,epoch);
   }
  }
  function disconnect(){
+  generation+=1;
+  chain=Promise.resolve();
   active=false;connected=false;localPeerId=null;
   for(const id of [...peers.keys()])removePeer(id);
   const current=ws;ws=null;
@@ -110,6 +121,9 @@ export function createArubaWebRtcSignalingClient({
  }
  function connect(){
   if(active)throw new Error('Already connected');
+  generation+=1;
+  const epoch=generation;
+  chain=Promise.resolve();
   active=true;
   const url=new URL('/vtt/signaling',origin);
   url.protocol='wss:';
@@ -118,7 +132,11 @@ export function createArubaWebRtcSignalingClient({
   socket.onmessage=event=>{
    let message;
    try{message=JSON.parse(event.data);}catch{return;}
-   chain=chain.then(()=>handle(message)).catch(error=>onError(error));
+   chain=chain.then(()=>{
+    if(active&&generation===epoch&&ws===socket)return handle(message,epoch);
+   }).catch(error=>{
+    if(active&&generation===epoch&&ws===socket)onError(error);
+   });
   };
   socket.onclose=()=>{if(ws===socket){disconnect();emit('disconnected',null);}};
   socket.onerror=()=>{if(ws===socket)emit('connection-error',null);};

@@ -61,6 +61,56 @@ test('not-ready clients reject unsolicited signals and disconnect closes peers',
  assert.equal(client.peerCount,0);
  assert.equal(client.connected,false);
 });
+
+test('manual reconnect after socket closure creates a fresh signaling generation',async()=>{
+ const {client,socket,states}=setup('host');
+ socket.receive({type:'ready',role:'host',peerId:member});await flush();
+ socket.receive({type:'peer-joined',peerId:member});await flush();
+ assert.equal(client.peerCount,1);
+ socket.onclose();
+ assert.equal(client.connected,false);
+ assert.equal(client.peerCount,0);
+ const again=client.connect();
+ assert.notEqual(again,socket);
+ again.receive({type:'ready',role:'host',peerId:member});await flush();
+ again.receive({type:'peer-joined',peerId:member});await flush();
+ assert.equal(client.peerCount,1);
+ assert.equal(again.sent.filter(x=>x.kind==='offer').length,1);
+ assert.ok(states.some(x=>x.state==='disconnected'));
+ client.disconnect();
+});
+
+test('duplicate joins cannot replace an active peer or create duplicate offers',async()=>{
+ const {client,socket}=setup('host');
+ socket.receive({type:'ready',role:'host',peerId:member});await flush();
+ socket.receive({type:'peer-joined',peerId:member});
+ socket.receive({type:'peer-joined',peerId:member});
+ await flush();
+ assert.equal(client.peerCount,1);
+ assert.equal(socket.sent.filter(x=>x.kind==='offer').length,1);
+ client.disconnect();
+});
+
+test('late asynchronous offer from a closed socket cannot publish into a reconnected room',async()=>{
+ let resolveOffer;
+ class SlowPeer extends Peer{
+  async createOffer(){return await new Promise(resolve=>{resolveOffer=resolve;});}
+ }
+ const client=createArubaWebRtcSignalingClient({campaignId:campaign,role:'host',
+  WebSocketCtor:Socket,PeerConnectionCtor:SlowPeer,origin:'https://staging.hollowgate.quest'});
+ const first=client.connect();
+ first.receive({type:'ready',role:'host',peerId:member});await flush();
+ first.receive({type:'peer-joined',peerId:member});await flush();
+ assert.equal(typeof resolveOffer,'function');
+ client.disconnect();
+ const second=client.connect();
+ second.receive({type:'ready',role:'host',peerId:member});
+ resolveOffer({type:'offer',sdp:'late-old-offer'});
+ await flush();await flush();
+ assert.deepEqual(second.sent,[]);
+ client.disconnect();
+});
+
 test('rejects malformed campaign IDs and unsupported roles',()=>{
  assert.throws(()=>createArubaWebRtcSignalingClient({campaignId:'invalid',role:'host',
   WebSocketCtor:Socket,PeerConnectionCtor:Peer,origin:'https://staging.hollowgate.quest'}));
