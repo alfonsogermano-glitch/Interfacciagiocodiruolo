@@ -34,7 +34,9 @@ try{
  server.listen(0,'127.0.0.1');
  await new Promise(resolve=>server.once('listening',resolve));
  const origin='https://127.0.0.1:'+server.address().port;
+ const revoked=new Set();
  const identity={async verify({sessionToken,campaignId,connectionRole}){
+  if(revoked.has(sessionToken))throw Error('Membership revoked');
   if(campaignId!==campaign)throw Error('Invalid campaign');
   if(connectionRole==='host'&&sessionToken===gmToken)
    return {userId:gm,campaignId,role:'gm'};
@@ -42,7 +44,7 @@ try{
    return {userId:player,campaignId,role:'player'};
   throw Error('Invalid membership');
  }};
- gateway=createSignalingWebSocketGateway({server,origin,identity});
+ gateway=createSignalingWebSocketGateway({server,origin,identity,revalidateIntervalMs:100});
  browser=await chromium.launch({headless:true,args:['--no-sandbox','--ignore-certificate-errors']});
  const ctx=await browser.newContext({ignoreHTTPSErrors:true});
  const gmPage=await ctx.newPage(),playerPage=await ctx.newPage();
@@ -60,10 +62,14 @@ try{
   await page.evaluate(async({campaign,role,origin})=>{
    const {createArubaWebRtcSignalingClient}=await import('/client.mjs');
    window.probeStates=[];
+   window.verifiedProofs=[];
+   window.revokedProofs=[];
    window.probe=createArubaWebRtcSignalingClient({
     campaignId:campaign,role,origin,WebSocketCtor:WebSocket,
     PeerConnectionCtor:RTCPeerConnection,rtcConfig:{iceServers:[]},
     onState:value=>window.probeStates.push(value),
+    onVerifiedPeer:proof=>window.verifiedProofs.push(proof),
+    onPeerRevoked:proof=>window.revokedProofs.push(proof),
     onError:error=>window.probeStates.push({state:'error',detail:String(error)}),
    });
    window.probe.connect();
@@ -79,6 +85,9 @@ try{
  ]);
  assert.equal(await host.evaluate(()=>window.probe.peerCount),1);
  assert.equal(await guest.evaluate(()=>window.probe.peerCount),1);
+ const identityProof=await host.evaluate(()=>window.verifiedProofs[0]);
+ assert.deepEqual({userId:identityProof?.userId,campaignId:identityProof?.campaignId},
+  {userId:player,campaignId:campaign});
  const stats=await Promise.all([
   host.evaluate(()=>window.probe.inspectConnections()),
   guest.evaluate(()=>window.probe.inspectConnections()),
@@ -96,7 +105,7 @@ try{
  await guest.waitForFunction(()=>!window.probe.connected,null,{timeout:10000});
  // Recreate a fresh room on the same TLS gateway, proving manual recovery
  // after the GM's prior socket closes and the player is disconnected.
- await host.evaluate(()=>{window.probeStates=[];window.probe.connect();});
+ await host.evaluate(()=>{window.probeStates=[];window.revokedProofs=[];window.verifiedProofs=[];window.probe.connect();});
  await host.waitForFunction(()=>window.probeStates.some(s=>s.state==='ready'),null,{timeout:10000});
  await guest.evaluate(()=>{window.probeStates=[];window.probe.connect();});
  await guest.waitForFunction(()=>window.probeStates.some(s=>s.state==='ready'),null,{timeout:10000});
@@ -106,6 +115,15 @@ try{
  ]);
  assert.equal(await host.evaluate(()=>window.probe.peerCount),1);
  assert.equal(await guest.evaluate(()=>window.probe.peerCount),1);
+ // Active RTCDataChannels must be torn down even when a revoked player sends
+ // no further signaling messages. Server heartbeat independently revalidates.
+ revoked.add(playerToken);
+ await Promise.all([
+  guest.waitForFunction(()=>!window.probe.connected,null,{timeout:10000}),
+  host.waitForFunction(()=>window.probe.peerCount===0,null,{timeout:10000}),
+ ]);
+ assert.equal(await host.evaluate(()=>window.revokedProofs.length),1);
+ assert.equal(await host.evaluate(()=>window.probe.getVerifiedPeer(window.revokedProofs[0].peerId)),null);
  await Promise.all([gmContext.close(),playerContext.close(),ctx.close()]);
  console.log('BROWSER_WEBRTC_SIGNALING_SUCCESS: two Chromium contexts, real ICE, no gameplay payload');
 }finally{
