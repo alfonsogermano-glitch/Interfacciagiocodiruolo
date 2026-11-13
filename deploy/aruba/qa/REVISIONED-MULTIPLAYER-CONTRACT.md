@@ -293,3 +293,38 @@ player command. Do not use the earlier synchronous
 `getCurrentMapContext` shortcut as evidence of completion. Actual
 integration will need command-to-batch correlation, chapter identity,
 cleanup on campaign changes, and recovery on publication failures.
+
+## Correlation of coalesced ORIGINAL settled map publications (isolated)
+
+The original `publishMapPatch` uses a 100 ms debounce, so several
+verified player operations may be represented by a single settled
+`active_scene_map_patch`. It contains **no player request IDs**.
+Assigning that revision to all pending player requests would falsely
+confirm actions which were blocked or superseded.
+
+`ArubaSettledMapRequestCorrelator.mjs` subscribes to the actual
+campaign-scoped `subscribeCommittedMapPublication` notification.
+The authenticated GM component may register a request with the
+verified player/peer, active chapter and trusted baseline publication
+timestamp. The GM must supply `proveRequestedEffect`: an explicit
+per-request predicate on a CLONED settled map state. Only requests
+with proven effects and strictly newer publication timestamps receive
+a receipt expectation. Multiple proven requests coalesced into one
+publish receive the same per-peer visible revision; unproven requests
+remain pending. If the settled publication makes no visible change,
+there is no receipt expectation.
+
+The GM revision stream is populated from the original settled state,
+not a second reducer. A publication failure suspends the correlator
+and requests a safe GM resnapshot; a simple handler return value is
+not enough to claim application. Unsubscribe/revocation prevents
+further correlation.
+
+**Limitations:** Proof predicates must be carefully tied to original
+requests and cannot prove that an intermediate update survived a later
+overwrite when the final state matches an unrelated action. The
+prototype does not yet mount command registration into the original
+SessionWorkspace handlers, does not prove rendering or durable
+remote delivery, and does not implement an acknowledgment timeout.
+Never treat proof of matching state alone as proof of user intent
+or enable this feature without an authenticated end-to-end review.
