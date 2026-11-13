@@ -12,12 +12,15 @@ import {isBroadcastEvent} from '../../../src/services/realtime/campaignChannelCo
 const GM_ONLY=new Set([
  'INSERT','UPDATE','DELETE','session_change','active_scene_change',
  'active_scene_map_patch','members_change','notes_change','notification',
- 'map_object_layer_action','map_object_drag_preview',
+ 'map_object_drag_preview',
  'map_cone_direction_preview','map_history_action','character_owner_change',
 ]);
 const PLAYER_CANDIDATES=new Set([
  'dice_roll','chat_message','chat_reaction','chat_delete',
  'map_measurement','map_token_action','map_poi_action',
+ // Original SessionWorkspace forwards player layer requests to the GM.
+ // The verified per-message policy still denies them by default.
+ 'map_object_layer_action',
 ]);
 const CAMPAIGN_ID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_EVENT_BYTES=65536;

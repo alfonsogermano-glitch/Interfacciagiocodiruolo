@@ -207,3 +207,28 @@ test('rejects forged fields, oversized frames, circular payloads, and throwing p
  assert.equal(host.publish('__proto__',{x:true}),false);
  assert.equal(host.publish('dice_roll',[]),false);
 });
+
+test('player layer request needs explicit authorization, and cannot bypass policy via actor claims',()=>{
+ const seen=[];
+ const relay=make({authorizePlayerEvent:({userId,event,payload})=>
+  userId===player&&event==='map_object_layer_action'&&
+  payload.chapterId==='chapter-1'&&payload.move==='front'&&
+  payload.actorProfileId!==owner});
+ relay.openVerifiedHost({authenticatedUserId:owner,receiveFromPlayer:f=>seen.push(f)});
+ const peer=relay.attachVerifiedPlayer({peerId:'layer',authenticatedUserId:player,
+  verifiedCampaignId:campaign,receiveFromHost:()=>{}});
+ assert.equal(peer.publish('map_object_layer_action',{
+  chapterId:'chapter-1',actorProfileId:owner,move:'front',refs:[{family:'token',id:'x'}],
+ }),false);
+ assert.equal(peer.publish('map_object_layer_action',{
+  chapterId:'chapter-1',move:'front',refs:[{family:'token',id:'x'}],
+ }),true);
+ assert.equal(seen.length,1);
+ assert.equal(seen[0].fromUserId,player);
+ assert.equal(seen[0].event,'map_object_layer_action');
+ peer.disconnect();
+ assert.equal(peer.publish('map_object_layer_action',{
+  chapterId:'chapter-1',move:'front',refs:[{family:'token',id:'x'}],
+ }),false);
+ relay.close();
+});

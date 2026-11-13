@@ -88,10 +88,15 @@ unsupported. This should not be mistaken for functional parity.
 
 The module returns a sanitized command; **it does not mutate the GM state**.
 Callers must re-authorize against current state at delivery time and then
-route to the canonical original map reducers. The router currently lists
-`map_object_layer_action` as GM-only, so player layer requests cannot pass
-through it yet even if this gate would authorize them; enable only after
-reviewing the entire original authorization chain.
+route to the canonical original map reducers. The GM event router recognizes `map_object_layer_action` as a **player
+candidate** consistent with `SessionWorkspace`, but it still denies the event
+by default and only forwards it when `authorizePlayerEvent` approves. No
+player packet can directly publish `active_scene_map_patch` or otherwise
+bypass authoritative GM publication. The GM receive handler must re-run
+`authorizeVerifiedPlayerMapRequest` against the current authoritative state
+before invoking the original handlers, and must never treat `actorProfileId`
+from a DataChannel packet as a verified identity. This is NOT yet wired into
+the original VTT interaction handlers.
 
 Do not enable this pathway on the public VTT without real original reducer,
 verified membership, end-to-end browser interaction, and visual parity tests.

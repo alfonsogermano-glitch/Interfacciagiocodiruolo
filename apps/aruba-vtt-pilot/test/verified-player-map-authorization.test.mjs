@@ -147,7 +147,14 @@ test('real GM-authoritative router rejects spoof and delivers only verified play
  }),true);
  assert.equal(connection.publish('map_object_layer_action',{
   chapterId:chapter,refs:[{family:'token',id:'my-token'}],move:'front',
- }),false); // not supported by the existing GM-only router yet
+ }),true); // explicitly approved by GM-side verified player policy
+ assert.equal(connection.publish('map_object_layer_action',{
+  chapterId:chapter,refs:[{family:'token',id:'locked-token'}],move:'front',
+ }),false);
+ assert.equal(connection.publish('map_object_layer_action',{
+  chapterId:chapter,actorProfileId:outsider,
+  refs:[{family:'token',id:'my-token'}],move:'back',
+ }),false);
  assert.equal(connection.publish('map_poi_action',{
   chapterId:chapter,action:'update',poiId:'other-poi',
   update:{noteVisibleToPlayers:true},
@@ -155,6 +162,9 @@ test('real GM-authoritative router rejects spoof and delivers only verified play
  assert.deepEqual(observed,[{
   event:'map_token_action',actorProfileId:player,chapterId:chapter,
   action:'move',positions:{'my-token':{x:4,y:5}},
+ },{
+  event:'map_object_layer_action',actorProfileId:player,chapterId:chapter,
+  refs:[{family:'token',id:'my-token'}],move:'front',
  }]);
  connection.disconnect();
  assert.equal(connection.publish('map_token_action',{
@@ -162,4 +172,32 @@ test('real GM-authoritative router rejects spoof and delivers only verified play
  }),false);
  assert.equal(observed.length,1);
  host.disconnect();
+});
+
+test('layer requests remain fail-closed for default router and broad policies cannot elevate GM events',()=>{
+ const observed=[];
+ const closed=createGmHostEventRouter({campaignId:campaign,gmUserId:gm});
+ closed.openVerifiedHost({authenticatedUserId:gm,receiveFromPlayer:f=>observed.push(f)});
+ const denied=closed.attachVerifiedPlayer({peerId:'denied-layer',
+  authenticatedUserId:player,verifiedCampaignId:campaign,receiveFromHost:()=>{}});
+ assert.equal(denied.publish('map_object_layer_action',{
+  chapterId:chapter,refs:[{family:'token',id:'my-token'}],move:'front',
+ }),false);
+ assert.deepEqual(observed,[]);
+ const broad=createGmHostEventRouter({campaignId:campaign,gmUserId:gm,
+  authorizePlayerEvent:()=>true});
+ broad.openVerifiedHost({authenticatedUserId:gm,receiveFromPlayer:f=>observed.push(f)});
+ const peer=broad.attachVerifiedPlayer({peerId:'broad-layer',
+  authenticatedUserId:player,verifiedCampaignId:campaign,receiveFromHost:()=>{}});
+ for(const event of ['active_scene_change','active_scene_map_patch','notes_change',
+   'map_history_action','map_object_drag_preview']){
+  assert.equal(peer.publish(event,{chapterId:chapter}),false);
+ }
+ assert.equal(peer.publish('map_object_layer_action',{
+  refs:[{family:'token',id:'my-token'}],move:'front',
+ }),true);
+ assert.deepEqual(observed.map(f=>f.event),['map_object_layer_action']);
+ peer.disconnect();
+ assert.equal(peer.publish('map_object_layer_action',{refs:[],move:'back'}),false);
+ closed.close();broad.close();
 });
