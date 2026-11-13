@@ -61,6 +61,14 @@ export function createArubaVerifiedRevisionConfirmation({
   }
   return observed;
  }
+ function cancel({userId,requestId,peerId}={}){
+  const id=key(userId,requestId);
+  const entry=pending.get(id);
+  if(!closed&&entry&&entry.peerId===peerId){
+   pending.delete(id);return true;
+  }
+  return false;
+ }
  function revoke({userId,peerId}={}){
   if(closed)return;
   for(const [id,entry] of pending){
@@ -69,7 +77,7 @@ export function createArubaVerifiedRevisionConfirmation({
   }
  }
  return Object.freeze({
-  expect,acknowledge,revoke,
+  expect,acknowledge,cancel,revoke,
   close(){closed=true;pending.clear();},
   get pendingCount(){return pending.size;},
  });

@@ -6,6 +6,8 @@
  * player-visible projections before publishing anything. Every registered
  * player has its own revision clock, incremented ONLY for visible events.
  * Registered peers are server-verified inputs, never network-supplied claims.
+ * publishObservedMap accepts only a GM-verified canonical map state read after
+ * the actual original SessionWorkspace handler, not untrusted player payload.
  */
 import {isBroadcastEvent} from '../../../src/services/realtime/campaignChannelContract.ts';
 import {createArubaRevisionedSnapshotStream} from './ArubaRevisionedSnapshotStream.mjs';
@@ -83,19 +85,22 @@ export function createArubaGmRevisionedCampaignSource({
    },
   });
  }
- function commit({authenticatedGmUserId,event,payload}={}){
+ function publishPrepared({authenticatedGmUserId,event,payload,nextAuthoritativeState}={}){
   if(closed||committing||authenticatedGmUserId!==gmUserId||
    !isBroadcastEvent(event))return false;
   let sourceEvent;
   try{sourceEvent=requireObject(payload,'GM event');}catch{return false;}
   committing=true;
   try{
-   // Prepare all projections BEFORE assigning revisions or notifying peers.
-   // If a policy throws or returns invalid data the commit is rejected whole.
-   const next=requireObject(applyGmEvent({
-    campaignId,event,payload:sourceEvent,
-    state:requireObject(state,'Authoritative state'),
-   }),'Next authoritative state');
+   // Either a normal test reducer, or a trusted state snapshot ALREADY
+   // updated by the original SessionWorkspace GM handler. Never both.
+   // All visible projections are prepared before any source mutation.
+   const next=nextAuthoritativeState===undefined
+    ?requireObject(applyGmEvent({
+     campaignId,event,payload:sourceEvent,
+     state:requireObject(state,'Authoritative state'),
+    }),'Next authoritative state')
+    :requireObject(nextAuthoritativeState,'Observed original GM state');
    const plans=[];
    for(const record of peers.values()){
     if(!active(record))continue;
@@ -130,13 +135,23 @@ export function createArubaGmRevisionedCampaignSource({
    return false;
   }finally{committing=false;}
  }
+ function commit({authenticatedGmUserId,event,payload}={}){
+  return publishPrepared({authenticatedGmUserId,event,payload});
+ }
+ function publishObservedMap({authenticatedGmUserId,nextState}={}){
+  return publishPrepared({
+   authenticatedGmUserId,event:'active_scene_map_patch',
+   payload:{source:'original-gm-observed-map'},
+   nextAuthoritativeState:nextState,
+  });
+ }
  function close(){
   if(closed)return;
   for(const record of [...peers.values()])revoke(record);
   closed=true;generation++;
  }
  return Object.freeze({
-  registerVerifiedPeer,commit,close,
+  registerVerifiedPeer,commit,publishObservedMap,close,
   get peerCount(){return peers.size;},
   get closed(){return closed;},
  });

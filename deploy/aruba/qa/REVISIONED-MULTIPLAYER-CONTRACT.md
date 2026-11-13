@@ -206,3 +206,32 @@ mounted in the normal Hollowgate shell.
 The isolated real Chromium test now checks actual player-to-GM receipt
 transport alongside original map projection and GM-to-player revisioned
 state on two WebRTC peers. No production infrastructure is changed.
+
+## Original GM observed map -> revisioned source -> correlated command receipt
+
+The isolated `ArubaObservedGmMapCommandCoordinator.mjs` joins the existing
+GM-authorization dispatcher, its original action handler callback, the
+GM-owned per-peer revision source and the request-result/receipt trackers.
+
+The new `publishObservedMap({authenticatedGmUserId,nextState})` on
+`ArubaGmRevisionedCampaignSource` publishes a **trusted canonical state
+snapshot captured after the ORIGINAL SessionWorkspace handler**. It does
+not run the source's separate `applyGmEvent` reducer, preventing duplicate
+application. All original visibility projections and per-peer revision
+checks remain in place.
+
+Before publication the coordinator registers one expectation for the
+request ID at that verified peer's next visible revision, so synchronous
+DataChannel receipt cannot race the registration. The expectation is canceled
+if the authoritative projection generated **no visible revision** or the
+source rejected publication. Mere GM handler acceptance stays
+`outcome: "dispatched"`. A later `received-revision` requires actual
+onApplied player receipt over the verified peer channel, with membership,
+peer and published revision checks.
+
+The in-memory tests use original map filtering and injected GM handler
+slots. **The original React SessionWorkspace refs are not yet mounted**
+into this bridge, and no durable DB completion or visual rendering is
+certified. A failure to publish an already-applied original handler change
+cannot automatically roll that change back; production integration needs
+a deliberate recovery/resnapshot policy before enabling this flow.

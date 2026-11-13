@@ -7,6 +7,8 @@
  *
  * The caller MUST provide authenticated user identity from signaling and
  * an authenticated, user-scoped result callback. No wire identity is trusted.
+ * requestId is passed separately as an opaque correlation token, never
+ * inside the original map handler payload.
  * This is NOT mounted on the legacy SessionWorkspace or public VTT.
  */
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -65,7 +67,7 @@ export function createArubaVerifiedMapRequestResults({
     // The GM dispatcher revalidates CURRENT chapter and permissions at
     // execution time and sends only normalized commands to original slots.
     accepted=dispatch.receiveFromPlayer({
-     campaignId,fromUserId,event,payload:action,
+     campaignId,fromUserId,event,payload:action,requestId,
     })===true;
    }catch(error){safeError(error);}
    finally{handling=false;}
