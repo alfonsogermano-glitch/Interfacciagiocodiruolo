@@ -76,6 +76,31 @@ try{
  await page.getByRole('region',{name:'Scheda di Mara'}).waitFor();
  assert.equal(await page.getByRole('button',{name:'Riprova salvataggio'}).count(),0);
  assert.equal(await page.getByRole('button',{name:/Archivia/}).count(),0);
+ // Five ORIGINAL HSC tabs remain navigable, but never grant mutations.
+ // Fieldsets may contain nested controls: all native inputs/buttons inside
+ // the readonly character data must be disabled, while tab navigation remains active.
+ const sheet=page.getByRole('region',{name:'Scheda di Mara'});
+ const baseTabs=[
+  ['summary','FISICO'],['conditions','Condizioni attive'],
+  ['equipment','Equipaggiamento'],['origins','Stile'],['storia','Storia']
+ ];
+ for(const [tab,heading] of baseTabs){
+  const tabButton=page.locator('[data-tab-id="'+tab+'"] button').first();
+  await tabButton.click();
+  assert.equal(await tabButton.isEnabled(),true,'Original navigation must work: '+tab);
+  await sheet.getByText(heading,{exact:false}).first().waitFor();
+  const controls=sheet.locator('fieldset button, fieldset input, fieldset textarea, fieldset select');
+  const count=await controls.count();
+  assert.ok(count>0,'Original tab must contain actual readonly controls: '+tab);
+  for(let i=0;i<count;i++){
+   assert.equal(await controls.nth(i).isDisabled(),true,
+    'Editable control escaped readonly fieldset: '+tab+' #'+i);
+  }
+ }
+ assert.equal(await page.getByRole('button',{name:'Aggiungi tab'}).count(),0,
+  'Read-only player cannot add custom character tabs');
+ // Reopen summary so the original rail remains in its expected default state.
+ await page.locator('[data-tab-id="summary"] button').first().click();
  assert.equal(requests.some(x=>x.path==='/vtt/characters'),false,
   'Player sheet must not use the GM character API');
  assert.equal(requests.some(x=>x.path.startsWith('/vtt/character-assignments')),false,
