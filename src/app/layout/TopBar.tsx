@@ -508,7 +508,7 @@ export function TopBar({ activeSection, sessionWorkspaceActive = false, onLogout
       <div className="flex-1" />
 
       {sessionWorkspaceActive && (
-        <div data-session-map-toolbar className="absolute left-2 right-24 flex items-center justify-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:left-1/2 md:right-auto md:-translate-x-1/2">
+        <div data-session-map-toolbar className="absolute left-2 right-24 flex items-center justify-start md:justify-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:left-1/2 md:right-auto md:-translate-x-1/2">
           <div className="flex items-center gap-1 rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-panel)]/90 p-1 shadow-lg">
             {SESSION_MAP_TOOLS.map(({ id, label, icon: Icon }) => (
               <Tooltip key={id}>
