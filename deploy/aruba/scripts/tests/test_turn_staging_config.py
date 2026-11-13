@@ -13,7 +13,11 @@ class TurnStagingConfigTest(unittest.TestCase):
         self.assertIn("read_only: true", value)
         self.assertIn("uid=65534,gid=65534", value)
         self.assertIn("cap_drop: [ALL]", value)
-        self.assertIn("coturn/coturn:4.18.0-r0-alpine", value)
+        self.assertIn("hollowgate-coturn:4.18.0-r0-hardened", value)
+        dockerfile = (TURN / "Dockerfile").read_text()
+        self.assertIn("FROM coturn/coturn:4.18.0-r0-alpine", dockerfile)
+        self.assertIn("setcap -r /usr/bin/turnserver", dockerfile)
+        self.assertIn("USER nobody:nogroup", dockerfile)
         self.assertNotIn("privileged: true", value)
         self.assertNotIn("AUTH_VTT_TURN_ENABLED: true", value)
 

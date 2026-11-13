@@ -4,7 +4,10 @@
 services:
   hollowgate-turn-staging:
     profiles: ["manual-turn"]
-    image: coturn/coturn:4.18.0-r0-alpine
+    build:
+      context: ../../..
+      dockerfile: deploy/aruba/turn/Dockerfile
+    image: hollowgate-coturn:4.18.0-r0-hardened
     network_mode: host
     restart: "no"
     read_only: true

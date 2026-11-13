@@ -30,3 +30,6 @@ The 4.18 release removed `no-cli` and `no-dtls`. A CI job now starts the real im
 
 ### Unprivileged container ownership
 The official Alpine image runs as `nobody:nogroup` (65534:65534). Its `/run/hollowgate` tmpfs must be owned by that identity; the secret and certificate/key bind mounts must be readable by that identity with strict mode 0600. The Aruba API uses another unprivileged UID, so supply an independently permissioned private copy of the **same key bytes** for that service. Verify all ownership/mounts before manually starting anything.
+
+### Hardened derived image
+The upstream Alpine image sets the executable file capability `CAP_NET_BIND_SERVICE`, which is unnecessary for ports 3478/5349 but conflicts with `cap_drop: [ALL]` and `no-new-privileges` on process start. The accompanying Dockerfile removes that capability during image construction and then returns to `nobody:nogroup`. The isolated CI smoke must build this derived image and run the exact startup script with all runtime capabilities dropped. Manual operation uses `docker compose build` before `up`, only following review.
