@@ -40,6 +40,7 @@ import {
   DEFAULT_SESSION_GRID,
   setSessionMapCurrentUserId,
   setSessionMapReady,
+  resetSessionMapRuntime,
   type SessionGridSettings,
 } from "./mapToolStore";
 import { useActiveScene } from "./useActiveScene";
@@ -171,6 +172,10 @@ export function SessionWorkspace({
   onEndSession: () => Promise<void>;
 }) {
   setSessionMapCurrentUserId(currentUserId);
+  // Session-scoped cleanup of the ORIGINAL shared map store: campaign changes
+  // must discard callbacks and permissions even if the map renderer unmounts.
+  // Key only by campaignId: changing the active scene must not wipe a battle.
+  useEffect(() => () => resetSessionMapRuntime(), [campaignId]);
   const { activeScene, channelReady, publish, publishMapPatch } = useActiveScene(campaignId);
   // Avviso di connessione persa: senza questo indicatore un giocatore il cui
   // WebSocket cade resta davanti a una mappa congelata senza capire perche'.

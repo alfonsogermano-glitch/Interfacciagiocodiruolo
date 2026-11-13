@@ -103,3 +103,13 @@ test('SessionWorkspace visibility projection stays source-aligned and prevents h
  assert.match(visibility,/noteVisibleToPlayers \? poi\.noteId : null/);
  assert.doesNotMatch(visibility,/fetch\(|supabase|localStorage|sessionStorage/);
 });
+
+test('original SessionWorkspace revokes shared map state when campaign context unmounts',()=>{
+ const original=read('../../../src/app/components/session/SessionWorkspace.tsx');
+ const store=read('../../../src/app/components/session/mapToolStore.ts');
+ assert.match(original,/resetSessionMapRuntime,/);
+ assert.match(original,/useEffect\(\(\) => \(\) => resetSessionMapRuntime\(\), \[campaignId\]\)/);
+ assert.match(original,/useActiveScene\(campaignId\)/);
+ assert.match(original,/useCampaignChannel\(campaignId/);
+ assert.match(store,/export function resetSessionMapRuntime\(\)/);
+});
