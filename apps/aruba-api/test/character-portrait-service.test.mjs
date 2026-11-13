@@ -36,3 +36,22 @@ test('unassigned and foreign IDs do not reveal portrait data',async()=>{
  await assert.rejects(()=>svc.read(owner,campaign,pg),e=>e.status===404);
  await assert.rejects(()=>svc.read(owner,'forged',pg),e=>e.status===400);
 });
+
+test('unmodified full portrait source uses separate owner-only SQL functions',async()=>{
+ const calls=[];
+ const svc=createCharacterPortraitService({pool:{query:async(sql,args)=>{
+  calls.push({sql,args});
+  if(sql.includes('save_owned'))return {rows:[{saved:true}]};
+  return {rows:[{mime_type:'image/jpeg',
+   bytes:Buffer.from('ffd8ffe000104a4649460001ffd9','hex')}]};
+ }}});
+ const data=Buffer.from('ffd8ffe000104a4649460001ffd9','hex').toString('base64');
+ await svc.saveSource(owner,campaign,pg,{campaignId:campaign,mimeType:'image/jpeg',dataBase64:data});
+ assert.match(calls[0].sql,/save_owned_character_portrait_source/);
+ assert.equal((await svc.readSource(owner,campaign,pg)).dataBase64,data);
+ assert.match(calls[1].sql,/read_owned_character_portrait_source/);
+ await assert.rejects(()=>svc.saveSource(owner,campaign,pg,
+  {campaignId:campaign,mimeType:'image/png',dataBase64:data}));
+ await assert.rejects(()=>svc.saveSource(owner,campaign,pg,
+  {campaignId:campaign,mimeType:'image/jpeg',dataBase64:Buffer.alloc(2097153).toString('base64')}));
+});

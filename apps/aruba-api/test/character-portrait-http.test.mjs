@@ -21,7 +21,9 @@ async function serve(portraits,fn){
 test('portrait endpoints are disabled by default and demand owner cookie and origin',async()=>{
  const called=[];
  await serve({save:async(...args)=>{called.push(['save',...args]);return {stored:true}},
-  read:async(...args)=>{called.push(['read',...args]);return {mimeType:'image/png',dataBase64:''}}},
+  read:async(...args)=>{called.push(['read',...args]);return {mimeType:'image/png',dataBase64:''}},
+  readSource:async(...args)=>{called.push(['readSource',...args]);return {mimeType:'image/jpeg',dataBase64:''}},
+  saveSource:async(...args)=>{called.push(['saveSource',...args]);return {stored:true}}},
  async base=>{
   const url=base+'/vtt/character-portrait/'+character+'?campaignId='+camp;
   assert.equal((await fetch(url)).status,401);
@@ -31,7 +33,14 @@ test('portrait endpoints are disabled by default and demand owner cookie and ori
   const req={method:'PUT',headers:{...cookie,origin,'content-type':'application/json'},body:JSON.stringify(json)};
   assert.equal((await fetch(url,{...req,headers:{...cookie,'content-type':'application/json'}})).status,403);
   assert.equal((await fetch(url,req)).status,200);
-  assert.deepEqual(called.map(x=>x.slice(0,4)),[['read',owner,camp,character],['save',owner,camp,character]]);
+  const sourceUrl=base+'/vtt/character-portrait-source/'+character+'?campaignId='+camp;
+  assert.equal((await fetch(sourceUrl)).status,401);
+  assert.equal((await fetch(sourceUrl,{headers:cookie})).status,200);
+  assert.equal((await fetch(sourceUrl,{...req,headers:{...cookie,'content-type':'application/json'}})).status,403);
+  assert.equal((await fetch(sourceUrl,req)).status,200);
+  assert.deepEqual(called.map(x=>x.slice(0,4)),[
+   ['read',owner,camp,character],['save',owner,camp,character],
+   ['readSource',owner,camp,character],['saveSource',owner,camp,character]]);
  });
  await serve(null,async base=>{
   assert.equal((await fetch(base+'/vtt/character-portrait/'+character+'?campaignId='+camp,{headers:cookie})).status,404);

@@ -1,6 +1,7 @@
 import {CampaignRejected} from './campaign-service.mjs';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_BYTES=524288;
+const MAX_SOURCE_BYTES=2097152;
 const TYPES=new Set(['image/png','image/jpeg','image/webp']);
 function id(v){if(typeof v!=='string'||!UUID.test(v))throw new CampaignRejected('Identificatore non valido',400);return v;}
 function image(type,encoded){
@@ -21,6 +22,37 @@ function image(type,encoded){
 export function createCharacterPortraitService({pool}){
  if(typeof pool?.query!=='function')throw new TypeError('PostgreSQL pool required');
  return {
+  async saveSource(ownerId,campaignId,characterId,body){
+   id(ownerId);id(campaignId);id(characterId);
+   if(!body||typeof body!=='object'||Array.isArray(body)||
+      Object.keys(body).sort().join(',')!=='campaignId,dataBase64,mimeType'||
+      body.campaignId!==campaignId||body.mimeType!=='image/jpeg'||
+      typeof body.dataBase64!=='string'||body.dataBase64.length>2796208||
+      body.dataBase64.length<16||body.dataBase64.length%4!==0||
+      !/^[A-Za-z0-9+/]+={0,2}$/.test(body.dataBase64))
+     throw new CampaignRejected('Sorgente non valida',400);
+   const bytes=Buffer.from(body.dataBase64,'base64');
+   if(bytes.length<12||bytes.length>MAX_SOURCE_BYTES||
+      bytes.toString('base64')!==body.dataBase64||
+      bytes[0]!==255||bytes[1]!==216||bytes[2]!==255)
+     throw new CampaignRejected('Sorgente JPEG non valida o troppo grande',400);
+   const {rows}=await pool.query(
+    'SELECT hollowgate_vtt.save_owned_character_portrait_source($1,$2,$3,$4,$5) AS saved',
+    [ownerId,campaignId,characterId,'image/jpeg',bytes]);
+   if(rows[0]?.saved!==true)throw new CampaignRejected('Sorgente non autorizzata',404);
+   return {characterId,stored:true};
+  },
+  async readSource(ownerId,campaignId,characterId){
+   id(ownerId);id(campaignId);id(characterId);
+   const {rows}=await pool.query(
+    'SELECT * FROM hollowgate_vtt.read_owned_character_portrait_source($1,$2,$3)',
+    [ownerId,campaignId,characterId]);
+   if(!rows[0])throw new CampaignRejected('Sorgente non disponibile',404);
+   const record=rows[0];
+   if(record.mime_type!=='image/jpeg'||!Buffer.isBuffer(record.bytes)||
+      record.bytes.length>MAX_SOURCE_BYTES)throw Error('Corrupt source portrait');
+   return {characterId,mimeType:'image/jpeg',dataBase64:record.bytes.toString('base64')};
+  },
   async save(ownerId,campaignId,characterId,body){
    id(ownerId);id(campaignId);id(characterId);
    if(!body||typeof body!=='object'||Array.isArray(body)||

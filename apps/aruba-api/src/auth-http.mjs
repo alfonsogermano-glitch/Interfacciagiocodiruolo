@@ -81,7 +81,7 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
   }
   if (campaigns !== null && (typeof campaigns.list !== 'function' || typeof campaigns.create !== 'function' || typeof campaigns.update !== 'function'))
     throw new TypeError('Invalid campaign service');
-  if(characterPortraits!==null&&(!characters||typeof characterPortraits.save!=='function'||typeof characterPortraits.read!=='function'))
+  if(characterPortraits!==null&&(!characters||typeof characterPortraits.save!=='function'||typeof characterPortraits.read!=='function'||typeof characterPortraits.readSource!=='function'||typeof characterPortraits.saveSource!=='function'))
     throw new TypeError('Portrait service requires characters');
   if(characterAvailability!==null&&(!characters||
       typeof characterAvailability.list!=='function'||typeof characterAvailability.set!=='function'))
@@ -200,6 +200,22 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
            url.searchParams.getAll('campaignId').length!==1)
           throw new HttpProblem(400,'Query non valida');
         return response(res,200,await playerCharacters.list(user.id,url.searchParams.get('campaignId')));
+      }
+      // Original portrait source: restricted to active GM owner, never players.
+      // Feature flag is the same as cropped portrait, but schema 032 must be applied.
+      if(characterPortraits&&req.url?.startsWith('/vtt/character-portrait-source/')){
+        const match=/^\/vtt\/character-portrait-source\/([0-9a-f-]{36})\?campaignId=([0-9a-f-]{36})$/i.exec(req.url);
+        if(!match||!['GET','PUT'].includes(req.method))
+         throw new HttpProblem(400,'Richiesta sorgente non valida');
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.method==='GET')return response(res,200,
+         await characterPortraits.readSource(user.id,match[2],match[1]));
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        const body=await readJson(req,2900000);
+        return response(res,200,await characterPortraits.saveSource(user.id,match[2],match[1],body));
       }
       // Isolated owner-managed portrait binary. Exact query and same-origin
       // checks apply even to authenticated sessions. Player reads are SQL gated.
