@@ -31,7 +31,6 @@ case "$secret" in
 esac
 cat > "$config_file" <<EOF
 fingerprint
-lt-cred-mech
 use-auth-secret
 realm=$TURN_HOSTNAME
 server-name=$TURN_HOSTNAME
@@ -43,6 +42,7 @@ max-port=49200
 cert=/run/tls/turn-fullchain.pem
 pkey=/run/tls/turn-privkey.pem
 no-cli
+pidfile=/run/hollowgate/turnserver.pid
 no-dtls
 no-loopback-peers
 no-multicast-peers

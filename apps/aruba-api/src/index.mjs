@@ -20,7 +20,7 @@ import {createCampaignNotesService} from './campaign-notes-service.mjs';
 import {createCampaignFoldersService} from './campaign-folders-service.mjs';
 import {createSignalingIdentityService} from './signaling-identity-service.mjs';
 import {createSignalingWebSocketGateway} from './signaling-websocket-gateway.mjs';
-import {createTurnCredentialService} from './turn-credential-service.mjs';
+import {createTurnCredentialService,parseTurnSharedSecret} from './turn-credential-service.mjs';
 
 const required = (name) => {
   const value = process.env[name];
@@ -169,7 +169,7 @@ async function main() {
       throw new Error('Unsupported AUTH_VTT_TURN_ENABLED value');
     if(turnFlag==='true'){
       if(!signalingIdentity)throw new Error('TURN requires authenticated staging signaling');
-      const secret=await readFile(required('TURN_SHARED_SECRET_FILE'));
+      const secret=parseTurnSharedSecret(await readFile(required('TURN_SHARED_SECRET_FILE')));
       const urls=required('TURN_URLS').split(',').map(x=>x.trim());
       // Must match separately provisioned coturn use-auth-secret configuration.
       // No default relay address, password or production activation.

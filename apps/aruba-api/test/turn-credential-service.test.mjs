@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createHmac} from 'node:crypto';
-import {createTurnCredentialService} from '../src/turn-credential-service.mjs';
+import {createTurnCredentialService,parseTurnSharedSecret} from '../src/turn-credential-service.mjs';
 
 const campaign='00000000-0000-4000-8000-000000000001';
 const owner='00000000-0000-4000-8000-000000000002';
@@ -56,4 +56,23 @@ test('TURN settings reject permanent credentials in URL and weak secrets',()=>{
   urls:['turn:relay.example.org']}));
  assert.throws(()=>createTurnCredentialService({identity,sharedSecret:secret,
   urls:['turn:relay.example.org'],ttlSeconds:3600}));
+});
+
+test('TURN secret file allows exactly one terminal newline and matches coturn HMAC',()=>{
+ const hex='a'.repeat(64);
+ const identity={verify:async()=>({userId:player,campaignId:campaign,role:'player'})};
+ for(const suffix of ['', '\n','\r\n']){
+  const bytes=parseTurnSharedSecret(Buffer.from(hex+suffix));
+  assert.equal(bytes.toString('utf8'),hex);
+  assert.deepEqual(createHmac('sha1',bytes).update('1300:'+player).digest(),
+   createHmac('sha1',Buffer.from(hex)).update('1300:'+player).digest());
+ }
+ for(const invalid of [hex+'\n\n',hex+' ',hex.toUpperCase(),hex.slice(0,63),' '+hex]){
+  assert.throws(()=>parseTurnSharedSecret(Buffer.from(invalid)));
+ }
+ assert.throws(()=>parseTurnSharedSecret('not-a-buffer'));
+ const secretFile=parseTurnSharedSecret(Buffer.from(hex+'\n'));
+ const turn=createTurnCredentialService({identity,sharedSecret:secretFile,
+  urls:['turn:relay.example.org'],clock:()=>1000000,ttlSeconds:300});
+ assert.ok(turn);
 });
