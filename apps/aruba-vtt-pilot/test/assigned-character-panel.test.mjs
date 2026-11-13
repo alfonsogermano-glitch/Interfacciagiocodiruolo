@@ -51,3 +51,14 @@ test('detail access is rechecked on open and on focus; stale GM permissions neve
  assert.match(source,/setOpenId\(null\)/);
  assert.doesNotMatch(source,/setInterval|localStorage|sessionStorage/);
 });
+
+test('player media preserves the original rail and never mounts Supabase image editors',()=>{
+ const source=readFileSync(new URL('../src/ArubaAssignedCharacterPanel.tsx',import.meta.url),'utf8');
+ const detail=readFileSync(new URL('../../../src/app/components/session/shared/EntityDetailView.tsx',import.meta.url),'utf8');
+ assert.match(source,/arubaReadOnlyMedia=\{true\}/);
+ assert.match(detail,/arubaReadOnlyMedia && !canEdit/);
+ assert.match(detail,/data-aruba-readonly-media="true"/);
+ assert.match(detail,/<EntityPortraitImage/);
+ assert.match(detail,/activeSection === 'token'/);
+ assert.match(detail,/<TokenStyleEditor/);
+});

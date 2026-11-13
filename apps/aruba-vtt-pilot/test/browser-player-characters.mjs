@@ -99,6 +99,26 @@ try{
  }
  assert.equal(await page.getByRole('button',{name:'Aggiungi tab'}).count(),0,
   'Read-only player cannot add custom character tabs');
+ // Original contextual rail: image has a static Aruba-only preview,
+ // token reuses the original shape preview with all editing controls disabled.
+ const rail=page.getByLabel('Barra contestuale personaggio');
+ await rail.getByRole('button',{name:'Immagine'}).click();
+ const image=sheet.locator('[data-aruba-readonly-media="true"]');
+ await image.waitFor();
+ await image.getByText('Nessuna immagine migrata disponibile.').waitFor();
+ assert.equal(await image.locator('input, button, select, textarea').count(),0,
+  'Player image preview must contain no editor controls');
+ await rail.getByRole('button',{name:'Token'}).click();
+ await sheet.getByText('Token mappa').waitFor();
+ const tokenControls=sheet.locator('fieldset button, fieldset input, fieldset select, fieldset textarea');
+ assert.ok(await tokenControls.count()>0,'Original TokenStyleEditor controls must be present');
+ for(let i=0;i<await tokenControls.count();i++)
+  assert.equal(await tokenControls.nth(i).isDisabled(),true,
+   'Player token editor control unexpectedly active: '+i);
+ await rail.getByRole('button',{name:'Scheda'}).click();
+ await page.locator('[data-tab-id="summary"] button').first().waitFor();
+ assert.equal(requests.some(x=>/supabase|storage\/v1|image-assets/i.test(x.path)),false,
+  'Player media view must not query legacy image storage');
  // Reopen summary so the original rail remains in its expected default state.
  await page.locator('[data-tab-id="summary"] button').first().click();
  assert.equal(requests.some(x=>x.path==='/vtt/characters'),false,

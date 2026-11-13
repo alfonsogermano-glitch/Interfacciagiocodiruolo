@@ -128,7 +128,7 @@ export function ArubaAssignedCharacterPanel(){
       <section aria-label={'Scheda di '+selected.name}>
        <EntityDetailView entityType="character" entity={original}
         onUpdate={()=>{}} canEdit={false} campaignId={selected.campaignId}
-        accessToken={null} isHSC={true} isDraft={true}
+        accessToken={null} isHSC={true} isDraft={true} arubaReadOnlyMedia={true}
         showOwnerRow={false} showRail={false} activeSection={section}/>
       </section>
      </div>
