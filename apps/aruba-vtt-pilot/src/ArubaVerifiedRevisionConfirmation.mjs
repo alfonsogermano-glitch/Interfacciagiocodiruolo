@@ -9,7 +9,7 @@
  * rejects acknowledgments ahead of the GM's actual allocated revision. Clients can still lie about
  * their own application: no claim of durable or graphical completion.
  */
-const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX_PENDING=128;
 const validRevision=x=>Number.isSafeInteger(x)&&x>=0;
 export function createArubaVerifiedRevisionConfirmation({
