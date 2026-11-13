@@ -43,6 +43,7 @@ cert=/run/tls/turn-fullchain.pem
 pkey=/run/tls/turn-privkey.pem
 no-cli
 pidfile=/run/hollowgate/turnserver.pid
+log-file=stdout
 no-dtls
 no-loopback-peers
 no-multicast-peers

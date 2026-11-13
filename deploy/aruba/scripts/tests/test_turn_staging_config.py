@@ -29,6 +29,7 @@ class TurnStagingConfigTest(unittest.TestCase):
         self.assertIn("use-auth-secret", script)
         self.assertNotIn("lt-cred-mech", script)
         self.assertIn("pidfile=/run/hollowgate/turnserver.pid", script)
+        self.assertIn("log-file=stdout", script)
         self.assertIn("no-loopback-peers", script)
 
     def test_relay_port_range_and_documentation(self):
