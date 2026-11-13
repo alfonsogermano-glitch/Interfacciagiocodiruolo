@@ -25,6 +25,10 @@ export default defineConfig({
       if((id.startsWith('@radix-ui/')||id==='@iconify/react'||id==='sonner') &&
         importer?.includes('/src/app/'))
         return this.resolve(id,resolve(root,'src/ArubaEntityDependencies.tsx'),{skipSelf:true});
+      // Original ImageCropCore lives outside this isolated npm package.
+      // Resolve its dependency from the Aruba package, not the legacy root.
+      if(id==='react-easy-crop' && importer?.includes('/src/app/'))
+        return this.resolve(id,resolve(root,'src/ArubaEntityDependencies.tsx'),{skipSelf:true});
       if(id.startsWith('@tiptap/') && importer?.includes('/src/app/'))
         return this.resolve(id,resolve(root,'src/ArubaEntityDependencies.tsx'),{skipSelf:true});
       if(importer?.includes('/src/app/components/') && id.endsWith('/campaigns/RulesetContext'))

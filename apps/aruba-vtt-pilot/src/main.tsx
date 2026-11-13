@@ -249,14 +249,14 @@ function App(){
   {section==='session'&&activeCampaign&&sessionCharacterRequest&&user.charactersEnabled&&
    <ArubaCharacterDetailPanel key={activeCampaign.id+':'+sessionCharacterRequest.requestId}
     characterId={sessionCharacterRequest.id} campaignId={activeCampaign.id}
-    ownerId={user.id} notesEnabled={user.entityNotesEnabled} portraitsEnabled={user.characterPortraitsEnabled} portraitsEnabled={user.characterPortraitsEnabled}
+    ownerId={user.id} notesEnabled={user.entityNotesEnabled} portraitsEnabled={user.characterPortraitsEnabled}
     onClose={()=>closeSessionCharacter()}
     onChanged={()=>setCharacterCatalogRevision(n=>n+1)}
     onArchived={()=>{setCharacterCatalogRevision(n=>n+1);closeSessionCharacter();}}
    />}
   {section==='characters'&&entityDetail&&user.charactersEnabled&&
    <ArubaCharacterDetailPanel key={entityDetail.campaignId+':'+entityDetail.id}
-    characterId={entityDetail.id} campaignId={entityDetail.campaignId} ownerId={user.id} notesEnabled={user.entityNotesEnabled}
+    characterId={entityDetail.id} campaignId={entityDetail.campaignId} ownerId={user.id} notesEnabled={user.entityNotesEnabled} portraitsEnabled={user.characterPortraitsEnabled}
     onClose={()=>setEntityDetail(null)}
     onChanged={()=>setCharacterCatalogRevision(n=>n+1)}
     onArchived={()=>{setCharacterCatalogRevision(n=>n+1);setEntityDetail(null);}}
