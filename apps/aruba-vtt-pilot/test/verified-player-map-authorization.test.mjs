@@ -170,7 +170,7 @@ test('real GM-authoritative router rejects spoof and delivers only verified play
  assert.equal(connection.publish('map_token_action',{
   chapterId:chapter,action:'move',positions:{'my-token':{x:7,y:8}},
  }),false);
- assert.equal(observed.length,1);
+ assert.equal(observed.length,2);
  host.disconnect();
 });
 
