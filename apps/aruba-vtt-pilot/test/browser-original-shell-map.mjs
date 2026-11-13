@@ -37,12 +37,12 @@ try{
   assert.equal(Math.round(top.height),48);
   // Poison the original shared store to reproduce a GM/campaign switch.
   await page.getByRole('button',{name:'QA: imposta stato GM temporaneo'}).click();
-  await page.locator('[data-map-qa-user="00000000-0000-4000-8000-000000000002"]').waitFor();
+  await page.locator('[data-map-qa-user="00000000-0000-4000-8000-000000000002"]').waitFor({state:'attached'});
   await toolbar.locator('[data-map-tool="grid"]').waitFor();
   assert.equal(await toolbar.locator('[data-map-tool="grid"]').isEnabled(),true);
   await page.getByRole('button',{name:'QA: mappa disconnessa'}).click();
   await page.locator('[data-map-qa-ready="false"]').waitFor();
-  await page.locator('[data-map-qa-user="none"]').waitFor();
+  await page.locator('[data-map-qa-user="none"]').waitFor({state:'attached'});
   for(let i=0;i<9;i++)assert.equal(await toolButtons.nth(i).isDisabled(),true);
   // Reconnecting to another campaign must not revive the previous GM's
   // map-edit authority, even though mapToolStore is a module singleton.
