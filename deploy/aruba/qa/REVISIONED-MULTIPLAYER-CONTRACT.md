@@ -68,3 +68,30 @@ line-of-sight algorithms, shader behavior or cross-device visual fidelity
 is established by these tests. Existing 60 KB frame limits still require
 separate chunking for complex scenes. Never enable in the public VTT based
 on these tests alone.
+
+## Verified player -> GM map mutation gate (experimental)
+
+`ArubaVerifiedPlayerMapAuthorization.mjs` checks a small, explicit
+subset of existing Hollowgate player map requests before they are passed to
+the GM. The actor ID comes **only** from independently verified signaling
+identity, never from the untrusted `actorProfileId` on the wire. The current
+authoritative map state and active chapter must come from the GM runtime.
+
+For token movement and POI movement, the original GM source accepts unlocked,
+unpinned objects (ownership not required). Token transforms, token metadata
+updates, POI edits and layer reordering require matching creator identity and
+the original lock/pin guards. A request for any hidden object is conservatively
+rejected rather than trusting that its ID would never be disclosed. The new
+gate is intentionally narrower than the full original UI: creation, deletion,
+magnet actions, undo/redo, previews and several mixed/batch commands remain
+unsupported. This should not be mistaken for functional parity.
+
+The module returns a sanitized command; **it does not mutate the GM state**.
+Callers must re-authorize against current state at delivery time and then
+route to the canonical original map reducers. The router currently lists
+`map_object_layer_action` as GM-only, so player layer requests cannot pass
+through it yet even if this gate would authorize them; enable only after
+reviewing the entire original authorization chain.
+
+Do not enable this pathway on the public VTT without real original reducer,
+verified membership, end-to-end browser interaction, and visual parity tests.
