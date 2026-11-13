@@ -119,7 +119,7 @@ try{
  const states=await Promise.all([host.evaluate(()=>window.probeStates),guest.evaluate(()=>window.probeStates)]);
  assert.equal(states.flat().some(x=>x.state==='error'),false);
  await Promise.all([host.evaluate(()=>window.probe.disconnect()),guest.evaluate(()=>window.probe.disconnect())]);
- await Promise.all([gmContext.close(),playerContext.close(),ctx.close()]);
+ await Promise.all([gmContext.close(),playerContext.close()]);
  console.log('BROWSER_RELAY_ONLY_SUCCESS: two Chromium contexts, real TURN relay, no gameplay payload');
 }finally{
  if(browser)await browser.close();
