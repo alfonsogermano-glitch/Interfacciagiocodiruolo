@@ -6,7 +6,7 @@ try{
  for(const width of [390,768,1440]){
   const page=await browser.newPage({viewport:{width,height:900}});
   page.on('pageerror',e=>errors.push(e.message));
-  await page.goto('http://127.0.0.1:4175/original-shell.html',{waitUntil:'domcontentloaded'});
+  await page.goto('http://127.0.0.1:4175/vtt/original-shell.html',{waitUntil:'domcontentloaded'});
   const qa=page.locator('[data-original-shell-qa="true"]');
   await qa.waitFor();
   const left=qa.locator('aside').first();

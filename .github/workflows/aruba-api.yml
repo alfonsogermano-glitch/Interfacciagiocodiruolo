@@ -193,10 +193,10 @@ jobs:
           echo $! > /tmp/hg-shell-preview.pid
           trap 'kill $(cat /tmp/hg-shell-preview.pid) 2>/dev/null || true' EXIT
           for i in $(seq 1 30); do
-            if curl --silent --fail http://127.0.0.1:4175/original-shell.html >/dev/null; then break; fi
+            if curl --silent --fail http://127.0.0.1:4175/vtt/original-shell.html >/dev/null; then break; fi
             sleep 1
           done
-          curl --silent --fail http://127.0.0.1:4175/original-shell.html >/dev/null
+          curl --silent --fail http://127.0.0.1:4175/vtt/original-shell.html >/dev/null
           node test/browser-original-shell.mjs
       - name: Check real original Note panel in Chromium against in-memory API
         working-directory: apps/aruba-vtt-pilot
