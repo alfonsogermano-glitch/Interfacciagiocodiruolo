@@ -196,6 +196,9 @@ jobs:
       - name: Verify revisioned source and player receiver over real Chromium WebRTC
         working-directory: apps/aruba-vtt-pilot
         run: node test/browser-revisioned-events.mjs
+      - name: Verify original map visibility with revisioned GM state over real Chromium WebRTC
+        working-directory: apps/aruba-vtt-pilot
+        run: node test/browser-original-map-revision.mjs
       - name: Verify isolated relay-only Chromium WebRTC through real coturn
         working-directory: apps/aruba-vtt-pilot
         run: bash ../../deploy/aruba/turn/qa/verify-browser-relay.sh
