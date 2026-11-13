@@ -43,7 +43,7 @@ test('player events are authorized, verified again, and attributed to session',a
   peerId:'p',receiveFromHost:()=>{}});
  assert.equal(await peer.publish('chat_message',{text:'hello'}),true);
  assert.equal(await peer.publish('active_scene_change',{activeScene:{id:'x'}}),false);
- assert.deepEqual(messages,[{campaignId,fromUserId:player,
+ assert.deepEqual(messages,[{campaignId:campaign,fromUserId:player,
   event:'chat_message',payload:{text:'hello'}}]);
  assert.ok(calls.filter(x=>x[0]==='player').length>=2);
  host.disconnect();
