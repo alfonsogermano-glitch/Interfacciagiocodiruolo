@@ -62,10 +62,13 @@ test('original map toolbar QA cannot activate any network map session or bypass 
  const config=read('../vite.original-shell.config.mjs');
  assert.match(shell,/mapWorkspaceQa=\{mapWorkspaceQa\}/);
  assert.match(shell,/<ArubaOriginalMapToolQA/);
- assert.match(qa,/setSessionMapReady\(false\)/);
- assert.match(qa,/configureSessionGrid\(DEFAULT_SESSION_GRID,false,null\)/);
- assert.match(qa,/configureSessionMapHistory\(null,null,false,false\)/);
- assert.match(qa,/setActiveSessionMapTool\('move'\)/);
+ const store=read('../../../src/app/components/session/mapToolStore.ts');
+ assert.match(qa,/resetSessionMapRuntime\(\)/);
+ assert.match(store,/export function resetSessionMapRuntime\(\)/);
+ assert.match(store,/setSessionMapReady\(false\)/);
+ assert.match(store,/configureSessionGrid\(\{ \.\.\.DEFAULT_SESSION_GRID \}, false, null\)/);
+ assert.match(store,/configureSessionMapHistory\(null, null, false, false\)/);
+ assert.match(store,/setActiveSessionMapTool\('move'\)/);
  assert.doesNotMatch(qa,/fetch\(|localStorage|sessionStorage|WebSocket|PeerJS|supabase/);
  assert.match(config,/original-shell-map\.html/);
  assert.doesNotMatch(read('../src/main.tsx'),/ArubaOriginalMapToolQA|original-shell-map-entry/);
