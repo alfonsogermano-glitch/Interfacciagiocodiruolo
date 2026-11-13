@@ -77,7 +77,7 @@ export function createGmHostEventRouter({campaignId,gmUserId,
      // A GM may be authorized to see secrets which players must NOT receive.
      // Visibility is peer-scoped, not merely event-name-scoped. No original
      // event is forwarded unless a future Aruba snapshot/role policy approves.
-     for(const peer of peers.values()){
+     for(const [peerId,peer] of peers){
       let visible=false;
       try{
        // Never expose the canonical frame to a policy callback.
@@ -87,9 +87,12 @@ export function createGmHostEventRouter({campaignId,gmUserId,
         event:message.event,payload:copyPayload(message.payload),
        })===true;
       }catch(error){onDeliveryError(error);continue;}
-      if(visible)safeDeliver(peer.receiveFromHost,
-       {campaignId,event:message.event,payload:copyPayload(message.payload)},
-       onDeliveryError);
+      // Authorization is a caller-supplied callback: it may revoke this
+      // peer, close the GM, or replace the entire host generation.
+      if(visible&&ensureHost(record)&&peers.get(peerId)===peer)
+       safeDeliver(peer.receiveFromHost,
+        {campaignId,event:message.event,payload:copyPayload(message.payload)},
+        onDeliveryError);
      }
      return true;
     },
@@ -118,7 +121,10 @@ export function createGmHostEventRouter({campaignId,gmUserId,
        event:message.event,payload:copyPayload(message.payload),
       })===true;
      }catch(error){onDeliveryError(error);return false;}
-     if(!allowed)return false;
+     // A policy may synchronously disconnect the player or close the GM.
+     // Recheck the exact registered peer and host generation after it runs.
+     if(!allowed||!ensureHost(host)||peers.get(peerId)!==record||
+       record.generation!==generation)return false;
      return safeDeliver(host.receiveFromPlayer,{
       campaignId,fromUserId:record.authenticatedUserId,
       event:message.event,payload:copyPayload(message.payload),

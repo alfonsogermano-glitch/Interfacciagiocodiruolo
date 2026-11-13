@@ -109,6 +109,54 @@ test('GM authorization exceptions do not modify frames sent to other players',()
  assert.equal(messages[0].payload.activeScene.id,'original');
 });
 
+
+test('GM delivery stops when a policy disconnects its peer',()=>{
+ const received=[];
+ let connection;
+ const relay=make({authorizeHostEvent:()=>{
+  connection.disconnect();
+  return true;
+ }});
+ const gm=relay.openVerifiedHost({authenticatedUserId:owner,receiveFromPlayer:()=>{}});
+ connection=relay.attachVerifiedPlayer({peerId:'revoked',authenticatedUserId:player,
+  verifiedCampaignId:campaign,receiveFromHost:message=>received.push(message)});
+ assert.equal(gm.publish('active_scene_change',{activeScene:{id:'private'}}),true);
+ assert.equal(gm.connectedPlayers,0);
+ assert.deepEqual(received,[]);
+});
+
+test('closing GM during host authorization prevents remaining deliveries',()=>{
+ const received=[];
+ let relay;
+ relay=make({authorizeHostEvent:()=>{relay.close();return true;}});
+ const gm=relay.openVerifiedHost({authenticatedUserId:owner,receiveFromPlayer:()=>{}});
+ relay.attachVerifiedPlayer({peerId:'one',authenticatedUserId:player,
+  verifiedCampaignId:campaign,receiveFromHost:message=>received.push(message)});
+ relay.attachVerifiedPlayer({peerId:'two',authenticatedUserId:other,
+  verifiedCampaignId:campaign,receiveFromHost:message=>received.push(message)});
+ assert.equal(gm.publish('active_scene_change',{activeScene:{id:'private'}}),true);
+ assert.equal(relay.hostOnline,false);
+ assert.deepEqual(received,[]);
+});
+
+test('player event is denied if policy revokes connection or closes GM',()=>{
+ const received=[];
+ let peer;
+ const relay=make({authorizePlayerEvent:()=>{peer.disconnect();return true;}});
+ relay.openVerifiedHost({authenticatedUserId:owner,receiveFromPlayer:message=>received.push(message)});
+ peer=relay.attachVerifiedPlayer({peerId:'one',authenticatedUserId:player,
+  verifiedCampaignId:campaign,receiveFromHost:()=>{}});
+ assert.equal(peer.publish('chat_message',{text:'private'}),false);
+ assert.deepEqual(received,[]);
+ let second;
+ const otherRelay=make({authorizePlayerEvent:()=>{otherRelay.close();return true;}});
+ otherRelay.openVerifiedHost({authenticatedUserId:owner,receiveFromPlayer:message=>received.push(message)});
+ second=otherRelay.attachVerifiedPlayer({peerId:'two',authenticatedUserId:other,
+  verifiedCampaignId:campaign,receiveFromHost:()=>{}});
+ assert.equal(second.publish('chat_message',{text:'private'}),false);
+ assert.deepEqual(received,[]);
+});
+
 test('player messages deny by default, and GM-only scene/map events remain forbidden',()=>{
  const received=[];
  const relay=make({authorizePlayerEvent:({event,userId,payload})=>
