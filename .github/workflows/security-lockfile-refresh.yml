@@ -71,7 +71,15 @@ jobs:
         run: |
           test "$GITHUB_REF" = 'refs/heads/feature/aruba-api-foundation'
           git diff --name-only > /tmp/hg-security-files.txt
-          if grep -Ev '^(package(-lock)?\\.json|apps/aruba-vtt-pilot/package(-lock)?\\.json)$' /tmp/hg-security-files.txt; then
+          if grep -Ev '^(package(-lock)?[.]json|apps/aruba-vtt-pilot/package(-lock)?[.]json)
+            echo 'Unexpected non-dependency modifications, refusing push' >&2
+            exit 1
+          fi
+          git add package.json package-lock.json apps/aruba-vtt-pilot/package.json apps/aruba-vtt-pilot/package-lock.json
+          git diff --cached --quiet && exit 0
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'fix(security): update Tiptap and Vite with audited lockfiles'
+          git push origin HEAD:refs/heads/feature/aruba-api-foundation
+ /tmp/hg-security-files.txt; then
             echo 'Unexpected non-dependency modifications, refusing push' >&2
             exit 1
           fi
