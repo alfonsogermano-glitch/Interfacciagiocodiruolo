@@ -42,5 +42,8 @@ test('portrait capability checks explicit dependencies and the original cropper 
  const source=readFileSync(new URL('../../../src/app/components/shared/ImageCropCore.tsx',import.meta.url),'utf8');
  assert.match(source,/uploadCropped \? await uploadCropped\(blob\) : await uploadContentAsset/);
  assert.match(source,/selectedFile && preserveSource && !uploadCropped/);
- assert.match(readFileSync(new URL('../src/ArubaCharacterDetailPanel.tsx',import.meta.url),'utf8'),/portraitsEnabled\?<ArubaGMCharacterPortrait/);
+ const panel=readFileSync(new URL('../src/ArubaCharacterDetailPanel.tsx',import.meta.url),'utf8');
+ assert.match(panel,/arubaPortraitEditor=\{portraitsEnabled\?/);
+ assert.match(panel,/<ArubaGMCharacterPortrait/);
+ assert.doesNotMatch(panel,/section==='immagine'/);
 });
