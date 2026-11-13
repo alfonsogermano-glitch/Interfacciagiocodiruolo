@@ -23,3 +23,18 @@ test('QA shell cannot accidentally become the shipping VTT entry',()=>{
  assert.match(config,/original-shell\.html/);
  assert.match(read('../original-shell.html'),/original-shell-entry\.tsx/);
 });
+
+test('authenticated QA shell uses cookie bootstrap and owner-scoped Aruba campaigns only',()=>{
+ const qa=read('../src/ArubaAuthenticatedOriginalShellQA.tsx');
+ assert.match(qa,/loadPilotSession\(fetch\)/);
+ assert.match(qa,/listOwnedCampaigns\(fetch,user\.id\)/);
+ assert.match(qa,/if\(!user\.campaignsEnabled\)/);
+ assert.match(qa,/if\(!active\)return/);
+ assert.match(qa,/<ArubaOriginalShellParity campaigns=\{state\.campaigns\}/);
+ assert.doesNotMatch(qa,/supabase|localStorage|sessionStorage|createOwnedCampaign|updateOwnedCampaign|POST|PUT/);
+ const entry=read('../src/original-shell-auth-entry.tsx');
+ assert.match(entry,/ArubaAuthenticatedOriginalShellQA/);
+ assert.doesNotMatch(read('../src/main.tsx'),/original-shell-auth-entry|ArubaAuthenticatedOriginalShellQA/);
+ const config=read('../vite.original-shell.config.mjs');
+ assert.match(config,/original-shell-auth\.html/);
+});

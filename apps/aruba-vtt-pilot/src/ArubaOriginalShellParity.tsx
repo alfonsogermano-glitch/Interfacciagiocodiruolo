@@ -15,7 +15,9 @@ const fixtureCampaign:Campaign={
  ownerId:'00000000-0000-4000-8000-000000000002',
  createdAt:'2026-11-13T00:00:00.000Z',updatedAt:'2026-11-13T00:00:00.000Z',
 };
-export function ArubaOriginalShellParity(){
+export function ArubaOriginalShellParity({campaigns=[fixtureCampaign],displayName='GM di collaudo'}:{
+ campaigns?:Campaign[];displayName?:string;
+}={}){
  const [view,setView]=useState<'home'|'dashboard'|'campaign-home'>('dashboard');
  const [section,setSection]=useState('chapters');
  const [campaign,setCampaign]=useState<Campaign|null>(null);
@@ -26,7 +28,7 @@ export function ArubaOriginalShellParity(){
   <AppShell
    settings={{language:'it',palette:'noir',saveMode:'local'}}
    leftSidebar={<LeftSidebar view={view} activeSection={section}
-    campaigns={[fixtureCampaign]}
+    campaigns={campaigns}
     selectedCampaignId={campaign?.id??null}
     onGoHome={()=>{setView('home');setCampaign(null);setSection('home');}}
     onGoToHomeSection={go}
@@ -35,7 +37,7 @@ export function ArubaOriginalShellParity(){
     onSelectCampaign={value=>{setCampaign(value);setView('campaign-home');setSection('campaign-home');}}/>}
    topbar={<header data-original-topbar-slot="pending-Aruba-adapter"
     className="flex h-[76px] shrink-0 items-center justify-between border-b border-[var(--dash-border)] px-6">
-    <strong>HOLLOWGATE · Collaudo struttura originale</strong>
+    <strong>HOLLOWGATE · {displayName}</strong>
     <span className="text-xs text-[var(--dash-muted)]">TopBar originale non ancora collegata</span>
    </header>}
    rightSidebar={view==='dashboard'&&!['characters','campaigns'].includes(section)?
