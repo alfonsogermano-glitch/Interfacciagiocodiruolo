@@ -64,7 +64,7 @@ class HttpProblem extends Error {
   }
 }
 
-export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, passwordReset = null, signupService = null, campaigns = null,characters = null,entityNotes = null,campaignNotes = null,campaignFolders = null,notesPanelEnabled = false,campaignRoster = null,characterAvailability = null,characterAssignments = null,playerCharacters = null,characterPortraits = null }) {
+export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, passwordReset = null, signupService = null, campaigns = null,characters = null,entityNotes = null,campaignNotes = null,campaignFolders = null,notesPanelEnabled = false,campaignRoster = null,characterAvailability = null,characterAssignments = null,playerCharacters = null,characterPortraits = null, turnCredentials = null }) {
   if(typeof notesPanelEnabled!=='boolean'||(notesPanelEnabled&&(!campaignNotes||!campaignFolders)))
     throw new TypeError('Original Notes panel requires both authenticated Notes and folders');
   const allowedOrigin = new URL(origin);
@@ -73,6 +73,8 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
   for (const [name, fn] of Object.entries({ login, getSessionUser, revokeSession })) {
     if (typeof fn !== 'function') throw new TypeError(name + ' required');
   }
+  if(turnCredentials!==null&&typeof turnCredentials.issue!=='function')
+    throw new TypeError('Invalid TURN credential service');
   if (passwordReset !== null && (typeof passwordReset.request !== 'function' || typeof passwordReset.redeem !== 'function')) {
     throw new TypeError('Invalid passwordReset service');
   }
@@ -106,6 +108,19 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
     throw new TypeError('Invalid campaign folders service');
   return async (req, res) => {
     try {
+      // Staging-only, authenticated and same-origin. No persistent TURN secret
+      // or browser-supplied identity is accepted. Do not cache credentials.
+      if(turnCredentials&&req.url==='/vtt/ice-credentials'&&req.method==='POST'){
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        const sessionToken=extractSession(req);
+        if(!sessionToken)return response(res,401,{error:'Non autenticato'});
+        const body=await readJson(req);
+        if(Object.keys(body).sort().join(',')!=='campaignId,role')
+          throw new HttpProblem(400,'Richiesta TURN non valida');
+        return response(res,200,await turnCredentials.issue({
+          sessionToken,campaignId:body.campaignId,connectionRole:body.role,
+        }));
+      }
       if (req.url === '/auth/login' && req.method === 'POST') {
         if (req.headers.origin !== origin) throw new HttpProblem(403, 'Origine non consentita');
         const { email, password } = await readJson(req);

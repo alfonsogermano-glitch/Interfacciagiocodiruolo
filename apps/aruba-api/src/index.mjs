@@ -20,6 +20,7 @@ import {createCampaignNotesService} from './campaign-notes-service.mjs';
 import {createCampaignFoldersService} from './campaign-folders-service.mjs';
 import {createSignalingIdentityService} from './signaling-identity-service.mjs';
 import {createSignalingWebSocketGateway} from './signaling-websocket-gateway.mjs';
+import {createTurnCredentialService} from './turn-credential-service.mjs';
 
 const required = (name) => {
   const value = process.env[name];
@@ -46,6 +47,7 @@ async function main() {
   // Never enable auth on the main API, on another database, or with an owner role.
   let authHandler = null;
   let signalingIdentity = null;
+  let turnCredentials = null;
   if (process.env.AUTH_STAGING_ENABLED === 'true') {
     if (process.env.PGDATABASE !== 'hollowgate_auth_test' ||
         process.env.PGUSER !== 'hollowgate_auth_app') {
@@ -162,7 +164,22 @@ async function main() {
       if(!campaigns)throw new Error('Signaling requires staging campaigns and SQL 016');
       signalingIdentity=createSignalingIdentityService({getSessionUser,pool,campaigns});
     }
-    authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession, passwordReset,signupService,campaigns,characters,entityNotes,campaignNotes,campaignFolders,notesPanelEnabled,campaignRoster,characterAvailability,characterAssignments,playerCharacters,characterPortraits});
+    const turnFlag=process.env.AUTH_VTT_TURN_ENABLED;
+    if(turnFlag&&!['true','false'].includes(turnFlag))
+      throw new Error('Unsupported AUTH_VTT_TURN_ENABLED value');
+    if(turnFlag==='true'){
+      if(!signalingIdentity)throw new Error('TURN requires authenticated staging signaling');
+      const secret=await readFile(required('TURN_SHARED_SECRET_FILE'));
+      const urls=required('TURN_URLS').split(',').map(x=>x.trim());
+      // Must match separately provisioned coturn use-auth-secret configuration.
+      // No default relay address, password or production activation.
+      turnCredentials=createTurnCredentialService({
+        identity:signalingIdentity,sharedSecret:secret,urls,
+      });
+    }
+    authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession, passwordReset,signupService,campaigns,characters,entityNotes,campaignNotes,campaignFolders,notesPanelEnabled,campaignRoster,characterAvailability,characterAssignments,playerCharacters,characterPortraits,turnCredentials});
+  } else if (process.env.AUTH_VTT_TURN_ENABLED === 'true') {
+    throw new Error('TURN requires dedicated auth staging');
   } else if (process.env.AUTH_VTT_SIGNALING_ENABLED === 'true') {
     throw new Error('Signaling requires dedicated auth staging');
   } else if (process.env.AUTH_VTT_CHARACTER_PORTRAITS_ENABLED === 'true') {
