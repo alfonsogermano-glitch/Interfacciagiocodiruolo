@@ -56,6 +56,59 @@ test('GM delivery is denied by default and selectively authorized for each playe
   verifiedCampaignId:campaign,receiveFromHost:()=>{throw Error('must remain private')}});
  assert.equal(host.publish('active_scene_change',{activeScene:{id:'test'}}),true);
 });
+
+test('GM callbacks cannot alter later players or already delivered frames',()=>{
+ const received=[];
+ const relay=make({
+  authorizeHostEvent:({toUserId,payload})=>{
+   if(toUserId===player)payload.activeScene.id='POLICY-TAMPERED';
+   return true;
+  },
+ });
+ const gm=relay.openVerifiedHost({authenticatedUserId:owner,receiveFromPlayer:()=>{}});
+ relay.attachVerifiedPlayer({peerId:'first',authenticatedUserId:player,
+  verifiedCampaignId:campaign,receiveFromHost:message=>{
+   received.push(message);
+   message.payload.activeScene.id='LISTENER-TAMPERED';
+  }});
+ relay.attachVerifiedPlayer({peerId:'second',authenticatedUserId:other,
+  verifiedCampaignId:campaign,receiveFromHost:message=>received.push(message)});
+ assert.equal(gm.publish('active_scene_change',{activeScene:{id:'original'}}),true);
+ assert.equal(received.length,2);
+ assert.equal(received[1].payload.activeScene.id,'original');
+ assert.notStrictEqual(received[0].payload,received[1].payload);
+});
+
+test('player authorization cannot rewrite the event delivered to the GM',()=>{
+ const received=[];
+ const relay=make({authorizePlayerEvent:({payload})=>{
+  payload.text='altered-by-policy';
+  return true;
+ }});
+ relay.openVerifiedHost({authenticatedUserId:owner,receiveFromPlayer:message=>received.push(message)});
+ const peer=relay.attachVerifiedPlayer({peerId:'player',authenticatedUserId:player,
+  verifiedCampaignId:campaign,receiveFromHost:()=>{}});
+ assert.equal(peer.publish('chat_message',{text:'original'}),true);
+ assert.equal(received[0].payload.text,'original');
+});
+
+test('GM authorization exceptions do not modify frames sent to other players',()=>{
+ const messages=[],errors=[];
+ const relay=make({onDeliveryError:error=>errors.push(error.message),
+  authorizeHostEvent:({toUserId,payload})=>{
+   if(toUserId===player){payload.activeScene.id='bad';throw Error('policy failed');}
+   return true;
+  }});
+ const gm=relay.openVerifiedHost({authenticatedUserId:owner,receiveFromPlayer:()=>{}});
+ relay.attachVerifiedPlayer({peerId:'bad',authenticatedUserId:player,
+  verifiedCampaignId:campaign,receiveFromHost:()=>{throw Error('must not deliver')}});
+ relay.attachVerifiedPlayer({peerId:'good',authenticatedUserId:other,
+  verifiedCampaignId:campaign,receiveFromHost:message=>messages.push(message)});
+ assert.equal(gm.publish('active_scene_change',{activeScene:{id:'original'}}),true);
+ assert.deepEqual(errors,['policy failed']);
+ assert.equal(messages[0].payload.activeScene.id,'original');
+});
+
 test('player messages deny by default, and GM-only scene/map events remain forbidden',()=>{
  const received=[];
  const relay=make({authorizePlayerEvent:({event,userId,payload})=>

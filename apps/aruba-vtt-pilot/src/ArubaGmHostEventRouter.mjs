@@ -33,6 +33,9 @@ function frame(event,payload){
  const result=JSON.parse(json);
  return result;
 }
+// frame() already reduced payloads to JSON data; each recipient receives
+// a fresh copy, including when another listener or policy mutates its input.
+function copyPayload(payload){return JSON.parse(JSON.stringify(payload));}
 function safeDeliver(deliver,message,onDeliveryError){
  try{deliver(message);return true;}
  catch(error){onDeliveryError?.(error);return false;}
@@ -77,13 +80,15 @@ export function createGmHostEventRouter({campaignId,gmUserId,
      for(const peer of peers.values()){
       let visible=false;
       try{
+       // Never expose the canonical frame to a policy callback.
+       // A policy may mutate its argument or retain it beyond this call.
        visible=authorizeHostEvent({
         campaignId,toUserId:peer.authenticatedUserId,
-        event:message.event,payload:message.payload,
+        event:message.event,payload:copyPayload(message.payload),
        })===true;
       }catch(error){onDeliveryError(error);continue;}
       if(visible)safeDeliver(peer.receiveFromHost,
-       {campaignId,event:message.event,payload:message.payload},
+       {campaignId,event:message.event,payload:copyPayload(message.payload)},
        onDeliveryError);
      }
      return true;
@@ -110,13 +115,13 @@ export function createGmHostEventRouter({campaignId,gmUserId,
      try{
       allowed=authorizePlayerEvent({
        campaignId,userId:record.authenticatedUserId,
-       event:message.event,payload:message.payload,
+       event:message.event,payload:copyPayload(message.payload),
       })===true;
      }catch(error){onDeliveryError(error);return false;}
      if(!allowed)return false;
      return safeDeliver(host.receiveFromPlayer,{
       campaignId,fromUserId:record.authenticatedUserId,
-      event:message.event,payload:message.payload,
+      event:message.event,payload:copyPayload(message.payload),
      },onDeliveryError);
     },
     disconnect(){if(peers.get(peerId)===record)peers.delete(peerId);},
