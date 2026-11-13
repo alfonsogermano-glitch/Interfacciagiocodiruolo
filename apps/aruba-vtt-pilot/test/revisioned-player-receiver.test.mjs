@@ -133,3 +133,39 @@ test('original-scene visibility and per-player source revisions reach receiver w
  registered.close();source.close();
  assert.equal(receiver.status,'closed');
 });
+
+test('onApplied reports only committed receiver revisions, not duplicates or rejected frames',()=>{
+ const channel=new Channel(),received=[];
+ const receiver=createArubaRevisionedPlayerReceiver({
+  channel,applySnapshot:()=>true,applyDelta:()=>true,
+  onApplied:event=>received.push(event),
+ });
+ channel.send(JSON.stringify(snapshot(0)));
+ channel.send(JSON.stringify(delta(1)));
+ channel.send(JSON.stringify(delta(1)));
+ assert.deepEqual(received,[
+  {type:'initial-snapshot',revision:0},
+  {type:'visible-delta',revision:1,event:'active_scene_change'},
+ ]);
+ receiver.close();
+ const failedChannel=new Channel(),bad=[];
+ createArubaRevisionedPlayerReceiver({
+  channel:failedChannel,applySnapshot:()=>true,applyDelta:()=>false,
+  onApplied:event=>bad.push(event),
+ });
+ failedChannel.send(JSON.stringify(snapshot(0)));
+ failedChannel.send(JSON.stringify(delta(1)));
+ assert.deepEqual(bad,[{type:'initial-snapshot',revision:0}]);
+});
+test('throwing onApplied fail-closes the player channel, without advancing further state',()=>{
+ const channel=new Channel(),errors=[];
+ const receiver=createArubaRevisionedPlayerReceiver({
+  channel,applySnapshot:()=>true,applyDelta:()=>true,
+  onApplied:event=>{if(event.type==='visible-delta')throw Error('ack-failure');},
+  onError:e=>errors.push(e.message),
+ });
+ channel.send(JSON.stringify(snapshot(0)));
+ channel.send(JSON.stringify(delta(1)));
+ assert.equal(receiver.status,'closed');
+ assert.deepEqual(errors,['ack-failure']);
+});

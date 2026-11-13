@@ -7,6 +7,8 @@
  * rejects gaps/reordered updates and never guesses how to repair state.
  * Rendering callbacks are synchronous, fail-closed and must enforce
  * application-specific state schema/visibility independently.
+ * Optional onApplied fires only AFTER synchronous UI state application. It
+ * reports local reception only, not durable persistence or visual rendering.
  */
 import {isBroadcastEvent} from '../../../src/services/realtime/campaignChannelContract.ts';
 
@@ -40,13 +42,13 @@ function parse(data){
  throw new Error('Unknown GM revision frame');
 }
 export function createArubaRevisionedPlayerReceiver({
- channel,applySnapshot,applyDelta,onError=()=>{},onClosed=()=>{},
+ channel,applySnapshot,applyDelta,onApplied=()=>{},onError=()=>{},onClosed=()=>{},
 }){
  if(typeof channel?.addEventListener!=='function'||
   typeof channel?.removeEventListener!=='function'||
   typeof channel?.close!=='function'||
   typeof applySnapshot!=='function'||typeof applyDelta!=='function'||
-  typeof onError!=='function'||typeof onClosed!=='function')
+  typeof onApplied!=='function'||typeof onError!=='function'||typeof onClosed!=='function')
   throw new TypeError('Verified GM channel and synchronous state adapters required');
  let status='awaiting-snapshot',revision=null,firstFrame=false;
  function close(error){
@@ -74,6 +76,7 @@ export function createArubaRevisionedPlayerReceiver({
     });
     if(applied!==true||status==='closed')throw new Error('Player rejected initial state');
     revision=frame.revision;status='ready';
+    onApplied({type:'initial-snapshot',revision});
     return;
    }
    if(frame.type!=='visible-delta')
@@ -88,6 +91,7 @@ export function createArubaRevisionedPlayerReceiver({
    });
    if(applied!==true||status==='closed')throw new Error('Player rejected visible delta');
    revision=frame.revision;
+   onApplied({type:'visible-delta',revision,event:frame.event});
   }catch(error){close(error);}
  }
  channel.addEventListener('message',receive);

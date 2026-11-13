@@ -153,3 +153,33 @@ its GM callback, NOT application. Never display that return value as
 player-visible success. For true applied-state confirmation, match the
 request to a committed revision or authoritative state acknowledgment
 once the original SessionWorkspace and revision producer are integrated.
+
+## Client-received revision confirmation (isolated; not persistence)
+
+The opt-in `ArubaRevisionedPlayerReceiver` can now emit `onApplied`
+after a synchronous `applySnapshot` or `applyDelta` returns `true`.
+The callback does not fire on duplicates, failed application, malformed
+messages or revision gaps. A throwing callback fail-closes the receiver.
+
+`ArubaVerifiedRevisionConfirmation` keeps bounded per-user request IDs
+mapped to a GM-allocated per-peer visible revision. This expectation must
+be registered by trusted GM code **only after a successful authoritative
+revision commit**. It accepts an acknowledgment solely from the *same*
+server-verified campaign user and current peer, rechecks membership,
+and refuses acknowledgments beyond the trusted GM's published revision
+reader. When the user's receiver acknowledges a revision, the GM may
+send `map-command-result` with `outcome: "received-revision"` to that
+verified user. Duplicate acknowledgments do not repeat responses, and
+pending expectations must be explicitly revoked when the peer disconnects.
+
+This is a **client-reported receipt**, not proof of rendering, durable
+persistence, or honest client behavior. No client acknowledgment wire
+protocol has yet been installed in the active VTT, and the source's
+revision allocation alone is insufficient evidence of delivery. The
+GM's command result is still `dispatched` until a matching player
+receipt is observed. There is no end-user success UI yet.
+
+Never interpret untrusted WebRTC request IDs, usernames, claimed
+campaign IDs or claimed peer IDs as authenticated identity. The
+membership, peer generation and outgoing recipient must be established
+from the signaling integration independently.
