@@ -307,3 +307,48 @@ export function useActiveSessionMapTool(): SessionMapTool {
     () => 'move',
   );
 }
+
+/**
+ * Tear down transient, module-scoped session map state when the authenticated
+ * campaign/player context changes or the GM host leaves. Do not clear user
+ * preferences stored locally: only remove in-memory callbacks, edit authority,
+ * private selections and transient overlays. This operation does not persist
+ * map data and does not claim the map backend has been migrated.
+ *
+ * Explicit function rather than React unmount side effects: an Aruba session
+ * coordinator can call it BEFORE making a different campaign visible.
+ */
+export function resetSessionMapRuntime(): void {
+  // Withdraw authority before notifying subscribers, then clear callbacks.
+  setSessionMapReady(false);
+  setSessionMapCurrentUserId(null);
+  configureSessionGrid({ ...DEFAULT_SESSION_GRID }, false, null);
+  configureSessionMapFit(false, null);
+  configureSessionMapCenter(false, null);
+  configureSessionMapHistory(null, null, false, false);
+  configureSessionMapDrawingClear(null);
+  configureSessionMapFogCoverFullMap(null);
+  configureSessionMapFogClear(null);
+  configureSessionMapFogSelectionClear(null);
+
+  // Undo residual selections and previously active tools in the SAME store
+  // observed by the original TopBar and the original SessionWorkspace.
+  setActiveSessionMapTool('move');
+  setSessionMapSelectionMode('rectangle');
+  setSessionMapSelectionArmed(false);
+  setSessionMapMeasureMode(null);
+  setSessionMapMeasurementsVisibleToAll(true);
+  setSessionMapDrawMode('freehand');
+  updateSessionMapDrawStyle({ ...DEFAULT_SESSION_DRAW_STYLE });
+  updateSessionMapTextStyle({ ...DEFAULT_SESSION_TEXT_STYLE });
+  updateSessionMapFogSettings({
+    mode:'grab',
+    operation:'cover',
+    previewAsPlayer:false,
+    overlapMode:'overlay',
+    color:'#111827',
+    strokeWidth:2,
+    fullMapCovered:false,
+  });
+  setSessionMapCalibrationActive(false);
+}

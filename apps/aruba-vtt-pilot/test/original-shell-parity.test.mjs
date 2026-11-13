@@ -70,3 +70,22 @@ test('original map toolbar QA cannot activate any network map session or bypass 
  assert.match(config,/original-shell-map\.html/);
  assert.doesNotMatch(read('../src/main.tsx'),/ArubaOriginalMapToolQA|original-shell-map-entry/);
 });
+
+test('original map runtime has explicit fail-closed teardown of every map mutation callback',()=>{
+ const store=read('../../../src/app/components/session/mapToolStore.ts');
+ const fixture=read('../src/ArubaOriginalMapToolQA.tsx');
+ const browser=read('./browser-original-shell-map.mjs');
+ assert.match(store,/export function resetSessionMapRuntime\(\)/);
+ for(const symbol of ['setSessionMapReady(false)','setSessionMapCurrentUserId(null)',
+  'configureSessionGrid({ ...DEFAULT_SESSION_GRID }, false, null)',
+  'configureSessionMapFit(false, null)','configureSessionMapCenter(false, null)',
+  'configureSessionMapHistory(null, null, false, false)',
+  'configureSessionMapDrawingClear(null)','configureSessionMapFogCoverFullMap(null)',
+  'configureSessionMapFogClear(null)','configureSessionMapFogSelectionClear(null)',
+  "setActiveSessionMapTool('move')","setSessionMapSelectionArmed(false)",
+  'setSessionMapMeasureMode(null)','setSessionMapCalibrationActive(false)',
+  'fullMapCovered:false','previewAsPlayer:false'])
+  assert.ok(store.includes(symbol),'reset misses '+symbol);
+ assert.match(fixture,/return\(\)=>resetSessionMapRuntime\(\)/);
+ assert.match(browser,/Stale previous-campaign permissions revived/);
+});
