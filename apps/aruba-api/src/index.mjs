@@ -18,6 +18,8 @@ import {createCharacterPortraitService} from './character-portrait-service.mjs';
 import {createEntityNotesService} from './entity-notes-service.mjs';
 import {createCampaignNotesService} from './campaign-notes-service.mjs';
 import {createCampaignFoldersService} from './campaign-folders-service.mjs';
+import {createSignalingIdentityService} from './signaling-identity-service.mjs';
+import {createSignalingWebSocketGateway} from './signaling-websocket-gateway.mjs';
 
 const required = (name) => {
   const value = process.env[name];
@@ -43,6 +45,7 @@ async function main() {
 
   // Never enable auth on the main API, on another database, or with an owner role.
   let authHandler = null;
+  let signalingIdentity = null;
   if (process.env.AUTH_STAGING_ENABLED === 'true') {
     if (process.env.PGDATABASE !== 'hollowgate_auth_test' ||
         process.env.PGUSER !== 'hollowgate_auth_app') {
@@ -151,7 +154,17 @@ async function main() {
     if(notesPanelFlag==='true' && (!campaignNotes||!campaignFolders))
       throw new Error('Original Notes panel requires campaign Notes and folders');
     const notesPanelEnabled=notesPanelFlag==='true';
+    // Staging-only WebRTC signaling: opt-in, not game data transport.
+    const signalingFlag=process.env.AUTH_VTT_SIGNALING_ENABLED;
+    if(signalingFlag&&!['true','false'].includes(signalingFlag))
+      throw new Error('Unsupported AUTH_VTT_SIGNALING_ENABLED value');
+    if(signalingFlag==='true'){
+      if(!campaigns)throw new Error('Signaling requires staging campaigns and SQL 016');
+      signalingIdentity=createSignalingIdentityService({getSessionUser,pool,campaigns});
+    }
     authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession, passwordReset,signupService,campaigns,characters,entityNotes,campaignNotes,campaignFolders,notesPanelEnabled,campaignRoster,characterAvailability,characterAssignments,playerCharacters,characterPortraits});
+  } else if (process.env.AUTH_VTT_SIGNALING_ENABLED === 'true') {
+    throw new Error('Signaling requires dedicated auth staging');
   } else if (process.env.AUTH_VTT_CHARACTER_PORTRAITS_ENABLED === 'true') {
     throw new Error('Portrait storage requires dedicated auth staging');
   } else if (process.env.AUTH_VTT_PLAYER_CHARACTERS_ENABLED === 'true') {
@@ -183,6 +196,9 @@ async function main() {
   }
 
   const app = createApp({ checkDatabase: () => pool.query('SELECT 1'), authHandler });
+  const signalingGateway=signalingIdentity?createSignalingWebSocketGateway({
+    server:app,origin:required('AUTH_ORIGIN'),identity:signalingIdentity,
+  }):null;
   const port = Number(process.env.PORT ?? 3000);
   app.listen(port, '0.0.0.0', () => console.log('Hollowgate API listening'));
 
@@ -190,6 +206,7 @@ async function main() {
   const shutdown = () => {
     if (closing) return;
     closing = true;
+    signalingGateway?.close();
     const deadline = setTimeout(() => process.exit(1), 10000);
     deadline.unref();
     app.close(async () => {
