@@ -40,3 +40,25 @@ The isolated runner now performs an actual RFC 5766 TURN Allocate handshake over
 ### Browser relay-only CI acceptance test
 
 A separate CI job now runs **two independent Chromium contexts** with the original browser WebRTC signaling probe, authenticates both against disposable HTTPS endpoints, requests short-lived TURN credentials from the real Aruba issuance service, and negotiates `iceTransportPolicy: "relay"`. The test fails unless both sides connect and `getStats()` identifies the selected route as `relay`. It starts a **separate test-only coturn configuration** on a private Docker bridge without publishing host ports, with freshly generated test secrets and with the hardened container user/capability restrictions. Because both CI browsers run on the same host, this proves only the relay-only path works in isolation; it cannot certify NAT traversal between different physical networks or PC–Android performance. The CI-only TURN config intentionally allows private Docker peers and must **never** be used as the production Aruba configuration.
+
+
+### Read-only VPS preflight (must pass before any manual start)
+
+The operator must run the following **on the actual Aruba host**, from the checked-out repository, with the real TURN hostname and verified public IPv4. Use no real identifiers in CI and never paste keys into chat:
+
+```sh
+sudo python3 deploy/aruba/turn/qa/preflight.py \
+  --hostname <verified-turn-hostname> \
+  --ipv4 <verified-public-ipv4>
+```
+
+This preflight checks, **without modifying the VPS**, that:
+
+- The hostname resolves to the provided, globally routable IPv4 (no private or documentation address).
+- The coturn secret at `/opt/hollowgate/config/turn_shared_secret` belongs to UID 65534 with mode 0600; the matching private API copy at `/opt/hollowgate/config/turn_api_shared_secret` belongs to UID 1001 with mode 0600. Only matching ASCII keys are accepted; their contents are never printed.
+- The TLS private key belongs to UID 65534 and is mode 0600, the matching certificate covers the TURN hostname, and it remains valid for at least seven days.
+- No local process currently uses TURN ports 3478/UDP+TCP and 5349/TCP or relay UDP ports 49160–49200. The check fails closed if `ss` or OpenSSL cannot run.
+
+**Do not enable any feature flag or start the container just because this command succeeds.** DNS resolution is not proof of public UDP reachability, and this cannot inspect Aruba's external firewall, NAT path, TLS from remote clients, public DNS propagation or PC/Android behavior. The operator must separately inspect Aruba's firewall and host rules, TLS renewals and existing services. If preflight fails, resolve the discrepancy without exposing secrets or opening unrelated ports.
+
+Rollback after a subsequently authorized *manual-only* staging trial: stop only this distinct Compose project/service, disable `AUTH_VTT_TURN_ENABLED`, and restore the prior firewall rules under the operator's change plan. Do not stop the production API, change `main`, alter existing Caddy routes or touch unrelated services.
