@@ -215,7 +215,20 @@ try{
   await page.goto(base,{waitUntil:'domcontentloaded'});
   await page.getByRole('button',{name:'Personaggi',exact:true}).click();
   const library=page.getByRole('region',{name:'Archivio personaggi'});
-  await library.locator('img[src^="data:image/jpeg;base64,"]').first().waitFor();
+  try{
+   await library.getByText('Mara di prova').first().waitFor({timeout:8000});
+   await library.locator('img[src^="data:image/jpeg;base64,"]').first()
+    .waitFor({state:'attached',timeout:8000});
+  }catch(e){
+   console.error('GM_PORTRAIT_CARD_DEBUG',JSON.stringify({
+    library:(await library.innerText()).slice(0,1400),
+    portraitRequests:store.requests.filter(r=>r.path.includes('portrait')),
+    imageSrcs:await library.locator('img').evaluateAll(images=>
+     images.map(img=>({alt:img.alt,src:img.getAttribute('src')?.slice(0,90)}))),
+    errors,
+   }));
+   throw e;
+  }
   await library.getByText('Mara di prova').first().click();
   const sheet=page.getByRole('region',{name:'Scheda di Mara di prova'});
   await sheet.waitFor();
