@@ -5,14 +5,15 @@ import {EntityDetailRail,type EntityDetailRailSection} from '../../../src/app/co
 import {SlideOverPanel} from '../../../src/app/components/session/SlideOverPanel';
 import {EntityDetailView} from '../../../src/app/components/session/shared/EntityDetailView';
 import {ArubaNotesProvider} from './ArubaNotesCapability';
+import {ArubaGMCharacterPortrait} from './ArubaGMCharacterPortrait';
 import {awaitArubaNoteWrites,subscribeArubaNoteError} from './ArubaNotesWriteRegistry.mjs';
 import type {Character} from '../../../src/types/character';
 
 type HscCharacter=Character & {player:string;notes:string};
 type Draft={id:string;campaignId:string;ownerId:string;name:string;status:'draft'|'active';sheetData:Record<string,unknown>};
 
-export function ArubaCharacterDetailPanel({characterId,campaignId,ownerId,notesEnabled,onClose,onChanged,onArchived}:{
- characterId:string;campaignId:string;ownerId:string;notesEnabled:boolean;
+export function ArubaCharacterDetailPanel({characterId,campaignId,ownerId,notesEnabled,portraitsEnabled,onClose,onChanged,onArchived}:{
+ characterId:string;campaignId:string;ownerId:string;notesEnabled:boolean;portraitsEnabled:boolean;
  onClose:()=>void;onChanged:()=>void;onArchived:()=>void;
 }){
  const [draft,setDraft]=useState<Draft|null>(null);
@@ -57,7 +58,7 @@ export function ArubaCharacterDetailPanel({characterId,campaignId,ownerId,notesE
       {loading?<p>Caricamento della scheda da Aruba…</p>:
        error?<p role="alert" className="error">{error}</p>:
        draft?<ArubaPersistedSheet draft={draft} ownerId={ownerId} onChanged={onChanged} onArchived={onArchived}
-        registerCloseGuard={registerCloseGuard} section={section}/>:null}
+        registerCloseGuard={registerCloseGuard} section={section} portraitsEnabled={portraitsEnabled}/>:null}
      </div>
     </div>
   </SlideOverPanel>
@@ -69,9 +70,9 @@ export function ArubaCharacterDetailPanel({characterId,campaignId,ownerId,notesE
 /* Staging: ORIGINAL EntityDetailView base HSC tabs (summary, conditions,
  * equipment, origins, storia). Backend-dependent custom notes are disabled
  * until the Aruba notes API and permissions are ready. */
-function ArubaPersistedSheet({draft,ownerId,onChanged,onArchived,registerCloseGuard,section}:{
+function ArubaPersistedSheet({draft,ownerId,onChanged,onArchived,registerCloseGuard,section,portraitsEnabled}:{
  draft:Draft;ownerId:string;onChanged:()=>void;onArchived:()=>void;
- registerCloseGuard:(guard:()=>Promise<void>)=>void;section:EntityDetailRailSection;
+ registerCloseGuard:(guard:()=>Promise<void>)=>void;section:EntityDetailRailSection;portraitsEnabled:boolean;
 }){
  const campaignId=draft.campaignId;
  const [working,setWorking]=useState<HscCharacter>(()=>({
@@ -115,13 +116,17 @@ function ArubaPersistedSheet({draft,ownerId,onChanged,onArchived,registerCloseGu
    {error&&<span className="unsaved" role="alert">{error}</span>}
    {error&&<button type="button" className="character-panel-return" onClick={()=>update(working)}>Riprova salvataggio</button>}
   </div>
-  <EntityDetailView
+  {section==='immagine'?(
+   portraitsEnabled?<ArubaGMCharacterPortrait campaignId={campaignId}
+    characterId={draft.id} name={working.name} />:
+    <p className="muted" role="status">Archivio ritratti Aruba non abilitato. Nessuna modifica alle immagini è consentita.</p>
+  ):<EntityDetailView
     entityType="character" entity={working}
     onUpdate={update} canEdit={true}
     campaignId={campaignId} accessToken={null} isHSC={true}
     showOwnerRow={false} showRail={false}
     activeSection={section}
-   />
+   />}
   {archiving&&<p>Archiviazione in corso…</p>}
  </section>;
 }

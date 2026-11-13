@@ -25,6 +25,10 @@ export function validateBootstrap(data){
       (c.characterAssignments.read&&(
        c.characters?.read!==true||c.characterAvailability?.read!==true||
        c.campaignRoster?.read!==true))))||
+    (c.characterPortraits!==undefined&&(
+      typeof c.characterPortraits.read!=='boolean'||
+      c.characterPortraits.read!==c.characterPortraits.write||
+      (c.characterPortraits.read&&c.characterAssignments?.read!==true)))||
     (c.playerCharacters!==undefined&&(
       typeof c.playerCharacters.read!=='boolean'||c.playerCharacters.write!==false||
       (c.playerCharacters.read&&c.characterAssignments?.read!==true)))||
@@ -54,6 +58,7 @@ export function validateBootstrap(data){
     characterAvailabilityEnabled:c.characterAvailability?.read===true,
     characterAssignmentsEnabled:c.characterAssignments?.read===true,
     playerCharactersEnabled:c.playerCharacters?.read===true,
+    characterPortraitsEnabled:c.characterPortraits?.read===true,
     campaignRosterEnabled:c.campaignRoster?.read===true,
     entityNotesEnabled:c.entityNotes?.read===true,
     campaignNotesEnabled:c.campaignNotes?.read===true,
@@ -339,4 +344,51 @@ export async function listAssignedPlayerCharacters(fetchImpl,campaignId){
    throw Error('Scheda non autorizzata o duplicata');
   ids.add(row.id);return row;
  });
+}
+
+/** Binary portraits are kept separate from character.sheetData. Never save
+ * data: URLs into the character JSON, never trust an owner ID from the UI. */
+const MEDIA_ID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function portraitEndpoint(campaignId,characterId){
+ if(!MEDIA_ID.test(campaignId)||!MEDIA_ID.test(characterId))
+  throw Error('Identificativo del ritratto non valido');
+ return '/vtt/character-portrait/'+characterId+'?campaignId='+campaignId;
+}
+export async function readCharacterPortrait(fetchImpl,campaignId,characterId){
+ const endpoint=portraitEndpoint(campaignId,characterId);
+ const r=await fetchImpl(endpoint,{method:'GET',credentials:'same-origin',
+  cache:'no-store',redirect:'error'});
+ if(r.status===404)return null;
+ if(r.status===401)throw Error('Sessione scaduta');
+ if(!r.ok)throw Error('Ritratto Aruba non disponibile');
+ const value=await characterApiJson(r);
+ if(!value||value.characterId!==characterId||
+  !['image/png','image/jpeg','image/webp'].includes(value.mimeType)||
+  typeof value.dataBase64!=='string'||value.dataBase64.length>699052||
+  value.dataBase64.length<16||!(/^[A-Za-z0-9+/]+={0,2}$/).test(value.dataBase64))
+  throw Error('Formato immagine Aruba non valido');
+ return 'data:'+value.mimeType+';base64,'+value.dataBase64;
+}
+export async function saveCharacterPortrait(fetchImpl,campaignId,characterId,blob){
+ const endpoint=portraitEndpoint(campaignId,characterId);
+ if(!(blob instanceof Blob)||blob.type!=='image/jpeg'||blob.size<12||
+  blob.size>524288)throw Error('Ritratto troppo grande: massimo 512 KB JPEG');
+ const bytes=new Uint8Array(await blob.arrayBuffer());
+ // Small bounded payload; avoid locale-dependent string conversion.
+ let raw='';
+ for(let offset=0;offset<bytes.length;offset+=8192)
+  raw+=String.fromCharCode(...bytes.subarray(offset,offset+8192));
+ const dataBase64=btoa(raw);
+ const r=await fetchImpl(endpoint,{method:'PUT',credentials:'same-origin',
+  cache:'no-store',redirect:'error',
+  headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({campaignId,mimeType:'image/jpeg',dataBase64})});
+ if(r.status===401)throw Error('Sessione scaduta');
+ if(r.status===404)throw Error('Ritratto non autorizzato');
+ if(!r.ok)throw Error('Salvataggio ritratto non riuscito');
+ const answer=await characterApiJson(r);
+ if(answer?.stored!==true||answer?.characterId!==characterId)
+  throw Error('Conferma del ritratto non valida');
+ // This URL lives in-memory only; never passed to saveFullCharacterSheet.
+ return {publicUrl:'data:image/jpeg;base64,'+dataBase64};
 }

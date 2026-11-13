@@ -15,7 +15,7 @@ import {ArubaCampaignPlayerRows} from './ArubaCampaignPlayerRows';
 import {ArubaAssignedCharacterPanel} from './ArubaAssignedCharacterPanel';
 import {HouseIcon,UsersThreeIcon,ScrollIcon,GitBranchIcon,PlayIcon,FileTextIcon,IdentificationBadgeIcon,GhostIcon,LightbulbIcon,BookmarkSimpleIcon,MapTrifoldIcon,ImageIcon,SwordIcon} from '@phosphor-icons/react';
 
-type PilotUser={id:string;email:string;displayName:string;role:'admin'|'standard';characterAvailabilityEnabled:boolean;characterAssignmentsEnabled:boolean;playerCharactersEnabled:boolean;campaignsEnabled:boolean;charactersEnabled:boolean;entityNotesEnabled:boolean;campaignNotesEnabled:boolean;campaignNoteFoldersEnabled:boolean;originalNotesPanelEnabled:boolean;campaignRosterEnabled:boolean};
+type PilotUser={id:string;email:string;displayName:string;role:'admin'|'standard';characterAvailabilityEnabled:boolean;characterAssignmentsEnabled:boolean;playerCharactersEnabled:boolean;characterPortraitsEnabled:boolean;campaignsEnabled:boolean;charactersEnabled:boolean;entityNotesEnabled:boolean;campaignNotesEnabled:boolean;campaignNoteFoldersEnabled:boolean;originalNotesPanelEnabled:boolean;campaignRosterEnabled:boolean};
 type Campaign={id:string;ownerId:string;name:string;description:string;ruleset:string;createdAt:string};
 type Status={state:'loading'}|{state:'unauthorized'}|{state:'error'}|{state:'ready';user:PilotUser};
 type Section='home'|'campaigns'|'characters'|'session'|'chapters'|'preparation'|'sheets'|'npcs'|'monsters'|'clues'|'equipment'|'map'|'situations'|'phases'|'combat'|'assets';
@@ -249,7 +249,7 @@ function App(){
   {section==='session'&&activeCampaign&&sessionCharacterRequest&&user.charactersEnabled&&
    <ArubaCharacterDetailPanel key={activeCampaign.id+':'+sessionCharacterRequest.requestId}
     characterId={sessionCharacterRequest.id} campaignId={activeCampaign.id}
-    ownerId={user.id} notesEnabled={user.entityNotesEnabled}
+    ownerId={user.id} notesEnabled={user.entityNotesEnabled} portraitsEnabled={user.characterPortraitsEnabled} portraitsEnabled={user.characterPortraitsEnabled}
     onClose={()=>closeSessionCharacter()}
     onChanged={()=>setCharacterCatalogRevision(n=>n+1)}
     onArchived={()=>{setCharacterCatalogRevision(n=>n+1);closeSessionCharacter();}}
