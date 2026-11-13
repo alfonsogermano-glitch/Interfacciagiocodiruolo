@@ -63,6 +63,7 @@ import {
   type MapObjectRef,
 } from "./mapObjectLayers";
 import { useCampaignChannel } from "../../../services/realtime/campaignChannel";
+import { publicMapTokens, publicMapDrawings, publicMapPois } from './sessionMapVisibility';
 
 type TokenPosition = { x: number; y: number };
 
@@ -138,25 +139,6 @@ function chapterPreview(
     contextMetadata: { timeOfDay: "", period: "", condition: "" },
     publishedAt: chapter.updatedAt,
   };
-}
-
-function publicMapTokens(tokens: SessionMapToken[]) {
-  // La visibilità della scheda sorgente controlla il catalogo laterale, non
-  // il token già posizionato. Sulla mappa l'unica autorità è il comando
-  // Mostra/Nascondi del token (`visible`).
-  return tokens.filter((token) => token.visible !== false);
-}
-
-function publicMapDrawings(drawings: SessionMapDrawing[]) {
-  return drawings.filter((drawing) => drawing.visible !== false);
-}
-function publicMapPois(pois: SessionMapPoi[]) {
-  return pois
-    .filter((poi) => poi.visibleToPlayers)
-    .map((poi) => ({
-      ...poi,
-      noteId: poi.noteVisibleToPlayers ? poi.noteId : null,
-    }));
 }
 
 function reconcileOrder(order: MapObjectRef[] | undefined, drawings: SessionMapDrawing[], tokens: SessionMapToken[], pois: SessionMapPoi[]) {

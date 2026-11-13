@@ -92,3 +92,14 @@ test('original map runtime has explicit fail-closed teardown of every map mutati
  assert.match(fixture,/return\(\)=>resetSessionMapRuntime\(\)/);
  assert.match(browser,/Stale previous-campaign permissions revived/);
 });
+
+test('SessionWorkspace visibility projection stays source-aligned and prevents hidden map objects leaking',()=>{
+ const workspace=read('../../../src/app/components/session/SessionWorkspace.tsx');
+ const visibility=read('../../../src/app/components/session/sessionMapVisibility.ts');
+ assert.match(workspace,/from '\.\/sessionMapVisibility'/);
+ assert.match(visibility,/token\.visible !== false/);
+ assert.match(visibility,/drawing\.visible !== false/);
+ assert.match(visibility,/poi\.visibleToPlayers/);
+ assert.match(visibility,/noteVisibleToPlayers \? poi\.noteId : null/);
+ assert.doesNotMatch(visibility,/fetch\(|supabase|localStorage|sessionStorage/);
+});
