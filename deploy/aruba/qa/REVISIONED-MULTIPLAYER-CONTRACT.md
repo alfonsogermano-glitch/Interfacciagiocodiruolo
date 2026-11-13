@@ -100,3 +100,30 @@ the original VTT interaction handlers.
 
 Do not enable this pathway on the public VTT without real original reducer,
 verified membership, end-to-end browser interaction, and visual parity tests.
+
+## Original GM handler dispatch bridge (still isolated)
+
+`ArubaVerifiedGmMapDispatch.mjs` is the next **opt-in** component. It can
+be wired as both `authorizePlayerEvent` and `receiveFromPlayer` on the
+existing `createGmHostEventRouter`, subject to verified signaling identity.
+Each operation calls **synchronous**, GM-owned
+`getCurrentMapContext({campaignId})` and `isVerifiedMember({campaignId,userId})`.
+The GM receive path repeats the complete authorization against the **current**
+chapter and original map state, after any earlier router policy preflight.
+It does not trust the player-supplied `actorProfileId`, accepts only the
+reviewed token, POI and layer commands, blocks nested commands, and sends
+the sanitized payload to injected *original* action handlers.
+
+A rejected operation MUST NOT mutate any map. The bridge does not apply
+events, publish deltas, or substitute reducers. Original history attribution,
+map state mutation, event revisioning and UI should happen inside the actual
+SessionWorkspace handlers after they are safely mounted. Callbacks that
+perform asynchronous mutation are unsupported: the bridge expects the
+original handlers to execute synchronously. An outbound router call may report
+success for network delivery while the GM rejects a request during this
+second-stage check; the eventual protocol needs an explicit acknowledgment
+and rejection result.
+
+This remains a source-derived **unit/in-memory-router test**, not a mounted
+real original map UI, not a production connection, and not a release
+certification.
