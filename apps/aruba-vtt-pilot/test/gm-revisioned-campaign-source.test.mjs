@@ -83,7 +83,7 @@ test('invalid or unauthorized claims cannot attach or publish events',()=>{
  assert.equal(register(idA,bob),null);
  source.close();
 });
-test('failing visibility projection aborts entire GM state transition, no partial revisions',()=>{
+test('failing visibility projection aborts entire GM state transition, no partial revisions',async()=>{
  const {source,register,errors}=setup({
   projectVisibleEvent:({userId,event,payload})=>{
    if(userId===bob)throw Error('Visibility database unavailable');
