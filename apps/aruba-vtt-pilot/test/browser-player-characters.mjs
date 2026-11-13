@@ -28,6 +28,7 @@ const capabilities={
  campaignNoteFolders:{read:false,write:false},
  originalNotesPanel:{read:false,write:false},gameSession:false,
 };
+let assigned=true;
 const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
 try{
  const page=await browser.newPage({viewport:{width:1440,height:900}});
@@ -48,7 +49,7 @@ try{
    id:campaign,ownerId:owner,name:'Campagna di prova',description:'Test giocatore',
    ruleset:'hsc',createdAt:'2026-11-12T00:00:00.000Z'}]};
   else if(path==='/vtt/player-characters'&&url.searchParams.get('campaignId')===campaign)
-   payload={characters:[fixture]};
+   payload={characters:assigned?[fixture]:[]};
   else {status=404;payload={error:'Endpoint not authorized in player browser test'};}
   return route.fulfill({status,contentType:'application/json; charset=utf-8',
    headers:{'cache-control':'no-store'},body:JSON.stringify(payload)});
@@ -81,9 +82,16 @@ try{
   'Player sheet must not query the GM assignment API');
  assert.equal(requests.some(x=>x.method!=='GET'),false,
   'Player viewer must not send character mutations');
- await page.locator('[data-entity-context="player-assigned-detail"]')
-  .getByRole('button',{name:/Torna ai personaggi/}).click();
+ // The GM revokes assignment while the player has this sheet open.
+ // On focus the player must lose the sheet without refreshing the page.
+ assigned=false;
+ await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
+ await page.getByRole('alert').filter({hasText:'assegnazione revocata'}).waitFor();
  await page.locator('[data-entity-context="player-assigned-detail"]').waitFor({state:'detached'});
+ assert.equal(await region.getByRole('button',{name:'Apri scheda assegnata di Mara'}).count(),0);
+ // Revocation was read through a fresh player-only GET; never a GM endpoint.
+ assert.ok(requests.filter(x=>x.path==='/vtt/player-characters').length>=3);
+ assert.equal(requests.some(x=>x.method!=='GET'),false);
  assert.deepEqual(errors,[]);
  await page.close();
  console.log('Player character Chromium QA passed: joined campaign, assigned PG, original readonly detail, no owner endpoints or mutations.');

@@ -41,3 +41,13 @@ test('player-facing original sheet uses canEdit false and no writable Aruba endp
  assert.match(source,/canEdit=\{false\}/);
  assert.doesNotMatch(source,/saveFullCharacterSheet|archiveOwnedCharacter|setCharacterAssignment/);
 });
+
+test('detail access is rechecked on open and on focus; stale GM permissions never reused',()=>{
+ const source=readFileSync(new URL('../src/ArubaAssignedCharacterPanel.tsx',import.meta.url),'utf8');
+ assert.match(source,/async function openAssigned\(id:string\)/);
+ assert.match(source,/const fresh=await listAssignedPlayerCharacters\(fetch,campaignId\)/);
+ assert.match(source,/window.addEventListener\('focus',focus\)/);
+ assert.match(source,/document.addEventListener\('visibilitychange',visible\)/);
+ assert.match(source,/setOpenId\(null\)/);
+ assert.doesNotMatch(source,/setInterval|localStorage|sessionStorage/);
+});
