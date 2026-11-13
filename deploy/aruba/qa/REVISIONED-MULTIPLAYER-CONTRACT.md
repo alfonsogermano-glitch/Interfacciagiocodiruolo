@@ -183,3 +183,26 @@ Never interpret untrusted WebRTC request IDs, usernames, claimed
 campaign IDs or claimed peer IDs as authenticated identity. The
 membership, peer generation and outgoing recipient must be established
 from the signaling integration independently.
+
+## WebRTC technical applied-revision receipts (isolated browser QA)
+
+`ArubaRevisionReceiptDataChannel.mjs` uses a separate, strictly parsed
+`{"type":"applied-revision","revision":N}` control envelope on the same
+pre-verified RTCDataChannel as original application state. The player sends
+this only from `ArubaRevisionedPlayerReceiver.onApplied`, after its reducer
+returns `true`. The GM attaches a **different listener** which ignores
+ordinary snapshot/delta or legacy event frames. The message contains
+**no trusted user ID, campaign or peer ID**. Those bindings are supplied
+by the server-verified signaling proof captured at channel attachment.
+
+The GM correlates only revisions already allocated to the same verified
+peer and user, checks membership and its trusted published revision, and
+sends `received-revision` results only to the verified destination.
+Disconnect closes the listener and cancels pending acknowledgments.
+A client may still lie about its applied state. This is not persistence
+or rendering proof; actual command-to-source-commit integration is not
+mounted in the normal Hollowgate shell.
+
+The isolated real Chromium test now checks actual player-to-GM receipt
+transport alongside original map projection and GM-to-player revisioned
+state on two WebRTC peers. No production infrastructure is changed.

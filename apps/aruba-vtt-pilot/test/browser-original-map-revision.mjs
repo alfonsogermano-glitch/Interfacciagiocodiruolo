@@ -18,9 +18,11 @@ const client=fileURLToPath(new URL('../src/ArubaWebRtcSignalingClient.mjs',impor
 const source=fileURLToPath(new URL('../src/ArubaGmRevisionedCampaignSource.mjs',import.meta.url));
 const receiver=fileURLToPath(new URL('../src/ArubaRevisionedPlayerReceiver.mjs',import.meta.url));
 const mapProjection=fileURLToPath(new URL('../src/ArubaOriginalMapRevisionProjection.mjs',import.meta.url));
+const receipts=fileURLToPath(new URL('../src/ArubaRevisionReceiptDataChannel.mjs',import.meta.url));
+const tracker=fileURLToPath(new URL('../src/ArubaVerifiedRevisionConfirmation.mjs',import.meta.url));
 let server,gateway,browser;
 try{
- await build({entryPoints:[source,receiver,mapProjection],outdir:temp,entryNames:'[name]',
+ await build({entryPoints:[source,receiver,mapProjection,receipts,tracker],outdir:temp,entryNames:'[name]',
   bundle:true,format:'esm',platform:'browser',logLevel:'silent'});
  execFileSync('openssl',['req','-x509','-newkey','rsa:2048','-nodes',
   '-keyout',join(temp,'key.pem'),'-out',join(temp,'cert.pem'),
@@ -33,6 +35,8 @@ try{
    '/ArubaGmRevisionedCampaignSource.js':join(temp,'ArubaGmRevisionedCampaignSource.js'),
    '/ArubaRevisionedPlayerReceiver.js':join(temp,'ArubaRevisionedPlayerReceiver.js'),
    '/ArubaOriginalMapRevisionProjection.js':join(temp,'ArubaOriginalMapRevisionProjection.js'),
+   '/ArubaRevisionReceiptDataChannel.js':join(temp,'ArubaRevisionReceiptDataChannel.js'),
+   '/ArubaVerifiedRevisionConfirmation.js':join(temp,'ArubaVerifiedRevisionConfirmation.js'),
   }[req.url];
   if(file){
    res.writeHead(200,{'content-type':'text/javascript','cache-control':'no-store'});
@@ -101,14 +105,41 @@ try{
      userId===player?projectOriginalMapForPlayer(state):null,
     projectVisibleEvent:args=>args.userId===player?projectOriginalMapDelta(args):null,
    });
+   const {attachArubaVerifiedGmRevisionReceipt}=
+    await import('/ArubaRevisionReceiptDataChannel.js');
+   const {createArubaVerifiedRevisionConfirmation}=
+    await import('/ArubaVerifiedRevisionConfirmation.js');
+   window.receiptSessions=new Map();
    window.verifiedSessions=new Map();
+   window.confirmedRevisions=[];
+   window.revisionConfirmations=createArubaVerifiedRevisionConfirmation({
+    campaignId:campaign,gmUserId:gm,
+    isVerifiedMember:({userId})=>[...window.verifiedProofs.values()]
+     .some(proof=>proof.userId===userId),
+    getPublishedRevision:({peerId})=>window.verifiedSessions.get(peerId)?.revision,
+    sendVerifiedResult:result=>window.confirmedRevisions.push(result),
+   });
+   window.attachReceipts=(peerId,channel)=>{
+    const proof=window.verifiedProofs.get(peerId);
+    if(!proof)return;
+    window.receiptSessions.set(peerId,attachArubaVerifiedGmRevisionReceipt({
+     channel,peerId,authenticatedUserId:proof.userId,
+     verifiedCampaignId:proof.campaignId,
+     tracker:window.revisionConfirmations,
+    }));
+   };
+   window.verifiedProofs=new Map();
   }else{
    const {createArubaRevisionedPlayerReceiver}=await import('/ArubaRevisionedPlayerReceiver.js');
+   const {createArubaPlayerRevisionReceiptSender}=
+    await import('/ArubaRevisionReceiptDataChannel.js');
    window.snapshotFrames=[];window.deltaFrames=[];window.receiver=null;
    window.createReceiver=channel=>{
+    window.receiptSender=createArubaPlayerRevisionReceiptSender({channel});
     window.receiver=createArubaRevisionedPlayerReceiver({
      channel,applySnapshot:f=>{window.snapshotFrames.push(f);return true;},
      applyDelta:f=>{window.deltaFrames.push(f);return true;},
+     onApplied:f=>window.receiptSender.send(f),
      onError:e=>window.errors.push('receiver '+String(e)),
     });
    };
@@ -123,16 +154,21 @@ try{
       peerId:proof.peerId,userId:proof.userId,verifiedCampaignId:proof.campaignId,
      });
      window.verifiedSessions.set(proof.peerId,record);
+     window.verifiedProofs.set(proof.peerId,proof);
     }
    },
    onPeerRevoked:proof=>{
     if(role==='host'){
+     window.receiptSessions.get(proof.peerId)?.close();
+     window.receiptSessions.delete(proof.peerId);
      window.verifiedSessions.get(proof.peerId)?.close();
      window.verifiedSessions.delete(proof.peerId);
+     window.verifiedProofs.delete(proof.peerId);
     }
    },
    onDataChannel:({peerId,channel})=>{
     if(role==='host'){
+     window.attachReceipts(peerId,channel);
      window.verifiedSessions.get(peerId)?.attachChannel(channel);
     }else window.createReceiver(channel);
    },
@@ -163,7 +199,13 @@ try{
   {family:'token',id:'visible-token'},
   {family:'poi',id:'visible-poi'},
  ]);
- await host.evaluate(({gm})=>{
+ await host.evaluate(({gm,player})=>{
+  const [peerId,record]=[...window.verifiedSessions.entries()][0];
+  for(let revision=1;revision<=5;revision++)
+   window.revisionConfirmations.expect({
+    userId:player,peerId,revision,
+    requestId:'00000000-0000-4000-8000-'+String(revision).padStart(12,'0'),
+   });
   window.privateCommitAccepted=window.gameSource.commit({
    authenticatedGmUserId:gm,event:'active_scene_map_patch',
    payload:{gmNotes:'SECRET TWO'},
@@ -224,7 +266,7 @@ try{
     {family:'poi',id:'hidden-poi'},
    ]},
   });
- },{gm});
+ },{gm,player});
  assert.equal(await host.evaluate(()=>window.privateCommitAccepted),true);
  assert.equal(await host.evaluate(()=>window.gmRevisionAfterPrivate),0);
  await guest.waitForFunction(()=>window.receiver?.revision===5,null,{timeout:10000});
@@ -256,6 +298,12 @@ try{
  ]);
  assert.equal(frames[4].payload.mapTokens.some(t=>t.id==='hidden-token'),false);
  assert.equal(frames[4].payload.mapDrawings.some(d=>d.id==='hidden-drawing'),false);
+ await host.waitForFunction(()=>window.confirmedRevisions.length===5,null,{timeout:10000});
+ const confirmed=await host.evaluate(()=>window.confirmedRevisions);
+ assert.deepEqual(confirmed.map(x=>[x.toUserId,x.result.revision,x.result.outcome]),
+  [1,2,3,4,5].map(n=>[player,n,'received-revision']));
+ assert.deepEqual(confirmed.map(x=>x.result.requestId),
+  [1,2,3,4,5].map(n=>'00000000-0000-4000-8000-'+String(n).padStart(12,'0')));
  const delivered=await guest.evaluate(()=>JSON.stringify([window.snapshotFrames,window.deltaFrames]));
  assert.doesNotMatch(delivered,/TOP SECRET TOKEN|SECRET DRAWING|SECRET-POI-NOTE|SECRET POI|gmNotes|PRIVATE NEVER SEND|SECRET TWO/);
  assert.deepEqual(await guest.evaluate(()=>window.errors),[]);
