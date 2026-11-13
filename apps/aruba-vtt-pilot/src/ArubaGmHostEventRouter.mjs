@@ -42,12 +42,14 @@ function safeDeliver(deliver,message,onDeliveryError){
  * attachVerifiedPlayer receives identity and membership exclusively from
  * the authenticated Aruba signaling layer, NEVER from the peer envelope.
  * This is deliberate fail-closed infrastructure: by default players cannot
- * publish even chat until the caller installs a per-message policy.
+ * publish even chat AND receive nothing until the caller installs
+ * per-message inbound and peer-specific outbound visibility policies.
  */
 export function createGmHostEventRouter({campaignId,gmUserId,
- authorizePlayerEvent=()=>false,onDeliveryError=()=>{}}){
+ authorizePlayerEvent=()=>false,authorizeHostEvent=()=>false,
+ onDeliveryError=()=>{}}){
  if(!CAMPAIGN_ID.test(campaignId)||!CAMPAIGN_ID.test(gmUserId)||
-   typeof authorizePlayerEvent!=='function')
+   typeof authorizePlayerEvent!=='function'||typeof authorizeHostEvent!=='function')
   throw new TypeError('Verified campaign, owner and authorization policy required');
  const peers=new Map();
  let host=null;
@@ -69,9 +71,21 @@ export function createGmHostEventRouter({campaignId,gmUserId,
      if(!ensureHost(record))return false;
      const message=frame(event,payload);
      if(!message)return false;
-     for(const peer of peers.values())safeDeliver(peer.receiveFromHost,
-      {campaignId,event:message.event,payload:message.payload},
-      onDeliveryError);
+     // A GM may be authorized to see secrets which players must NOT receive.
+     // Visibility is peer-scoped, not merely event-name-scoped. No original
+     // event is forwarded unless a future Aruba snapshot/role policy approves.
+     for(const peer of peers.values()){
+      let visible=false;
+      try{
+       visible=authorizeHostEvent({
+        campaignId,toUserId:peer.authenticatedUserId,
+        event:message.event,payload:message.payload,
+       })===true;
+      }catch(error){onDeliveryError(error);continue;}
+      if(visible)safeDeliver(peer.receiveFromHost,
+       {campaignId,event:message.event,payload:message.payload},
+       onDeliveryError);
+     }
      return true;
     },
     disconnect(){if(ensureHost(record))cleanup();},

@@ -22,7 +22,8 @@ test('only verified GM may open host, only verified same-campaign players join',
 
 test('GM events broadcast only to registered campaign peers; listeners isolated',()=>{
  const errors=[],received=[];
- const relay=make({onDeliveryError:e=>errors.push(e.message)});
+ const relay=make({onDeliveryError:e=>errors.push(e.message),
+  authorizeHostEvent:({event})=>event==='active_scene_change'});
  const host=relay.openVerifiedHost({authenticatedUserId:owner,receiveFromPlayer:()=>{}});
  relay.attachVerifiedPlayer({peerId:'broken',authenticatedUserId:player,verifiedCampaignId:campaign,receiveFromHost:()=>{throw Error('bad listener');}});
  relay.attachVerifiedPlayer({peerId:'good',authenticatedUserId:other,verifiedCampaignId:campaign,receiveFromHost:frame=>received.push(frame)});
@@ -36,6 +37,25 @@ test('GM events broadcast only to registered campaign peers; listeners isolated'
  assert.equal(host.publish('active_scene_change',{data:'x'.repeat(65536)}),false);
 });
 
+test('GM delivery is denied by default and selectively authorized for each player',()=>{
+ const visible=[],privateFrames=[];
+ const relay=make({authorizeHostEvent:({toUserId,event})=>
+  toUserId===player&&event==='active_scene_change'});
+ const gm=relay.openVerifiedHost({authenticatedUserId:owner,receiveFromPlayer:()=>{}});
+ relay.attachVerifiedPlayer({peerId:'authorized',authenticatedUserId:player,
+  verifiedCampaignId:campaign,receiveFromHost:f=>visible.push(f)});
+ relay.attachVerifiedPlayer({peerId:'other',authenticatedUserId:other,
+  verifiedCampaignId:campaign,receiveFromHost:f=>privateFrames.push(f)});
+ assert.equal(gm.publish('active_scene_change',{activeScene:{id:'visible'}}),true);
+ assert.equal(gm.publish('notes_change',{secret:'GM-only'}),true);
+ assert.equal(visible.length,1);
+ assert.equal(privateFrames.length,0);
+ const restricted=make();
+ const host=restricted.openVerifiedHost({authenticatedUserId:owner,receiveFromPlayer:()=>{}});
+ restricted.attachVerifiedPlayer({peerId:'blocked',authenticatedUserId:player,
+  verifiedCampaignId:campaign,receiveFromHost:()=>{throw Error('must remain private')}});
+ assert.equal(host.publish('active_scene_change',{activeScene:{id:'test'}}),true);
+});
 test('player messages deny by default, and GM-only scene/map events remain forbidden',()=>{
  const received=[];
  const relay=make({authorizePlayerEvent:({event,userId,payload})=>
