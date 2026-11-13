@@ -190,6 +190,9 @@ jobs:
       - name: Verify two real browser WebRTC peers through local TLS signaling
         working-directory: apps/aruba-vtt-pilot
         run: node test/browser-webrtc-signaling.mjs
+      - name: Verify isolated relay-only Chromium WebRTC through real coturn
+        working-directory: apps/aruba-vtt-pilot
+        run: bash ../../deploy/aruba/turn/qa/verify-browser-relay.sh
       - name: Compile real original Notes navigation for disposable browser
         working-directory: apps/aruba-vtt-pilot
         run: npm run test:notes-navigation
@@ -241,6 +244,7 @@ jobs:
       - run: bash -n ../../deploy/aruba/scripts/prepare-auth-trial.sh
       - run: sh -n ../../deploy/aruba/turn/start-turn.sh
       - run: bash -n ../../deploy/aruba/turn/qa/verify-coturn-runtime.sh
+      - run: bash -n ../../deploy/aruba/turn/qa/verify-browser-relay.sh
       - name: Verify isolated TURN Compose configuration (no deployment)
         run: |
           TURN_HOSTNAME=turn.example.org TURN_PUBLIC_IPV4=203.0.113.10 \

@@ -57,6 +57,13 @@ class TurnStagingConfigTest(unittest.TestCase):
         self.assertIn("createTurnCredentialService", probe)
         self.assertIn("ATTR.integrity", probe)
         self.assertIn("COTURN_ALLOCATION_SUCCESS", probe)
+        relay_script = (TURN / "qa" / "verify-browser-relay.sh").read_text()
+        self.assertIn("--network bridge", relay_script)
+        self.assertNotIn("--network host", relay_script)
+        self.assertNotIn("-p 3478", relay_script)
+        self.assertIn("--cap-drop ALL", relay_script)
+        self.assertIn("TURN_TEST_SECRET_FILE", relay_script)
+        self.assertIn("browser-webrtc-relay.mjs", relay_script)
 
 if __name__ == "__main__":
     unittest.main()
