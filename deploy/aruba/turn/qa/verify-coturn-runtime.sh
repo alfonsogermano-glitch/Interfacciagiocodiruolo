@@ -14,6 +14,10 @@ docker run -d --name "$name" --network bridge --read-only --cap-drop ALL --secur
 sleep 4
 if [ "$(docker inspect -f '{{.State.Running}}' "$name")" != true ]; then
   echo 'coturn isolated runtime failed to remain running' >&2
+  docker inspect -f 'exit_code={{.State.ExitCode}}' "$name" >&2
+  # Never print the 64-byte ASCII shared secret or credential values.
+  docker logs --tail 100 "$name" 2>&1 |
+    sed -E 's/[a-f0-9]{64}/[REDACTED_SECRET]/g; s/(static-auth-secret|credential|password)=.*/\\1=[REDACTED]/g' >&2 || true
   exit 1
 fi
 docker exec "$name" sh -c 'test -s /run/hollowgate/turnserver.conf && test -f /run/hollowgate/turnserver.pid'
