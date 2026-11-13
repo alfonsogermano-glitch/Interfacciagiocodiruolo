@@ -196,14 +196,43 @@ try{
     lightExploredAreas:[[[{x:0,y:0},{x:1,y:1},{x:0,y:1}]]],
    }]},
   });
+  window.gameSource.commit({
+   authenticatedGmUserId:gm,event:'active_scene_map_patch',
+   payload:{
+    mapTokens:[
+     {id:'visible-token',visible:true,name:'Visible',x:33,y:44,size:60,
+      rotation:135,locked:true,hiddenFromPlayers:true,
+      light:{enabled:true,radius:14,shape:'cone',coneAngle:60,coneDirection:90},
+      vision:{enabled:true,radius:20,shape:'circle'}},
+     {id:'hidden-token',visible:false,name:'TOP SECRET TOKEN',x:99,y:99,pinned:true},
+    ],
+    mapDrawings:[
+     {id:'visible-drawing',visible:true,x:51,y:70,width:84,height:42,
+      rotation:90,pinned:true},
+     {id:'hidden-drawing',visible:false,text:{content:'SECRET DRAWING'}},
+    ],
+   },
+  });
+  window.gameSource.commit({
+   authenticatedGmUserId:gm,event:'active_scene_map_patch',
+   payload:{mapObjectOrder:[
+    {family:'drawing',id:'hidden-drawing'},
+    {family:'token',id:'hidden-token'},
+    {family:'poi',id:'visible-poi'},
+    {family:'token',id:'visible-token'},
+    {family:'drawing',id:'visible-drawing'},
+    {family:'poi',id:'hidden-poi'},
+   ]},
+  });
  },{gm});
  assert.equal(await host.evaluate(()=>window.privateCommitAccepted),true);
  assert.equal(await host.evaluate(()=>window.gmRevisionAfterPrivate),0);
- await guest.waitForFunction(()=>window.receiver?.revision===3,null,{timeout:10000});
+ await guest.waitForFunction(()=>window.receiver?.revision===5,null,{timeout:10000});
  const frames=await guest.evaluate(()=>window.deltaFrames);
  assert.deepEqual(frames.map(f=>[f.revision,f.event]),[
   [1,'active_scene_map_patch'],[2,'active_scene_map_patch'],
-  [3,'active_scene_map_patch'],
+  [3,'active_scene_map_patch'],[4,'active_scene_map_patch'],
+  [5,'active_scene_map_patch'],
  ]);
  assert.equal(frames[0].payload.mapTokens[0].x,11);
  assert.equal(frames[0].payload.mapTokens[0].light.radius,14);
@@ -213,6 +242,20 @@ try{
  assert.deepEqual(frames[1].payload.mapTokens.map(t=>t.id),['visible-token']);
  assert.equal(frames[2].payload.mapFog[0].exploredAreas.length,1);
  assert.equal(frames[2].payload.mapFog[0].lightExploredAreas.length,1);
+ assert.equal(frames[3].payload.mapTokens[0].x,33);
+ assert.equal(frames[3].payload.mapTokens[0].y,44);
+ assert.equal(frames[3].payload.mapTokens[0].rotation,135);
+ assert.equal(frames[3].payload.mapTokens[0].size,60);
+ assert.equal(frames[3].payload.mapTokens[0].locked,true);
+ assert.equal(frames[3].payload.mapDrawings[0].rotation,90);
+ assert.equal(frames[3].payload.mapDrawings[0].pinned,true);
+ assert.deepEqual(frames[4].payload.mapObjectOrder,[
+  {family:'poi',id:'visible-poi'},
+  {family:'token',id:'visible-token'},
+  {family:'drawing',id:'visible-drawing'},
+ ]);
+ assert.equal(frames[4].payload.mapTokens.some(t=>t.id==='hidden-token'),false);
+ assert.equal(frames[4].payload.mapDrawings.some(d=>d.id==='hidden-drawing'),false);
  const delivered=await guest.evaluate(()=>JSON.stringify([window.snapshotFrames,window.deltaFrames]));
  assert.doesNotMatch(delivered,/TOP SECRET TOKEN|SECRET DRAWING|SECRET-POI-NOTE|SECRET POI|gmNotes|PRIVATE NEVER SEND|SECRET TWO/);
  assert.deepEqual(await guest.evaluate(()=>window.errors),[]);
@@ -225,7 +268,7 @@ try{
  await host.evaluate(({gm})=>{
   window.gameSource.commit({authenticatedGmUserId:gm,event:'active_scene_map_patch',payload:{gmNotes:'forbidden'}});
  },{gm});
- assert.equal(await guest.evaluate(()=>window.deltaFrames.length),3);
+ assert.equal(await guest.evaluate(()=>window.deltaFrames.length),5);
  await Promise.all([gmContext.close(),playerContext.close()]);
  console.log('BROWSER_ORIGINAL_MAP_REVISION_SUCCESS: real Chromium WebRTC, original map visibility, fog exploration, lighting, layer order, revocation');
 }finally{
