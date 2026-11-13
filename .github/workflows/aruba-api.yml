@@ -190,6 +190,9 @@ jobs:
       - name: Verify two real browser WebRTC peers through local TLS signaling
         working-directory: apps/aruba-vtt-pilot
         run: node test/browser-webrtc-signaling.mjs
+      - name: Verify real WebRTC game DataChannel authorization and membership revocation
+        working-directory: apps/aruba-vtt-pilot
+        run: node test/browser-webrtc-game-router.mjs
       - name: Verify isolated relay-only Chromium WebRTC through real coturn
         working-directory: apps/aruba-vtt-pilot
         run: bash ../../deploy/aruba/turn/qa/verify-browser-relay.sh

@@ -56,6 +56,7 @@ export function createArubaWebRtcSignalingClient({
  campaignId,role,WebSocketCtor,PeerConnectionCtor,origin,
  rtcConfig={},onState=()=>{},onError=()=>{},
  now=()=>Date.now(),onVerifiedPeer=()=>{},onPeerRevoked=()=>{},
+ onDataChannel=()=>{},
 }){
  if(!UUID.test(campaignId)||!['host','player'].includes(role)||
   typeof WebSocketCtor!=='function'||typeof PeerConnectionCtor!=='function'||
@@ -63,7 +64,7 @@ export function createArubaWebRtcSignalingClient({
   new URL(origin).origin!==origin||
   typeof onState!=='function'||typeof onError!=='function'||
   typeof now!=='function'||typeof onVerifiedPeer!=='function'||
-  typeof onPeerRevoked!=='function')
+  typeof onPeerRevoked!=='function'||typeof onDataChannel!=='function')
   throw new TypeError('Invalid signaling client configuration');
  const validatedRtcConfig=validateRtcConfig(rtcConfig);
  let effectiveRtcConfig=validatedRtcConfig;
@@ -111,8 +112,19 @@ export function createArubaWebRtcSignalingClient({
     pc.connectionState==='failed'?'peer-failed':'peer-state',id);
    if(['closed','failed'].includes(pc.connectionState))removePeer(id);
   };
-  // No user data or gameplay events are forwarded by this module.
-  pc.ondatachannel=event=>{event.channel.onmessage=()=>{};};
+  // Transport callback only; nothing forwards game messages by default.
+  // On player side, identity is the verified campaign host (not a peer
+  // supplied username). Application authorization remains router-owned.
+  pc.ondatachannel=event=>{
+   const channel=event.channel;
+   channel.onmessage=()=>{};
+   const notify=()=>{
+    if(!active||peers.get(id)!==record||channel.readyState!=='open')return;
+    try{onDataChannel({peerId:id,channel,role});}catch(error){onError(error);}
+   };
+   if(channel.readyState==='open')notify();
+   else channel.addEventListener?.('open',notify,{once:true});
+  };
   return record;
  }
  async function accept(id,kind,payload,epoch){
@@ -181,6 +193,14 @@ export function createArubaWebRtcSignalingClient({
    // Connectivity probe only: no outgoing application message path.
    r.channel=r.pc.createDataChannel('hollowgate-connection-probe');
    r.channel.onmessage=()=>{};
+   const channel=r.channel;
+   const notify=()=>{
+    if(!active||generation!==epoch||peers.get(id)!==r||
+      channel.readyState!=='open')return;
+    try{onDataChannel({peerId:id,channel,role});}catch(error){onError(error);}
+   };
+   if(channel.readyState==='open')notify();
+   else channel.addEventListener?.('open',notify,{once:true});
    const offer=await r.pc.createOffer();
    if(!active||generation!==epoch||peers.get(id)!==r)return;
    await r.pc.setLocalDescription(offer);
