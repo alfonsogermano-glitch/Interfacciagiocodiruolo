@@ -3,7 +3,7 @@ const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SIGNAL_KINDS=new Set(['offer','answer','ice']);
 const MAX_PENDING_ICE=128;
 
-const ICE_URL=/^(stun|stuns|turn|turns):[^/?#\s]+(?::\d{1,5})?(?:\?transport=(?:udp|tcp))?$/i;
+const ICE_URL=/^(stun|stuns|turn|turns):[^/?#@\s]+(?::\d{1,5})?(?:\?transport=(?:udp|tcp))?$/i;
 function validateRtcConfig(config){
  if(!config||Array.isArray(config)||typeof config!=='object'||
   Object.keys(config).some(k=>!['iceServers','iceTransportPolicy'].includes(k)))
