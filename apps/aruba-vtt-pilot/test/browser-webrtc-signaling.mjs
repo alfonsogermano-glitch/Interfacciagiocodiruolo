@@ -79,6 +79,17 @@ try{
  ]);
  assert.equal(await host.evaluate(()=>window.probe.peerCount),1);
  assert.equal(await guest.evaluate(()=>window.probe.peerCount),1);
+ const stats=await Promise.all([
+  host.evaluate(()=>window.probe.inspectConnections()),
+  guest.evaluate(()=>window.probe.inspectConnections()),
+ ]);
+ assert.equal(stats[0].length,1);
+ assert.equal(stats[1].length,1);
+ for(const entries of stats){
+  assert.equal(entries[0].connectionState,'connected');
+  assert.ok(['direct','relay','unknown'].includes(entries[0].route));
+  assert.doesNotMatch(JSON.stringify(entries),/candidate:|\.local|192\.168\.|10\.0\./);
+ }
  const states=await Promise.all([host.evaluate(()=>window.probeStates),guest.evaluate(()=>window.probeStates)]);
  assert.equal(states.flat().some(x=>x.state==='error'),false);
  await host.evaluate(()=>window.probe.disconnect());

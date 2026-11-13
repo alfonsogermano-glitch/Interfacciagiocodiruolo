@@ -2,6 +2,56 @@
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SIGNAL_KINDS=new Set(['offer','answer','ice']);
 const MAX_PENDING_ICE=128;
+
+const ICE_URL=/^(stun|stuns|turn|turns):[^/?#\s]+(?::\d{1,5})?(?:\?transport=(?:udp|tcp))?$/i;
+function validateRtcConfig(config){
+ if(!config||Array.isArray(config)||typeof config!=='object'||
+  Object.keys(config).some(k=>!['iceServers','iceTransportPolicy'].includes(k)))
+  throw new TypeError('Configurazione ICE non valida');
+ const policy=config.iceTransportPolicy??'all';
+ if(!['all','relay'].includes(policy))throw new TypeError('Politica ICE non valida');
+ const servers=config.iceServers??[];
+ if(!Array.isArray(servers)||servers.length>8)throw new TypeError('Server ICE non validi');
+ let hasTurn=false;
+ const safe=servers.map(server=>{
+  if(!server||Array.isArray(server)||typeof server!=='object'||
+   Object.keys(server).some(k=>!['urls','username','credential'].includes(k)))
+   throw new TypeError('Server ICE non valido');
+  const urls=typeof server.urls==='string'?[server.urls]:server.urls;
+  if(!Array.isArray(urls)||!urls.length||urls.length>8||
+   urls.some(u=>typeof u!=='string'||u.length>512||!ICE_URL.test(u)))
+   throw new TypeError('URL STUN/TURN non valido');
+  const turn=urls.some(u=>/^turns?:/i.test(u));
+  const auth=typeof server.username==='string'&&server.username.length>0&&server.username.length<=512&&
+   typeof server.credential==='string'&&server.credential.length>0&&server.credential.length<=512;
+  if(turn&&!auth)throw new TypeError('TURN richiede credenziali temporanee');
+  if(!turn&&(server.username!==undefined||server.credential!==undefined))
+   throw new TypeError('Credenziali STUN non previste');
+  hasTurn ||=turn;
+  return turn?{urls:[...urls],username:server.username,credential:server.credential}:{urls:[...urls]};
+ });
+ if(policy==='relay'&&!hasTurn)throw new TypeError('Modalità relay senza server TURN');
+ return {iceTransportPolicy:policy,iceServers:safe};
+}
+async function safeIceRoute(pc){
+ if(typeof pc.getStats!=='function')return 'unknown';
+ try{
+  const stats=await pc.getStats();
+  const reports=Array.from(stats.values());
+  let pair=null;
+  const transport=reports.find(s=>s.type==='transport'&&s.selectedCandidatePairId);
+  if(transport)pair=stats.get(transport.selectedCandidatePairId);
+  if(!pair)pair=reports.find(s=>s.type==='candidate-pair'&&s.nominated&&s.state==='succeeded');
+  if(!pair)return 'unknown';
+  const local=stats.get(pair.localCandidateId),remote=stats.get(pair.remoteCandidateId);
+  if(!local||!remote)return 'unknown';
+  if(local.candidateType==='relay'||remote.candidateType==='relay')return 'relay';
+  if(['host','srflx','prflx'].includes(local.candidateType)&&
+     ['host','srflx','prflx'].includes(remote.candidateType))return 'direct';
+  return 'unknown';
+ }catch{return 'unknown';}
+}
+
 export function createArubaWebRtcSignalingClient({
  campaignId,role,WebSocketCtor,PeerConnectionCtor,origin,
  rtcConfig={},onState=()=>{},onError=()=>{},
@@ -12,6 +62,7 @@ export function createArubaWebRtcSignalingClient({
   new URL(origin).origin!==origin||
   typeof onState!=='function'||typeof onError!=='function')
   throw new TypeError('Invalid signaling client configuration');
+ const validatedRtcConfig=validateRtcConfig(rtcConfig);
  const peers=new Map();
  let ws=null,active=false,connected=false,localPeerId=null,chain=Promise.resolve();
  let generation=0;
@@ -36,7 +87,7 @@ export function createArubaWebRtcSignalingClient({
  function peer(id){
   let record=peers.get(id);
   if(record)return record;
-  const pc=new PeerConnectionCtor(rtcConfig);
+  const pc=new PeerConnectionCtor(validatedRtcConfig);
   record={pc,pending:[],remote:false,channel:null};
   peers.set(id,record);
   pc.onicecandidate=event=>{
@@ -157,5 +208,16 @@ export function createArubaWebRtcSignalingClient({
   return socket;
  }
  return Object.freeze({connect,disconnect,get connected(){return connected;},
-  get peerCount(){return peers.size;}});
+  get peerCount(){return peers.size;},
+  async inspectConnections(){
+   // Never expose candidate addresses, TURN credentials or raw SDP.
+   const snapshot=[...peers.entries()];
+   const summary=await Promise.all(snapshot.map(async([peerId,record])=>({
+    peerId,route:await safeIceRoute(record.pc),
+    iceState:String(record.pc.iceConnectionState??'unknown'),
+    connectionState:String(record.pc.connectionState??'unknown'),
+   })));
+   return summary.filter(item=>peers.has(item.peerId)&&
+    peers.get(item.peerId)?.pc===snapshot.find(([id])=>id===item.peerId)?.[1].pc);
+  }});
 }

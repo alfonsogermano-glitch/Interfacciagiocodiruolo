@@ -154,3 +154,52 @@ test('disconnect during remote ICE flush prevents continuing stale candidates',a
  assert.equal(applied,1);
  assert.equal(socket.sent.length,0);
 });
+
+test('ICE config accepts authenticated TURN and rejects unsafe or unbounded settings',()=>{
+ const construct=config=>createArubaWebRtcSignalingClient({
+  campaignId:campaign,role:'host',WebSocketCtor:Socket,PeerConnectionCtor:Peer,
+  origin:'https://staging.hollowgate.quest',rtcConfig:config,
+ });
+ const valid=construct({iceTransportPolicy:'relay',iceServers:[{
+  urls:['turn:relay.hollowgate.quest:3478?transport=udp','turns:relay.hollowgate.quest:5349?transport=tcp'],
+  username:'temporary-user',credential:'temporary-secret',
+ }]});
+ assert.equal(valid.peerCount,0);
+ for(const invalid of [
+  {iceTransportPolicy:'relay',iceServers:[]},
+  {iceServers:[{urls:'https://relay.hollowgate.quest'}]},
+  {iceServers:[{urls:'turn:relay.hollowgate.quest:3478'}]},
+  {iceServers:[{urls:'stun:stun.hollowgate.quest:3478',credential:'leak'}]},
+  {iceServers:Array.from({length:9},()=>({urls:'stun:stun.hollowgate.quest:3478'}))},
+  {iceTransportPolicy:'arbitrary'},
+  {iceServers:[{urls:'turn:username:password@relay.example.com'}]},
+ ])assert.throws(()=>construct(invalid));
+});
+
+test('ICE diagnostics expose only route and connection state, never credentials or IPs',async()=>{
+ class StatsPeer extends Peer{
+  async getStats(){
+   return new Map([
+    ['transport',{type:'transport',selectedCandidatePairId:'pair'}],
+    ['pair',{type:'candidate-pair',state:'succeeded',nominated:true,
+     localCandidateId:'local',remoteCandidateId:'remote'}],
+    ['local',{candidateType:'relay',address:'192.0.2.2',usernameFragment:'secret'}],
+    ['remote',{candidateType:'srflx',address:'198.51.100.10'}],
+   ]);
+  }
+ }
+ const config={iceServers:[{urls:'turn:relay.hollowgate.quest:3478',
+  username:'temporary-user',credential:'temporary-secret'}]};
+ const client=createArubaWebRtcSignalingClient({
+  campaignId:campaign,role:'host',WebSocketCtor:Socket,PeerConnectionCtor:StatsPeer,
+  origin:'https://staging.hollowgate.quest',rtcConfig:config,
+ });
+ const ws=client.connect();
+ ws.receive({type:'ready',role:'host',peerId:member});await flush();
+ ws.receive({type:'peer-joined',peerId:member});await flush();
+ const result=await client.inspectConnections();
+ assert.deepEqual(result,[{peerId:member,route:'relay',iceState:'unknown',connectionState:'new'}]);
+ assert.doesNotMatch(JSON.stringify(result),/192\.0\.2|198\.51\.100|secret|temporary/);
+ client.disconnect();
+ assert.deepEqual(await client.inspectConnections(),[]);
+});
