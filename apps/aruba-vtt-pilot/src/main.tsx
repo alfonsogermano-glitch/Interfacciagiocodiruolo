@@ -190,7 +190,7 @@ function App(){
       {user.campaignsEnabled&&<p className="footnote">Le campagne Aruba sono nuove e separate dai dati storici Supabase. Le partecipazioni dei giocatori non sono ancora abilitate.</p>}
     </>}
     {section==='characters'&&<>
-      {user.playerCharactersEnabled&&<ArubaAssignedCharacterPanel />}
+      {user.playerCharactersEnabled&&<ArubaAssignedCharacterPanel portraitsEnabled={user.characterPortraitsEnabled} />}
       {user.charactersEnabled?
        <ArubaCharacterDrafts campaigns={campaigns} activeCampaignId={activeCampaignId} ownerId={user.id}
         catalogRevision={characterCatalogRevision} onOpenDetail={(id,campaignId)=>setEntityDetail({kind:'characters-detail',entityType:'character',id,campaignId})}/>:

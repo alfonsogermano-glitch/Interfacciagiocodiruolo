@@ -4,13 +4,15 @@ import {EntityCard} from '../../../src/app/components/session/shared/EntityCard'
 import {EntityDetailView} from '../../../src/app/components/session/shared/EntityDetailView';
 import {SlideOverPanel} from '../../../src/app/components/session/SlideOverPanel';
 import {EntityDetailRail,type EntityDetailRailSection} from '../../../src/app/components/session/shared/EntityDetailRail';
-import {listJoinedPlayerCampaigns,listAssignedPlayerCharacters} from './client.mjs';
+import {listJoinedPlayerCampaigns,listAssignedPlayerCharacters,readCharacterPortrait} from './client.mjs';
 import type {Character} from '../../../src/types/character';
 type Campaign={id:string;ownerId:string;name:string};
 type Sheet={id:string;campaignId:string;ownerId:string;name:string;status:string;sheetData:Record<string,unknown>};
 /** Player section uses original Hollowgate cards and EntityDetailView in read-only
  * mode. No owner-edit API, archive, wizard, token or Notes write provider. */
-export function ArubaAssignedCharacterPanel(){
+export function ArubaAssignedCharacterPanel({portraitsEnabled=false}:{portraitsEnabled?:boolean}){
+ // Portrait binary is *never* stored in the character sheet JSON.
+ // Load only after character authorization and when server advertises media access.
  const [campaigns,setCampaigns]=useState<Campaign[]>([]);
  const [campaignId,setCampaignId]=useState<string|null>(null);
  const [characters,setCharacters]=useState<Sheet[]>([]);
@@ -20,6 +22,9 @@ export function ArubaAssignedCharacterPanel(){
  const [loading,setLoading]=useState(false);
  const [error,setError]=useState<string|null>(null);
  const [verifying,setVerifying]=useState(false);
+ const [portrait,setPortrait]=useState<string|null>(null);
+ const [portraitLoading,setPortraitLoading]=useState(false);
+ const [portraitError,setPortraitError]=useState<string|null>(null);
  // Invalidate any pending detail authorization when the campaign changes.
  const revision=useRef(0);
  async function openAssigned(id:string){
@@ -37,7 +42,7 @@ export function ArubaAssignedCharacterPanel(){
    }else{setSection('scheda');setOpenId(id);}
   }catch(e){
    if(request===revision.current){
-    setCharacters([]);setOpenId(null);
+    setCharacters([]);setOpenId(null);setPortrait(null);setPortraitError(null);
     setError(e instanceof Error?e.message:'Autorizzazione personaggio non verificata');
    }
   }finally{if(request===revision.current)setVerifying(false);}
@@ -52,6 +57,7 @@ export function ArubaAssignedCharacterPanel(){
  },[]);
  useEffect(()=>{
   let active=true;revision.current++;setVerifying(false);
+  setPortrait(null);setPortraitError(null);setPortraitLoading(false);
   setCharacters([]);setOpenId(null);setSection('scheda');
   if(!campaignId)return;
   setLoading(true);setError(null);
@@ -73,6 +79,7 @@ export function ArubaAssignedCharacterPanel(){
     if(!active||request!==revision.current)return;
     setCharacters(fresh);
     if(openId&&!fresh.some(c=>c.id===openId)){
+     setPortrait(null);setPortraitError(null);
      setOpenId(null);
      setError('La scheda non è più accessibile: assegnazione revocata.');
     }
@@ -90,8 +97,27 @@ export function ArubaAssignedCharacterPanel(){
    document.removeEventListener('visibilitychange',visible);};
  },[campaignId,openId]);
  const selected=characters.find(c=>c.id===openId)??null;
+ // No player media GET before a confirmed active character assignment.
+ // Abort stale responses on campaign switch, revocation, close or unmount.
+ useEffect(()=>{
+  let live=true;
+  setPortrait(null);setPortraitError(null);setPortraitLoading(false);
+  if(!selected||!campaignId||!portraitsEnabled)return;
+  setPortraitLoading(true);
+  void readCharacterPortrait(fetch,campaignId,selected.id)
+   .then(img=>{if(live)setPortrait(img);})
+   .catch(e=>{if(live){setPortrait(null);
+    setPortraitError(e instanceof Error?e.message:'Immagine non disponibile');}})
+   .finally(()=>{if(live)setPortraitLoading(false);});
+  return()=>{live=false;};
+ },[campaignId,selected?.id,portraitsEnabled]);
  const original=selected?({
   ...selected.sheetData,id:selected.id,name:selected.name,
+  // Explicitly discard legacy Supabase URLs and source crop fields. Only
+  // PostgreSQL-authorized portrait data may reach EntityDetailView/Token.
+  portraitImageUrl:portrait??undefined,
+  portraitSourceImageUrl:undefined,portraitCropArea:null,
+  coverImageUrl:undefined,
   player:'',notes:String(selected.sheetData.notes??''),
  } as Character):null;
  return <section className="aruba-player-owned-campaigns" aria-label="I miei personaggi assegnati">
@@ -126,6 +152,8 @@ export function ArubaAssignedCharacterPanel(){
      </div>
      <div className="aruba-entity-detail-main">
       <section aria-label={'Scheda di '+selected.name}>
+       {portraitLoading&&<p role="status">Caricamento immagine Aruba…</p>}
+       {portraitError&&<p role="alert">{portraitError}</p>}
        <EntityDetailView entityType="character" entity={original}
         onUpdate={()=>{}} canEdit={false} campaignId={selected.campaignId}
         accessToken={null} isHSC={true} isDraft={true} arubaReadOnlyMedia={true}

@@ -26,9 +26,11 @@ const capabilities={
  entityNotes:{read:false,write:false},
  campaignNotes:{read:false,write:false},
  campaignNoteFolders:{read:false,write:false},
- originalNotesPanel:{read:false,write:false},gameSession:false,
+ originalNotesPanel:{read:false,write:false},
+ characterPortraits:{read:true,write:true},gameSession:false,
 };
 let assigned=true;
+const portraitBase64=Buffer.from([255,216,255,224,0,16,74,70,73,70,0,1,255,217]).toString('base64');
 const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
 try{
  const page=await browser.newPage({viewport:{width:1440,height:900}});
@@ -50,6 +52,10 @@ try{
    ruleset:'hsc',createdAt:'2026-11-12T00:00:00.000Z'}]};
   else if(path==='/vtt/player-characters'&&url.searchParams.get('campaignId')===campaign)
    payload={characters:assigned?[fixture]:[]};
+  else if(path==='/vtt/character-portrait/'+charId&&url.searchParams.get('campaignId')===campaign){
+   if(assigned)payload={characterId:charId,mimeType:'image/jpeg',dataBase64:portraitBase64};
+   else {status=404;payload={error:'Revoked'};}
+  }
   else {status=404;payload={error:'Endpoint not authorized in player browser test'};}
   return route.fulfill({status,contentType:'application/json; charset=utf-8',
    headers:{'cache-control':'no-store'},body:JSON.stringify(payload)});
@@ -105,11 +111,17 @@ try{
  await rail.getByRole('button',{name:'Immagine'}).click();
  const image=sheet.locator('[data-aruba-readonly-media="true"]');
  await image.waitFor();
- await image.getByText('Nessuna immagine migrata disponibile.').waitFor();
+ await image.getByRole('img',{name:'Ritratto di Mara'}).waitFor();
+ assert.ok((await image.locator('img').first().getAttribute('src')).startsWith('data:image/jpeg;base64,'),
+  'Original image display must use the current authenticated Aruba portrait');
  assert.equal(await image.locator('input, button, select, textarea').count(),0,
   'Player image preview must contain no editor controls');
  await rail.getByRole('button',{name:'Token'}).click();
  await sheet.getByText('Token mappa').waitFor();
+ await sheet.getByRole('img',{name:'Token di Mara'}).waitFor();
+ assert.ok((await sheet.getByRole('img',{name:'Token di Mara'}).first().getAttribute('src'))
+  .startsWith('data:image/jpeg;base64,'),
+  'Original TokenShapePreview must display the same authorized Aruba portrait');
  const tokenControls=sheet.locator('fieldset button, fieldset input, fieldset select, fieldset textarea');
  assert.ok(await tokenControls.count()>0,'Original TokenStyleEditor controls must be present');
  for(let i=0;i<await tokenControls.count();i++)
@@ -121,6 +133,8 @@ try{
   'Player media view must not query legacy image storage');
  // Reopen summary so the original rail remains in its expected default state.
  await page.locator('[data-tab-id="summary"] button').first().click();
+ assert.equal(requests.filter(x=>x.path==='/vtt/character-portrait/'+charId).length,1,
+  'Exactly one read-only authorized portrait fetch per selected character');
  assert.equal(requests.some(x=>x.path==='/vtt/characters'),false,
   'Player sheet must not use the GM character API');
  assert.equal(requests.some(x=>x.path.startsWith('/vtt/character-assignments')),false,
@@ -133,6 +147,8 @@ try{
  await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
  await page.getByRole('alert').filter({hasText:'assegnazione revocata'}).waitFor();
  await page.locator('[data-entity-context="player-assigned-detail"]').waitFor({state:'detached'});
+ assert.equal(await page.locator('img[src^="data:image/jpeg"]').count(),0,
+  'Revoked media must not remain visible after the player panel closes');
  assert.equal(await region.getByRole('button',{name:'Apri scheda assegnata di Mara'}).count(),0);
  // Revocation was read through a fresh player-only GET; never a GM endpoint.
  assert.ok(requests.filter(x=>x.path==='/vtt/player-characters').length>=3);

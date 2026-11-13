@@ -62,3 +62,13 @@ test('player media preserves the original rail and never mounts Supabase image e
  assert.match(detail,/activeSection === 'token'/);
  assert.match(detail,/<TokenStyleEditor/);
 });
+
+test('assigned player loads authorized portrait separately and strips inherited legacy URLs',()=>{
+ const source=readFileSync(new URL('../src/ArubaAssignedCharacterPanel.tsx',import.meta.url),'utf8');
+ assert.match(source,/readCharacterPortrait\(fetch,campaignId,selected\.id\)/);
+ assert.match(source,/portraitImageUrl:portrait\?\?undefined/);
+ assert.match(source,/portraitSourceImageUrl:undefined,portraitCropArea:null/);
+ assert.match(source,/coverImageUrl:undefined/);
+ assert.match(source,/setPortrait\(null\)/);
+ assert.doesNotMatch(source,/saveCharacterPortrait|uploadCropped|PUT|supabase\.storage/);
+});
