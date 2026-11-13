@@ -74,6 +74,11 @@ export function createArubaSettledMapRequestCorrelator({
    !isObject(state)||state.campaignId!==campaignId||
    state.chapterId!==chapterId||state.publishedAt!==publishedAt)return false;
   if(latest!==null&&publishedAt<=latest)return false;
+  // Do not consume this map stream's revision for a different chapter
+  // while current chapter requests await correlation. Scene transitions
+  // require a dedicated authoritative resnapshot, not cross-chapter credit.
+  if(pending.size>0&&![...pending.values()].some(entry=>entry.chapterId===chapterId))
+   return false;
   processing=true;
   try{
    // All per-request effects must be checked on the SAME settled state.
