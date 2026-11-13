@@ -48,6 +48,23 @@ for(const record of [...contract.leftNavigation,...contract.rightNavigation,...c
 }
 check(contract.viewportChecks.length>=6,'Not enough viewport checks');
 if(process.argv.includes('--release')){
+ // The registry alone is NOT evidence. The actual Aruba entry must stop
+ // rendering placeholders and use the original React shell and session
+ // hierarchy, otherwise a manually toggled status could hide regressions.
+ const originalRequired=[
+  ['<AppShell','Original AppShell is not mounted'],
+  ['<CampaignHome','Original CampaignHome/session is not mounted'],
+  ['<GmSectionSidebar','Original GM navigation is not mounted'],
+  ['<SessionRightSidebar','Original session right rail is not mounted'],
+ ];
+ for(const [code,message] of originalRequired)
+  check(pilot.includes(code),'RELEASE STRUCTURE MISSING: '+message);
+ check(!pilot.includes('className="workspace"'),
+  'RELEASE STRUCTURE MISSING: Pilot workspace shell is still present');
+ check(!pilot.includes('className="placeholder"'),
+  'RELEASE PLACEHOLDER PRESENT: GM tools still have a generic placeholder route');
+ check(!pilot.includes('Stiamo recuperando i componenti del VTT originale'),
+  'RELEASE PLACEHOLDER PRESENT: unfinished screens still shown to users');
  const incomplete=[...contract.leftNavigation,...contract.rightNavigation,...contract.pilotExtraNavigation,...contract.subsystems].filter(x=>x.state!=='verificato');
  for(const r of incomplete)failures.push('UNVERIFIED: '+r.id+' ('+r.state+')');
  for(const [name,passed] of Object.entries(contract.acceptance))

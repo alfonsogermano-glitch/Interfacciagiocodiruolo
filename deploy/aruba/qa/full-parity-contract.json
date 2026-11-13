@@ -252,5 +252,12 @@
     "accountReconciliationVerified": false,
     "finalRollbackDrillPassed": false,
     "sessionNavigationParityVerified": false
+  },
+  "releasePolicy": {
+    "required": "parita-originale-integrale",
+    "allowPartialPublish": false,
+    "allowStagingOrPilotOnly": true,
+    "requireManualVisualAndNetworkAcceptance": true,
+    "notes": "Nessun merge o deploy di produzione fino alla parità verificata con interfaccia, navigazione, funzioni, responsive, multiplayer e dati utenti del VTT originale. I test su pilot non equivalgono a parità certificata."
   }
 }
