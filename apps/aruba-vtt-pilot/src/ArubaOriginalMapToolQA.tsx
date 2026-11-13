@@ -1,4 +1,4 @@
-import {useEffect} from 'react';
+import {useEffect,useState} from 'react';
 import {
  setSessionMapReady,setActiveSessionMapTool,configureSessionGrid,
  DEFAULT_SESSION_GRID,useSessionMapReady,useActiveSessionMapTool,
@@ -13,6 +13,7 @@ import {
 export function ArubaOriginalMapToolQA(){
  const ready=useSessionMapReady();
  const tool=useActiveSessionMapTool();
+ const [,refresh]=useState(0);
  useEffect(()=>{
   // Hard reset: every QA mount starts with zero map ownership/capabilities.
   resetSessionMapRuntime();
@@ -39,6 +40,7 @@ export function ArubaOriginalMapToolQA(){
    configureSessionMapHistory(()=>{},()=>{},true,true);
    setSessionMapSelectionArmed(true);
    updateSessionMapFogSettings({fullMapCovered:true,previewAsPlayer:true});
+   refresh(v=>v+1);
   }}>QA: imposta stato GM temporaneo</button>
   <output data-map-qa-user={getSessionMapCurrentUserId()??'none'} />
   <output data-map-qa-ready={String(ready)} data-map-qa-tool={tool}>
