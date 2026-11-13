@@ -34,6 +34,7 @@ jobs:
           p.devDependencies.vite='6.4.6';
           fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n');
           NODE
+          rm package-lock.json
           npm install --package-lock-only --ignore-scripts
           npm audit fix --package-lock-only --ignore-scripts
           npm audit --audit-level=high
@@ -50,6 +51,7 @@ jobs:
           p.devDependencies.vite='6.4.6';
           fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n');
           NODE
+          rm package-lock.json
           npm install --package-lock-only --ignore-scripts
           npm audit fix --package-lock-only --ignore-scripts
           npm audit --audit-level=high
