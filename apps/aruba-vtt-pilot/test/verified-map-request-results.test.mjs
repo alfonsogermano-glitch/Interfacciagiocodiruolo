@@ -5,6 +5,7 @@ import {createArubaVerifiedGmMapDispatch} from '../src/ArubaVerifiedGmMapDispatc
 import {createGmHostEventRouter} from '../src/ArubaGmHostEventRouter.mjs';
 
 const campaign='00000000-0000-4000-8000-000000000001';
+const campaignId=campaign;
 const gm='00000000-0000-4000-8000-000000000002';
 const user='00000000-0000-4000-8000-000000000003';
 const other='00000000-0000-4000-8000-000000000004';
