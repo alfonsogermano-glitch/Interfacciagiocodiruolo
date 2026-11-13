@@ -5,6 +5,7 @@ import {
   saveActiveScene,
 } from '../../../services/campaign/activeScene';
 import { useCampaignChannel } from '../../../services/realtime/campaignChannel';
+import { notifyCommittedMapPublication } from './activeScenePublicationObserver';
 import {
   isActiveScenePublication,
   type ActiveSceneCollectionDelta,
@@ -213,6 +214,10 @@ export function useActiveScene(campaignId: string | null | undefined) {
       latestPublicationRef.current = persisted;
       setActiveScene(persisted);
       await send('active_scene_map_patch', { patch });
+      // Only the settled, queued legacy publication is observable by
+      // experimental Aruba adapters. React setters and debounce alone are
+      // not evidence that the map has been persisted and broadcast.
+      notifyCommittedMapPublication(persisted);
     });
     publicationQueueRef.current = operation.catch(() => {});
     void operation;

@@ -266,3 +266,30 @@ not persistence, and not an installed React UI feature. In particular,
 the current proof does not guarantee a newly settled React state at the
 instant the original asynchronous publication completes; that original
 lifecycle hook is needed before actual integration.
+
+## Settled original active-scene publication observation (read-only)
+
+The actual original `useActiveScene.ts` debounces `publishMapPatch`
+requests for 100 ms and then schedules a serial promise queue.
+Calling `publishMapPatch` is **not** an acknowledgment; the returned
+promise does not await the queued persistence or broadcast. Multiple
+player changes can coalesce within this debounce window.
+
+A small opt-in, campaign-scoped
+`activeScenePublicationObserver.ts` now emits a cloned publication
+**after** the original queue has awaited both
+`saveActiveScene(campaignId, persisted)` and
+`send('active_scene_map_patch', {patch})`. Unsubscribed listeners
+receive nothing. Subscriber exceptions cannot block the existing
+publication pipeline. The observer does not alter any JSX, the
+original map tools, React state or legacy network messages.
+
+**Important:** this notification indicates settled completion of those
+two awaited original API calls only; it is not a promise of durable DB
+commit beyond the service contract or actual remote client rendering.
+There is still no installed SessionWorkspace-to-Aruba coordinator bridge
+or correlation of the original debounce batch with an individual
+player command. Do not use the earlier synchronous
+`getCurrentMapContext` shortcut as evidence of completion. Actual
+integration will need command-to-batch correlation, chapter identity,
+cleanup on campaign changes, and recovery on publication failures.
