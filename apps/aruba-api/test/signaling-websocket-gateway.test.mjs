@@ -54,13 +54,13 @@ test('authenticated host and player exchange only SDP/ICE signaling',async()=>{
   const member=await joined;
   assert.equal(member.type,'peer-joined');
   const toHost=next(host);
-  peer.send(JSON.stringify({type:'signal',kind:'offer',payload:{sdp:'offer'}}));
-  assert.deepEqual(await toHost,{type:'signal',kind:'offer',
-   peerId:member.peerId,payload:{sdp:'offer'}});
+  peer.send(JSON.stringify({type:'signal',kind:'answer',payload:{sdp:'answer'}}));
+  assert.deepEqual(await toHost,{type:'signal',kind:'answer',
+   peerId:member.peerId,payload:{sdp:'answer'}});
   const toPlayer=next(peer);
-  host.send(JSON.stringify({type:'signal',kind:'answer',
-   targetPeerId:member.peerId,payload:{sdp:'answer'}}));
-  assert.deepEqual(await toPlayer,{type:'signal',kind:'answer',payload:{sdp:'answer'}});
+  host.send(JSON.stringify({type:'signal',kind:'offer',
+   targetPeerId:member.peerId,payload:{sdp:'offer'}}));
+  assert.deepEqual(await toPlayer,{type:'signal',kind:'offer',payload:{sdp:'offer'}});
  }finally{await s.close();}
 });
 test('wrong Origin and absent cookie are rejected before upgrade',async()=>{
@@ -118,7 +118,7 @@ test('signaling rejects disguised game data, malformed SDP and ICE objects',asyn
   }
  }finally{await s.close();}
 });
-test('host cannot spoof a player offer and player cannot send an answer',async()=>{
+test('host cannot send player-only answers and player cannot send host-only offers',async()=>{
  const s=await setup();
  try{
   const {ws:host,ready:hw}=await s.connect('host',hostToken);await hw;
@@ -127,7 +127,7 @@ test('host cannot spoof a player offer and player cannot send an answer',async()
   await pw;
   const joined=await waiting;
   const hostClosed=once(host,'close');
-  host.send(JSON.stringify({type:'signal',kind:'offer',targetPeerId:joined.peerId,
+  host.send(JSON.stringify({type:'signal',kind:'answer',targetPeerId:joined.peerId,
    payload:{sdp:'offer'}}));
   assert.equal((await hostClosed)[0],1008);
  }finally{await s.close();}

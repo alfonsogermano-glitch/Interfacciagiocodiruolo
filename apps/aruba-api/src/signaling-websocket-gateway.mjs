@@ -86,8 +86,8 @@ export function createSignalingWebSocketGateway({server,origin,identity}){
     value.type!=='signal'||!KINDS.has(value.kind)||
     !validPayload(value.kind,value.payload)||
     Object.keys(value).some(k=>!['type','kind','payload','targetPeerId'].includes(k))||
-    (client.role==='host'&&(value.kind==='offer'||!UUID.test(value.targetPeerId??'')))||
-    (client.role==='player'&&value.kind==='answer')||
+    (client.role==='host'&&(value.kind==='answer'||!UUID.test(value.targetPeerId??'')))||
+    (client.role==='player'&&value.kind==='offer')||
     (client.role==='player'&&Object.hasOwn(value,'targetPeerId')))throw Error('Invalid signal');
   }catch{client.ws.close(1008,'Invalid frame');return;}
   let valid=false;
