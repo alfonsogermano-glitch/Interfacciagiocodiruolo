@@ -55,19 +55,20 @@ async function safeIceRoute(pc){
 export function createArubaWebRtcSignalingClient({
  campaignId,role,WebSocketCtor,PeerConnectionCtor,origin,
  rtcConfig={},onState=()=>{},onError=()=>{},
- now=()=>Date.now(),
+ now=()=>Date.now(),onVerifiedPeer=()=>{},onPeerRevoked=()=>{},
 }){
  if(!UUID.test(campaignId)||!['host','player'].includes(role)||
   typeof WebSocketCtor!=='function'||typeof PeerConnectionCtor!=='function'||
   typeof origin!=='string'||!origin.startsWith('https://')||
   new URL(origin).origin!==origin||
   typeof onState!=='function'||typeof onError!=='function'||
-  typeof now!=='function')
+  typeof now!=='function'||typeof onVerifiedPeer!=='function'||
+  typeof onPeerRevoked!=='function')
   throw new TypeError('Invalid signaling client configuration');
  const validatedRtcConfig=validateRtcConfig(rtcConfig);
  let effectiveRtcConfig=validatedRtcConfig;
  let preparingTurn=false;
- const peers=new Map();
+ const peers=new Map(),verifiedPeers=new Map();
  let ws=null,active=false,connected=false,localPeerId=null,chain=Promise.resolve();
  let generation=0;
  const emit=(state,peerId)=>onState({state,peerId});
@@ -84,6 +85,11 @@ export function createArubaWebRtcSignalingClient({
   const record=peers.get(id);
   if(!record)return;
   peers.delete(id);
+  const proof=verifiedPeers.get(id);
+  if(proof){
+   verifiedPeers.delete(id);
+   try{onPeerRevoked({...proof});}catch(error){onError(error);}
+  }
   try{record.channel?.close();}catch{}
   try{record.pc.close();}catch{}
   emit('peer-left',id);
@@ -163,6 +169,15 @@ export function createArubaWebRtcSignalingClient({
    const id=message.peerId;
    if(peers.has(id))return; // Duplicate peer-joined never renegotiates.
    const r=peer(id);
+   // Identity originates in the server-verified WSS peer-joined frame.
+   // This callback is informational; authorization still belongs to
+   // the router and a server-side revalidation before attachment.
+   if(UUID.test(message.userId??'')&&message.campaignId===campaignId){
+    const proof=Object.freeze({peerId:id,userId:message.userId,campaignId});
+    verifiedPeers.set(id,proof);
+    onVerifiedPeer({...proof});
+   }
+   if(!active||generation!==epoch||peers.get(id)!==r)return;
    // Connectivity probe only: no outgoing application message path.
    r.channel=r.pc.createDataChannel('hollowgate-connection-probe');
    r.channel.onmessage=()=>{};
@@ -185,6 +200,7 @@ export function createArubaWebRtcSignalingClient({
   chain=Promise.resolve();
   active=false;connected=false;localPeerId=null;
   for(const id of [...peers.keys()])removePeer(id);
+  verifiedPeers.clear();
   const current=ws;ws=null;
   if(current){current.onmessage=null;current.onclose=null;current.onerror=null;current.close();}
  }
@@ -248,6 +264,7 @@ export function createArubaWebRtcSignalingClient({
  }
  return Object.freeze({connect,connectWithTurn,disconnect,get connected(){return connected;},
   get peerCount(){return peers.size;},
+  getVerifiedPeer(peerId){const proof=verifiedPeers.get(peerId);return proof?{...proof}:null;},
   async inspectConnections(){
    // Never expose candidate addresses, TURN credentials or raw SDP.
    const snapshot=[...peers.entries()];

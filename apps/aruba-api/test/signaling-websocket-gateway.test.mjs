@@ -15,7 +15,7 @@ const next=ws=>new Promise((resolve,reject)=>{
  function cleanup(){ws.off('message',ok);ws.off('close',bad);}
  ws.on('message',ok);ws.on('close',bad);
 });
-async function setup(){
+async function setup(options={}){
  const revoked=new Set(),server=createServer((_req,res)=>res.end('Not found'));
  const identity={async verify({sessionToken,campaignId,connectionRole}){
   if(revoked.has(sessionToken)||campaignId!==campaign)throw Error('Denied');
@@ -25,7 +25,7 @@ async function setup(){
    return {userId:player,campaignId,role:'player'};
   throw Error('Denied');
  }};
- const gateway=createSignalingWebSocketGateway({server,origin,identity});
+ const gateway=createSignalingWebSocketGateway({server,origin,identity,...options});
  server.listen(0,'127.0.0.1');await once(server,'listening');
  const port=server.address().port,sockets=[];
  const url=(role)=>'ws://127.0.0.1:'+port+'/vtt/signaling?campaignId='+campaign+'&role='+role;
@@ -131,4 +131,70 @@ test('host cannot send player-only answers and player cannot send host-only offe
    payload:{sdp:'offer'}}));
   assert.equal((await hostClosed)[0],1008);
  }finally{await s.close();}
+});
+
+const waitFor=async(check,timeout=2500)=>{
+ const until=Date.now()+timeout;
+ while(Date.now()<until){
+  if(check())return;
+  await new Promise(resolve=>setTimeout(resolve,15));
+ }
+ throw Error('Timed out waiting for membership revocation');
+};
+test('server-proven player identity is sent only to the verified GM',async()=>{
+ const s=await setup({revalidateIntervalMs:50});
+ try{
+  const {ws:host,ready:hw}=await s.connect('host',hostToken);
+  await hw;
+  const joined=next(host);
+  const {ws:peer,ready:pw}=await s.connect('player',playerToken);
+  await pw;
+  const result=await joined;
+  assert.deepEqual(result,{
+   type:'peer-joined',peerId:result.peerId,userId:player,campaignId:campaign,
+  });
+  assert.match(result.peerId,/^[0-9a-f-]{36}$/);
+  peer.terminate();
+ }finally{await s.close();}
+});
+test('idle revoked player is disconnected and GM informed without any signaling traffic',async()=>{
+ const s=await setup({revalidateIntervalMs:20});
+ try{
+  const {ws:host,ready:hw}=await s.connect('host',hostToken);await hw;
+  const joined=next(host);
+  const {ws:peer,ready:pw}=await s.connect('player',playerToken);
+  await pw;
+  const membership=await joined;
+  const left=next(host);
+  let code=null;
+  peer.once('close',value=>{code=value;});
+  s.revoked.add(playerToken);
+  const result=await left;
+  assert.deepEqual(result,{type:'peer-left',peerId:membership.peerId});
+  await waitFor(()=>code!==null);
+  assert.equal(code,1008);
+ }finally{await s.close();}
+});
+test('idle revoked GM closes its room, including every player WebRTC signaling socket',async()=>{
+ const s=await setup({revalidateIntervalMs:20});
+ try{
+  const {ws:host,ready:hw}=await s.connect('host',hostToken);await hw;
+  const joined=next(host);
+  const {ws:peer,ready:pw}=await s.connect('player',playerToken);await pw;await joined;
+  let hostClosed=false,peerClosed=false;
+  host.once('close',()=>{hostClosed=true;});
+  peer.once('close',()=>{peerClosed=true;});
+  s.revoked.add(hostToken);
+  await waitFor(()=>hostClosed&&peerClosed);
+ }finally{await s.close();}
+});
+test('invalid heartbeat intervals fail closed',()=>{
+ const server=createServer();
+ assert.throws(()=>createSignalingWebSocketGateway({
+  server,origin,identity:{verify:async()=>{}},revalidateIntervalMs:0,
+ }));
+ assert.throws(()=>createSignalingWebSocketGateway({
+  server,origin,identity:{verify:async()=>{}},revalidateIntervalMs:Infinity,
+ }));
+ server.close();
 });

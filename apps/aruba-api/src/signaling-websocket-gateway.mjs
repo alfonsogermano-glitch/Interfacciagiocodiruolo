@@ -49,12 +49,15 @@ function deny(socket,code=403){
  * No game events, notes, chat, campaign snapshots or TURN relay here.
  * Cookies are accepted only from the trusted upgrade boundary.
  */
-export function createSignalingWebSocketGateway({server,origin,identity}){
+export function createSignalingWebSocketGateway({server,origin,identity,revalidateIntervalMs=15000}){
  if(typeof server?.on!=='function'||typeof identity?.verify!=='function'||
   typeof origin!=='string'||!origin.startsWith('https://')||
-  new URL(origin).origin!==origin)throw new TypeError('Trusted gateway required');
+  new URL(origin).origin!==origin||
+  !Number.isSafeInteger(revalidateIntervalMs)||
+  revalidateIntervalMs<10||revalidateIntervalMs>300000)
+  throw new TypeError('Trusted gateway required');
  const wss=new WebSocketServer({noServer:true,maxPayload:65536,perMessageDeflate:false});
- const rooms=new Map(),clients=new Set();
+ const rooms=new Map(),clients=new Set(),sessions=new Set();
  let stopped=false;
  async function current(client){
   const proof=await identity.verify({sessionToken:client.token,
@@ -64,7 +67,7 @@ export function createSignalingWebSocketGateway({server,origin,identity}){
  }
  function leave(client){
   if(client.left)return;
-  client.left=true;clients.delete(client.ws);
+  client.left=true;clients.delete(client.ws);sessions.delete(client);
   const room=rooms.get(client.campaignId);
   if(!room)return;
   if(room.host===client){
@@ -139,14 +142,17 @@ export function createSignalingWebSocketGateway({server,origin,identity}){
    if(role==='host')rooms.set(campaignId,{host:client,players:new Map()});
    else if(room)room.players.set(client.peerId,client);
    else{ws.close(1008,'Host unavailable');return;}
-   clients.add(ws);
+   clients.add(ws);sessions.add(client);
    ws.on('close',()=>leave(client));ws.on('error',()=>leave(client));
    let pending=Promise.resolve();
    ws.on('message',(raw,binary)=>{
     pending=pending.then(()=>message(client,raw,binary)).catch(()=>ws.close(1011,'Signal error'));
    });
    send(ws,{type:'ready',role,peerId:client.peerId});
-   if(role==='player'&&room)send(room.host.ws,{type:'peer-joined',peerId:client.peerId});
+   // This identity is sourced only from the server-side membership verifier,
+   // never from a player-authored WebSocket or DataChannel envelope.
+   if(role==='player'&&room)send(room.host.ws,{type:'peer-joined',
+    peerId:client.peerId,userId:client.userId,campaignId:client.campaignId});
   });
  }
  const listener=(req,socket,head)=>{
@@ -156,7 +162,29 @@ export function createSignalingWebSocketGateway({server,origin,identity}){
   }catch{}
  };
  server.on('upgrade',listener);
+ // Recheck ongoing memberships even when WebRTC transports carry all data
+ // and the signaling socket is idle. Closing a revoked socket also tears
+ // down its browser peer through 'peer-left' or the host-room close.
+ let checking=false;
+ const interval=setInterval(async()=>{
+  if(stopped||checking)return;
+  checking=true;
+  try{
+   for(const client of [...sessions]){
+    if(stopped||client.left)continue;
+    let valid=false;
+    try{valid=await current(client);}catch{}
+    if(stopped||client.left||!sessions.has(client))continue;
+    if(!valid){
+     client.ws.close(1008,'Access revoked');
+     leave(client);
+    }
+   }
+  }finally{checking=false;}
+ },revalidateIntervalMs);
+ interval.unref?.();
  return {close(){
+  clearInterval(interval);
   stopped=true;server.off('upgrade',listener);
   for(const ws of clients)ws.close(1001,'Gateway closed');
   clients.clear();rooms.clear();wss.close();

@@ -270,3 +270,57 @@ test('TURN credential request in flight does not permit manual connection',async
  assert.ok(ws);
  client.disconnect();
 });
+
+test('host records only server-verified peer metadata and revokes on leave',async()=>{
+ const verified=[],revoked=[];
+ const client=createArubaWebRtcSignalingClient({
+  campaignId:campaign,role:'host',WebSocketCtor:Socket,PeerConnectionCtor:Peer,
+  origin:'https://staging.hollowgate.quest',
+  onVerifiedPeer:proof=>verified.push(proof),
+  onPeerRevoked:proof=>revoked.push(proof),
+ });
+ const ws=client.connect();
+ ws.receive({type:'ready',role:'host',peerId:member});await flush();
+ const user='00000000-0000-4000-8000-000000000004';
+ ws.receive({type:'peer-joined',peerId:member,userId:user,campaignId:campaign});
+ await flush();
+ assert.deepEqual(verified,[{peerId:member,userId:user,campaignId:campaign}]);
+ assert.deepEqual(client.getVerifiedPeer(member),verified[0]);
+ ws.receive({type:'peer-joined',peerId:member,userId:'00000000-0000-4000-8000-000000000009',campaignId:campaign});
+ await flush();
+ assert.equal(verified.length,1,'duplicate peer must never swap its identity');
+ ws.receive({type:'peer-left',peerId:member});await flush();
+ assert.deepEqual(revoked,verified);
+ assert.equal(client.getVerifiedPeer(member),null);
+ client.disconnect();
+});
+test('missing or mismatched server proof never makes a peer authorized',async()=>{
+ const verified=[];
+ const client=createArubaWebRtcSignalingClient({
+  campaignId:campaign,role:'host',WebSocketCtor:Socket,PeerConnectionCtor:Peer,
+  origin:'https://staging.hollowgate.quest',onVerifiedPeer:proof=>verified.push(proof),
+ });
+ const ws=client.connect();
+ ws.receive({type:'ready',role:'host',peerId:member});await flush();
+ ws.receive({type:'peer-joined',peerId:member,userId:member,
+  campaignId:'00000000-0000-4000-8000-000000000099'});
+ await flush();
+ assert.equal(client.peerCount,1);
+ assert.deepEqual(verified,[]);
+ assert.equal(client.getVerifiedPeer(member),null);
+ client.disconnect();
+});
+test('disconnect cancels previously verified peer metadata and emits revocation',async()=>{
+ const revoked=[];
+ const client=createArubaWebRtcSignalingClient({
+  campaignId:campaign,role:'host',WebSocketCtor:Socket,PeerConnectionCtor:Peer,
+  origin:'https://staging.hollowgate.quest',onPeerRevoked:proof=>revoked.push(proof),
+ });
+ const ws=client.connect();
+ ws.receive({type:'ready',role:'host',peerId:member});await flush();
+ ws.receive({type:'peer-joined',peerId:member,userId:member,campaignId:campaign});
+ await flush();
+ client.disconnect();
+ assert.equal(client.getVerifiedPeer(member),null);
+ assert.equal(revoked.length,1);
+});
