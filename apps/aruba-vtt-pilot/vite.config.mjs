@@ -115,8 +115,9 @@ export default defineConfig({
         return resolve(root,'src/ArubaTooltip.tsx');
       if(id==='../ui/tooltip' && importer?.endsWith('/src/app/components/shared/TokenStyleEditor.tsx'))
         return resolve(root,'src/ArubaTooltip.tsx');
-      if(id==='./DraggablePortrait' && importer?.endsWith('/src/app/components/session/shared/EntityCard.tsx'))
-        return resolve(root,'src/ArubaPortraitPending.tsx');
+      // EntityCard uses the ORIGINAL local image/token renderer now that
+      // portraits are loaded from authenticated Aruba (no Supabase I/O).
+      // The EntityDetailView isolation above remains unchanged.
       if(id==='../../ui/tooltip' && importer?.endsWith('/src/app/components/session/shared/EntityFilterToolbar.tsx'))
         return resolve(root,'src/ArubaTooltip.tsx');
       if(id==='./ui/tooltip' && /\/src\/app\/components\/(FrischezzaTracker|FoliaSpiral)\.tsx$/.test(importer??''))

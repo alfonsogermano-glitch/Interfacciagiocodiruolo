@@ -272,7 +272,8 @@ test('Aruba imports original EntityCard and FilterToolbar visual components, wit
  assert.match(page,/pageItems.map\(d=><ArubaPortraitEntityCard/);
  assert.match(adapter,/import \{EntityCard\} from/);
  assert.match(adapter,/return <EntityCard/);
- assert.match(vite,/ArubaPortraitPending/);
+ assert.match(vite,/'.\/DraggablePortrait':'ArubaPortraitPending\.tsx'/);
+ assert.doesNotMatch(vite,/id==='\.\/DraggablePortrait' && importer\?\.endsWith\('\/src\/app\/components\/session\/shared\/EntityCard\.tsx'\)/);
  assert.match(css,/EntityCard\.tsx/);
  assert.match(original,/DraggablePortrait/);
 });
