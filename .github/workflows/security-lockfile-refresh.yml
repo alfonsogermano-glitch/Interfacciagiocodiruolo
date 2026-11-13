@@ -7,7 +7,7 @@ permissions:
   contents: write
 jobs:
   refresh:
-    if: startsWith(github.event.head_commit.message, 'chore(security): regenerate audited dependency lockfiles')
+    if: "${{ startsWith(github.event.head_commit.message, 'chore(security): regenerate audited dependency lockfiles') }}"
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
