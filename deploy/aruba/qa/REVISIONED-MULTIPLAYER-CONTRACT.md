@@ -127,3 +127,29 @@ and rejection result.
 This remains a source-derived **unit/in-memory-router test**, not a mounted
 real original map UI, not a production connection, and not a release
 certification.
+
+## Correlated GM command results (isolated prototype)
+
+`ArubaVerifiedMapRequestResults.mjs` wraps the reauthorizing GM dispatcher
+with correlation IDs and bounded replay suppression. The requestId is a
+player-supplied UUID used **only** to match the result to a previously sent
+request. Sender identity comes solely from authenticated signaling and
+current campaign membership; outgoing result delivery must be bound to that
+verified user, not to an arbitrary peer-supplied address. Identical replay
+cannot re-run an action; conflicting reuse of a requestId is rejected.
+Unverified, malformed or oversized requests and revoked memberships produce
+no result. A revoked membership during application cancels delivery.
+
+A `map-command-result` with `outcome: "dispatched"` **only** confirms that
+the synchronous GM handler did not reject or throw. It does NOT certify
+database persistence, revisioned publication, or successful graphical
+rendering. `outcome: "rejected"` means that GM execution was denied or
+failed. This experimental callback is not yet a negotiated RTC wire event;
+it is intentionally separate from the legacy broadcast event vocabulary,
+and is NOT mounted in the original VTT.
+
+The router's own `publish()` return value means successful delivery to
+its GM callback, NOT application. Never display that return value as
+player-visible success. For true applied-state confirmation, match the
+request to a committed revision or authoritative state acknowledgment
+once the original SessionWorkspace and revision producer are integrated.
