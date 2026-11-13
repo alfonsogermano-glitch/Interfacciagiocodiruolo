@@ -240,11 +240,14 @@ jobs:
       - run: bash -n ../../deploy/aruba/scripts/test-signup-e2e.sh
       - run: bash -n ../../deploy/aruba/scripts/prepare-auth-trial.sh
       - run: sh -n ../../deploy/aruba/turn/start-turn.sh
+      - run: bash -n ../../deploy/aruba/turn/qa/verify-coturn-runtime.sh
       - name: Verify isolated TURN Compose configuration (no deployment)
         run: |
           TURN_HOSTNAME=turn.example.org TURN_PUBLIC_IPV4=203.0.113.10 \
             docker compose -f ../../deploy/aruba/turn/compose.turn.staging.yaml --profile manual-turn config --quiet
       - run: python3 -m unittest discover -s ../../deploy/aruba/scripts/tests -p "test_*.py"
+      - name: Real isolated coturn runtime smoke test
+        run: bash ../../deploy/aruba/turn/qa/verify-coturn-runtime.sh
       - run: docker build -t hollowgate-aruba-api:test .
       - name: Runtime smoke test with a rootless UID and a 0600 database secret
         run: |

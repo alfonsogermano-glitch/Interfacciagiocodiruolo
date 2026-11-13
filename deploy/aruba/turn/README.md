@@ -24,3 +24,6 @@ The coturn REST scheme uses `username="<expiry_epoch>:<user_uuid>"` and `HMAC-SH
 
 ### Secret byte compatibility
 The API now validates a file containing exactly 64 lowercase hex characters, optionally followed by a single LF. It removes only that final newline and uses the **ASCII text** as the HMAC key, matching the coturn launcher. Extra whitespace, uppercase characters and hex-decoding are rejected. Prefer `openssl rand -hex 32` with a private umask, writing directly to the protected file without displaying the resulting secret.
+
+### Runtime coturn 4.18 smoke test
+The 4.18 release removed `no-cli` and `no-dtls`. A CI job now starts the real image and launcher with disposable secrets and TLS on a Docker bridge without published ports. This checks process startup only, not public relay connectivity or UDP allocations.
