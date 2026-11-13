@@ -46,7 +46,7 @@ test('the exact original TopBar mounts in authenticated QA only, with fail-close
  const shell=read('../src/ArubaOriginalShellParity.tsx');
  assert.match(topbar,/import \{TopBar\} from/);
  assert.match(shell,/qaUser\?<ArubaOriginalTopBarQA/);
- assert.match(topbar,/sessionWorkspaceActive=\{false\}/);
+ assert.match(topbar,/sessionWorkspaceActive=\{mapWorkspaceQa\}/);
  assert.match(config,/aruba-original-topbar-qa-isolation/);
  for(const name of ['AuthContext','NotificationsContext','CampaignContext','charactersService'])
   assert.ok(config.includes(name),'missing isolated legacy dependency '+name);
@@ -54,4 +54,19 @@ test('the exact original TopBar mounts in authenticated QA only, with fail-close
  assert.match(runtime,/notifications:\[\] as NotificationRow\[\]/);
  assert.doesNotMatch(runtime,/fetch\(|supabase\.storage|localStorage|sessionStorage/);
  assert.doesNotMatch(read('../src/main.tsx'),/ArubaOriginalTopBarQA|ArubaOriginalTopBarAdapter/);
+});
+
+test('original map toolbar QA cannot activate any network map session or bypass edit locks',()=>{
+ const shell=read('../src/ArubaOriginalShellParity.tsx');
+ const qa=read('../src/ArubaOriginalMapToolQA.tsx');
+ const config=read('../vite.original-shell.config.mjs');
+ assert.match(shell,/mapWorkspaceQa=\{mapWorkspaceQa\}/);
+ assert.match(shell,/<ArubaOriginalMapToolQA/);
+ assert.match(qa,/setSessionMapReady\(false\)/);
+ assert.match(qa,/configureSessionGrid\(DEFAULT_SESSION_GRID,false,null\)/);
+ assert.match(qa,/configureSessionMapHistory\(null,null,false,false\)/);
+ assert.match(qa,/setActiveSessionMapTool\('move'\)/);
+ assert.doesNotMatch(qa,/fetch\(|localStorage|sessionStorage|WebSocket|PeerJS|supabase/);
+ assert.match(config,/original-shell-map\.html/);
+ assert.doesNotMatch(read('../src/main.tsx'),/ArubaOriginalMapToolQA|original-shell-map-entry/);
 });

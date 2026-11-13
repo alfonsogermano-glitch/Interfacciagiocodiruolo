@@ -34,6 +34,6 @@ export default {
   ...base.build,
   outDir:resolve(root,'../../deploy/aruba/dist/vtt-original-shell-qa'),
   emptyOutDir:true,
-  rollupOptions:{input:[resolve(root,'original-shell.html'),resolve(root,'original-shell-auth.html')]},
+  rollupOptions:{input:[resolve(root,'original-shell.html'),resolve(root,'original-shell-auth.html'),resolve(root,'original-shell-map.html')]},
  },
 };
