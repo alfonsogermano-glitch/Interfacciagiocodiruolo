@@ -31,6 +31,17 @@ jobs:
           node --check apps/aruba-auth-web/app.mjs
       - name: Verify full-site migration audit inventory against original source
         run: node deploy/aruba/qa/verify-full-parity-audit.mjs
+      - name: Verify incomplete original parity cannot pass release certification
+        run: |
+          # This check MUST keep failing until the source-driven contract has
+          # actual signed-off visual, behavioral and network evidence.
+          if node deploy/aruba/qa/verify-full-parity-audit.mjs --release > /tmp/hg-release-gate.log 2>&1; then
+            cat /tmp/hg-release-gate.log
+            echo "Unsafe: unfinished Hollowgate was marked release-ready" >&2
+            exit 1
+          fi
+          grep -q 'RELEASE EVIDENCE MISSING' /tmp/hg-release-gate.log
+          grep -q 'UNVERIFIED:' /tmp/hg-release-gate.log
       - name: Verify original campaign/session rail and contextual navigation
         run: node deploy/aruba/qa/verify-session-navigation-contract.mjs
       - name: Test isolated auth browser flows
