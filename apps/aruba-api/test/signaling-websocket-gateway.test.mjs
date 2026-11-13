@@ -91,7 +91,44 @@ test('application data is refused and revoked player cannot signal',async()=>{
   await sw;await joined;
   s.revoked.add(playerToken);
   const revoked=once(second,'close');
-  second.send(JSON.stringify({type:'signal',kind:'ice',payload:{candidate:'x'}}));
+  second.send(JSON.stringify({type:'signal',kind:'ice',payload:{candidate:{candidate:'candidate:1 1 udp 1 127.0.0.1 10000 typ host'}}}));
   await revoked;
+ }finally{await s.close();}
+});
+
+test('signaling rejects disguised game data, malformed SDP and ICE objects',async()=>{
+ const invalid=[
+  {type:'signal',kind:'ice',payload:{candidate:{candidate:'ice',chat_message:'secret'}}},
+  {type:'signal',kind:'ice',payload:{candidate:{candidate:123}}},
+  {type:'signal',kind:'ice',payload:{candidate:{candidate:'x',sdpMLineIndex:-1}}},
+  {type:'signal',kind:'offer',payload:{sdp:'offer',notes_change:{private:true}}},
+  {type:'signal',kind:'answer',payload:{sdp:123}},
+ ];
+ const s=await setup();
+ try{
+  const {ws:host,ready:hw}=await s.connect('host',hostToken);await hw;
+  for(const payload of invalid){
+   const waiting=next(host);
+   const {ws:peer,ready:pw}=await s.connect('player',playerToken);
+   await pw;await waiting;
+   const ended=once(peer,'close');
+   peer.send(JSON.stringify(payload));
+   const [code]=await ended;
+   assert.equal(code,1008);
+  }
+ }finally{await s.close();}
+});
+test('host cannot spoof a player offer and player cannot send an answer',async()=>{
+ const s=await setup();
+ try{
+  const {ws:host,ready:hw}=await s.connect('host',hostToken);await hw;
+  const waiting=next(host);
+  const {ws:peer,ready:pw}=await s.connect('player',playerToken);
+  await pw;
+  const joined=await waiting;
+  const hostClosed=once(host,'close');
+  host.send(JSON.stringify({type:'signal',kind:'offer',targetPeerId:joined.peerId,
+   payload:{sdp:'offer'}}));
+  assert.equal((await hostClosed)[0],1008);
  }finally{await s.close();}
 });

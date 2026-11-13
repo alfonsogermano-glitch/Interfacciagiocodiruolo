@@ -115,3 +115,42 @@ test('rejects malformed campaign IDs and unsupported roles',()=>{
  assert.throws(()=>createArubaWebRtcSignalingClient({campaignId:'invalid',role:'host',
   WebSocketCtor:Socket,PeerConnectionCtor:Peer,origin:'https://staging.hollowgate.quest'}));
 });
+
+test('pending ICE queue is bounded and a flooded peer is discarded',async()=>{
+ const errors=[];
+ const client=createArubaWebRtcSignalingClient({campaignId:campaign,role:'player',
+  WebSocketCtor:Socket,PeerConnectionCtor:Peer,origin:'https://staging.hollowgate.quest',
+  onError:error=>errors.push(error.message)});
+ const socket=client.connect();
+ socket.receive({type:'ready',role:'player',peerId:member});await flush();
+ for(let n=0;n<129;n++){
+  socket.receive({type:'signal',kind:'ice',payload:{candidate:{candidate:'ice-'+n}}});
+ }
+ await flush();
+ assert.equal(client.peerCount,0);
+ assert.deepEqual(errors,['Troppi candidati ICE in attesa']);
+ client.disconnect();
+});
+test('disconnect during remote ICE flush prevents continuing stale candidates',async()=>{
+ let release,applied=0;
+ class DelayedIcePeer extends Peer{
+  async addIceCandidate(value){
+   applied++;
+   if(applied===1)await new Promise(resolve=>{release=resolve;});
+   return super.addIceCandidate(value);
+  }
+ }
+ const client=createArubaWebRtcSignalingClient({campaignId:campaign,role:'player',
+  WebSocketCtor:Socket,PeerConnectionCtor:DelayedIcePeer,
+  origin:'https://staging.hollowgate.quest'});
+ const socket=client.connect();
+ socket.receive({type:'ready',role:'player',peerId:member});await flush();
+ socket.receive({type:'signal',kind:'ice',payload:{candidate:{candidate:'first'}}});
+ socket.receive({type:'signal',kind:'ice',payload:{candidate:{candidate:'second'}}});
+ socket.receive({type:'signal',kind:'offer',payload:{sdp:'offer'}});await flush();
+ assert.equal(applied,1);
+ client.disconnect();
+ release();await flush();
+ assert.equal(applied,1);
+ assert.equal(socket.sent.length,0);
+});

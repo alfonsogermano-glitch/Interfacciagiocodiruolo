@@ -4,6 +4,30 @@ import {WebSocketServer} from 'ws';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TOKEN=/^[A-Za-z0-9_-]{43}$/;
 const KINDS=new Set(['offer','answer','ice']);
+const MAX_ICE_CANDIDATES=128;
+function validCandidate(value){
+ if(!value||typeof value!=='object'||Array.isArray(value))return false;
+ const keys=Object.keys(value);
+ if(!keys.includes('candidate')||
+    keys.some(key=>!['candidate','sdpMid','sdpMLineIndex','usernameFragment'].includes(key))||
+    typeof value.candidate!=='string'||value.candidate.length>8192)return false;
+ if(Object.hasOwn(value,'sdpMid')&&
+    value.sdpMid!==null&&(typeof value.sdpMid!=='string'||value.sdpMid.length>256))return false;
+ if(Object.hasOwn(value,'sdpMLineIndex')&&value.sdpMLineIndex!==null&&
+    (!Number.isInteger(value.sdpMLineIndex)||value.sdpMLineIndex<0||
+     value.sdpMLineIndex>65535))return false;
+ if(Object.hasOwn(value,'usernameFragment')&&value.usernameFragment!==null&&
+    (typeof value.usernameFragment!=='string'||value.usernameFragment.length>256))return false;
+ return true;
+}
+function validPayload(kind,payload){
+ if(!payload||typeof payload!=='object'||Array.isArray(payload))return false;
+ if(kind==='ice')return Object.keys(payload).length===1&&
+  validCandidate(payload.candidate);
+ return Object.keys(payload).length===1&&typeof payload.sdp==='string'&&
+  payload.sdp.length>0&&payload.sdp.length<=60000;
+}
+
 function cookie(req){
  const pairs=(req.headers.cookie??'').split(';').map(s=>s.trim())
   .filter(s=>s.startsWith('__Host-hg_session='));
@@ -60,9 +84,10 @@ export function createSignalingWebSocketGateway({server,origin,identity}){
    value=JSON.parse(raw.toString());
    if(!value||typeof value!=='object'||Array.isArray(value)||
     value.type!=='signal'||!KINDS.has(value.kind)||
-    !value.payload||typeof value.payload!=='object'||Array.isArray(value.payload)||
+    !validPayload(value.kind,value.payload)||
     Object.keys(value).some(k=>!['type','kind','payload','targetPeerId'].includes(k))||
-    (client.role==='host'&&!UUID.test(value.targetPeerId??''))||
+    (client.role==='host'&&(value.kind==='offer'||!UUID.test(value.targetPeerId??'')))||
+    (client.role==='player'&&value.kind==='answer')||
     (client.role==='player'&&Object.hasOwn(value,'targetPeerId')))throw Error('Invalid signal');
   }catch{client.ws.close(1008,'Invalid frame');return;}
   let valid=false;

@@ -1,6 +1,7 @@
 /** Browser-native WebRTC connectivity probe; no game data is sent. */
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SIGNAL_KINDS=new Set(['offer','answer','ice']);
+const MAX_PENDING_ICE=128;
 export function createArubaWebRtcSignalingClient({
  campaignId,role,WebSocketCtor,PeerConnectionCtor,origin,
  rtcConfig={},onState=()=>{},onError=()=>{},
@@ -59,7 +60,14 @@ export function createArubaWebRtcSignalingClient({
   const valid=()=>active&&generation===epoch&&peers.get(id)===r;
   if(kind==='ice'){
    if(!payload.candidate||typeof payload.candidate!=='object')return;
-   if(!r.remote){r.pending.push(payload.candidate);return;}
+   if(!r.remote){
+    if(r.pending.length>=MAX_PENDING_ICE){
+     onError(new Error('Troppi candidati ICE in attesa'));
+     removePeer(id);
+     return;
+    }
+    r.pending.push(payload.candidate);return;
+   }
    if(valid())await r.pc.addIceCandidate(payload.candidate);return;
   }
   if(kind==='offer'&&role==='player'){
@@ -67,7 +75,10 @@ export function createArubaWebRtcSignalingClient({
    await r.pc.setRemoteDescription({type:'offer',sdp:payload.sdp});
    if(!valid())return;
    r.remote=true;
-   for(const candidate of r.pending.splice(0))await r.pc.addIceCandidate(candidate);
+   for(const candidate of r.pending.splice(0)){
+    if(!valid())return;
+    await r.pc.addIceCandidate(candidate);
+   }
    const answer=await r.pc.createAnswer();
    if(!valid())return;
    await r.pc.setLocalDescription(answer);
@@ -78,7 +89,10 @@ export function createArubaWebRtcSignalingClient({
    await r.pc.setRemoteDescription({type:'answer',sdp:payload.sdp});
    if(!valid())return;
    r.remote=true;
-   for(const candidate of r.pending.splice(0))await r.pc.addIceCandidate(candidate);
+   for(const candidate of r.pending.splice(0)){
+    if(!valid())return;
+    await r.pc.addIceCandidate(candidate);
+   }
   }
  }
  async function handle(message,epoch){
