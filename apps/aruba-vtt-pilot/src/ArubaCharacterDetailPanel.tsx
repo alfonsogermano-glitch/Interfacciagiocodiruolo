@@ -6,6 +6,7 @@ import {SlideOverPanel} from '../../../src/app/components/session/SlideOverPanel
 import {EntityDetailView} from '../../../src/app/components/session/shared/EntityDetailView';
 import {ArubaNotesProvider} from './ArubaNotesCapability';
 import {ArubaGMCharacterPortrait} from './ArubaGMCharacterPortrait';
+import {readCharacterPortrait} from './client.mjs';
 import {awaitArubaNoteWrites,subscribeArubaNoteError} from './ArubaNotesWriteRegistry.mjs';
 import type {Character} from '../../../src/types/character';
 
@@ -79,6 +80,16 @@ function ArubaPersistedSheet({draft,ownerId,onChanged,onArchived,registerCloseGu
   ...draft.sheetData,id:draft.id,name:draft.name,
   player:'',notes:String(draft.sheetData.notes??''),
  } as HscCharacter));
+ // The portrait is deliberately kept out of persistent character JSON.
+ const [portrait,setPortrait]=useState<string|null>(null);
+ useEffect(()=>{
+  let active=true;setPortrait(null);
+  if(!portraitsEnabled)return;
+  void readCharacterPortrait(fetch,campaignId,draft.id)
+   .then(url=>{if(active)setPortrait(url);})
+   .catch(()=>{if(active)setPortrait(null);});
+  return()=>{active=false;};
+ },[campaignId,draft.id,portraitsEnabled]);
  const [saving,setSaving]=useState(false);
  const [error,setError]=useState<string|null>(null);
  const [archiving,setArchiving]=useState(false);
@@ -117,13 +128,15 @@ function ArubaPersistedSheet({draft,ownerId,onChanged,onArchived,registerCloseGu
    {error&&<button type="button" className="character-panel-return" onClick={()=>update(working)}>Riprova salvataggio</button>}
   </div>
   <EntityDetailView
-    entityType="character" entity={working}
+    entityType="character" entity={{...working,
+     portraitImageUrl:portrait??undefined,portraitSourceImageUrl:undefined,portraitCropArea:null}}
     onUpdate={update} canEdit={true}
     campaignId={campaignId} accessToken={null} isHSC={true}
     showOwnerRow={false} showRail={false}
     activeSection={section}
     arubaPortraitEditor={portraitsEnabled?
-     <ArubaGMCharacterPortrait campaignId={campaignId} characterId={draft.id} name={working.name}/>:
+     <ArubaGMCharacterPortrait campaignId={campaignId} characterId={draft.id} name={working.name}
+      onSaved={setPortrait}/>:
      <p className="muted" role="status">Archivio ritratti Aruba non abilitato. Nessuna modifica alle immagini è consentita.</p>}
    />
   {archiving&&<p>Archiviazione in corso…</p>}

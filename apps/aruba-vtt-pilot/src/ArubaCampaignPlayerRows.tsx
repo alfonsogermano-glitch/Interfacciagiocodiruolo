@@ -1,5 +1,5 @@
 import {useEffect,useMemo,useState} from 'react';
-import {EntityCard} from '../../../src/app/components/session/shared/EntityCard';
+import {ArubaPortraitEntityCard} from './ArubaPortraitEntityCard';
 import {listOwnedCampaignRoster,listCharacterDrafts,listCharacterAvailability,setCharacterAvailability,
  listCharacterAssignments,setCharacterAssignment} from './client.mjs';
 import {composeOwnedCampaignPlayerRows} from './campaign-player-rows.mjs';
@@ -9,9 +9,9 @@ type Member={userId:string;displayName:string;role:'gm'|'player'};
 type Row={userId:string;displayName:string;role:'gm'|'player';characters:Char[]};
 /** Original EntityCard + campaign member rows. Assignment changes are authoritative:
  * only a confirmed Aruba server response updates player grouping. */
-export function ArubaCampaignPlayerRows({campaignId,ownerId,revision,availabilityEnabled,assignmentsEnabled,onOpenCharacter}:{
+export function ArubaCampaignPlayerRows({campaignId,ownerId,revision,availabilityEnabled,assignmentsEnabled,onOpenCharacter,portraitsEnabled=false}:{
  campaignId:string;ownerId:string;revision:number;availabilityEnabled:boolean;
- assignmentsEnabled:boolean;onOpenCharacter:(id:string)=>void;
+ assignmentsEnabled:boolean;portraitsEnabled?:boolean;onOpenCharacter:(id:string)=>void;
 }){
  const [members,setMembers]=useState<Member[]>([]);
  const [characters,setCharacters]=useState<Char[]>([]);
@@ -95,7 +95,7 @@ export function ArubaCampaignPlayerRows({campaignId,ownerId,revision,availabilit
        aria-label={'Apri scheda campagna di '+c.name}
        onKeyDown={event=>{if(event.target===event.currentTarget&&
         (event.key==='Enter'||event.key===' ')){event.preventDefault();onOpenCharacter(c.id);}}}>
-      <EntityCard name={c.name}
+      <ArubaPortraitEntityCard campaignId={campaignId} characterId={c.id} enabled={portraitsEnabled} name={c.name}
        subtitle={[c.sheetData.style,c.sheetData.viaggio].filter(Boolean).join(' · ')}
        secondaryText={typeof c.sheetData.description==='string'?c.sheetData.description:undefined}
        onClick={()=>onOpenCharacter(c.id)}/>

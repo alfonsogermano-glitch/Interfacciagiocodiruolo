@@ -4,8 +4,8 @@ import {readCharacterPortrait,saveCharacterPortrait} from './client.mjs';
 /** GM-only isolated Aruba transport into the ORIGINAL cropper.
  * Source originals, asset picker and cover editor are deliberately not
  * mounted until they have dedicated Aruba persistence. */
-export function ArubaGMCharacterPortrait({campaignId,characterId,name}:{
- campaignId:string;characterId:string;name:string;
+export function ArubaGMCharacterPortrait({campaignId,characterId,name,onSaved}:{
+ campaignId:string;characterId:string;name:string;onSaved?:(url:string)=>void;
 }){
  const [preview,setPreview]=useState<string|null>(null);
  const [loading,setLoading]=useState(true);
@@ -27,7 +27,7 @@ export function ArubaGMCharacterPortrait({campaignId,characterId,name}:{
     uploadLabel={'Seleziona il ritratto di '+name}
     existingImageUrl={preview??undefined} cropShape="rect" aspect={1}
     uploadCropped={blob=>saveCharacterPortrait(fetch,campaignId,characterId,blob)}
-    onUploaded={url=>{setPreview(url);setError(null);}}/>
+    onUploaded={url=>{setPreview(url);setError(null);onSaved?.(url);}}/>
   </>}
  </section>;
 }

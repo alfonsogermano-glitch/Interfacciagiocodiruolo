@@ -1,11 +1,11 @@
 import {useEffect,useState} from 'react';
-import {EntityCard} from '../../../src/app/components/session/shared/EntityCard';
+import {ArubaPortraitEntityCard} from './ArubaPortraitEntityCard';
 import {listCharacterDrafts} from './client.mjs';
 export type SessionEntityOpenRequest={kind:'pg';id:string;requestId:number};
 type Entry={id:string;campaignId:string;ownerId:string;name:string;status:string;sheetData:Record<string,unknown>};
 /** Real Aruba PGs rendered with the original CampaignHome EntityCard. */
-export function ArubaCampaignCharacterCards({campaignId,ownerId,revision,onOpenCharacter}:{
- campaignId:string;ownerId:string;revision:number;onOpenCharacter:(id:string)=>void;
+export function ArubaCampaignCharacterCards({campaignId,ownerId,revision,onOpenCharacter,portraitsEnabled=false}:{
+ campaignId:string;ownerId:string;revision:number;portraitsEnabled?:boolean;onOpenCharacter:(id:string)=>void;
 }){
  const [rows,setRows]=useState<Entry[]>([]);
  const [busy,setBusy]=useState(true);
@@ -28,7 +28,7 @@ export function ArubaCampaignCharacterCards({campaignId,ownerId,revision,onOpenC
     data-campaign-character-id={c.id} aria-label={'Apri scheda campagna di '+c.name}
     onKeyDown={event=>{if(event.target===event.currentTarget&&
      (event.key==='Enter'||event.key===' ')){event.preventDefault();onOpenCharacter(c.id);}}}>
-    <EntityCard name={c.name}
+    <ArubaPortraitEntityCard campaignId={campaignId} characterId={c.id} enabled={portraitsEnabled} name={c.name}
      subtitle={[c.sheetData.style,c.sheetData.viaggio].filter(Boolean).join(' · ')}
      secondaryText={typeof c.sheetData.description==='string'?c.sheetData.description:undefined}
      onClick={()=>onOpenCharacter(c.id)}/>

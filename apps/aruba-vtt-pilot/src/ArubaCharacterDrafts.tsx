@@ -2,7 +2,7 @@ import {useEffect,useRef,useState} from 'react';
 import {listCharacterDrafts,createCharacterDraft,saveFullCharacterSheet} from './client.mjs';
 import {CharacterCreationWizard} from '../../../src/app/components/gm/CharacterCreationWizard';
 import {EntityFilterToolbar,type SortMode,type ViewMode} from '../../../src/app/components/session/shared/EntityFilterToolbar';
-import {EntityCard} from '../../../src/app/components/session/shared/EntityCard';
+import {ArubaPortraitEntityCard} from './ArubaPortraitEntityCard';
 import {EntityPagination,paginateItems} from '../../../src/app/components/session/shared/EntityPagination';
 import {Plus,Users,UserRound,MoreVertical,Pencil} from 'lucide-react';
 import type {Character} from '../../../src/types/character';
@@ -11,8 +11,8 @@ type HscCharacter=Character & {player:string;notes:string};
 type Draft={id:string;campaignId:string;ownerId:string;name:string;status:'draft'|'active';sheetData:Record<string,unknown>;createdAt?:string;updatedAt?:string};
 
 type OwnedCampaign={id:string;name:string;ruleset:string};
-export function ArubaCharacterDrafts({campaigns,activeCampaignId,ownerId,onOpenDetail,catalogRevision}:{
- campaigns:OwnedCampaign[];activeCampaignId:string|null;ownerId:string;catalogRevision:number;
+export function ArubaCharacterDrafts({campaigns,activeCampaignId,ownerId,onOpenDetail,catalogRevision,portraitsEnabled=false}:{
+ campaigns:OwnedCampaign[];activeCampaignId:string|null;ownerId:string;catalogRevision:number;portraitsEnabled?:boolean;
  onOpenDetail:(id:string,campaignId:string)=>void;
 }){
  const [drafts,setDrafts]=useState<Draft[]>([]);
@@ -126,7 +126,8 @@ export function ArubaCharacterDrafts({campaigns,activeCampaignId,ownerId,onOpenD
      {loading?<div className="aruba-library-unavailable">Caricamento…</div>:filtered.length===0?
       <div className="aruba-library-unavailable">{drafts.length?'Nessun personaggio trovato con questi filtri.':'Non hai ancora creato personaggi nelle tue campagne Aruba.'}</div>:
       <div className={viewMode==='grid'?'aruba-character-cards':'aruba-character-cards list'}>
-       {pageItems.map(d=><EntityCard key={d.id} variant={viewMode} name={d.name}
+       {pageItems.map(d=><ArubaPortraitEntityCard key={d.id} variant={viewMode} name={d.name}
+        campaignId={d.campaignId} characterId={d.id} enabled={portraitsEnabled}
         subtitle={[d.sheetData.style,d.sheetData.viaggio].filter(Boolean).join(' · ')||'Personaggio'}
         secondaryText={campaignNameFor(d.campaignId)+' · '+(d.status==='active'?'Scheda completata':'Bozza')}
         badge={<span className="aruba-character-ruleset">High School Cthulhu</span>}

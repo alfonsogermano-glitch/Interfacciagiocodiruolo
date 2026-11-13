@@ -193,7 +193,7 @@ function App(){
       {user.playerCharactersEnabled&&<ArubaAssignedCharacterPanel portraitsEnabled={user.characterPortraitsEnabled} />}
       {user.charactersEnabled?
        <ArubaCharacterDrafts campaigns={campaigns} activeCampaignId={activeCampaignId} ownerId={user.id}
-        catalogRevision={characterCatalogRevision} onOpenDetail={(id,campaignId)=>setEntityDetail({kind:'characters-detail',entityType:'character',id,campaignId})}/>:
+        catalogRevision={characterCatalogRevision} portraitsEnabled={user.characterPortraitsEnabled} onOpenDetail={(id,campaignId)=>setEntityDetail({kind:'characters-detail',entityType:'character',id,campaignId})}/>:
        <div className="empty">Servizio personaggi in preparazione.</div>}
     </>}
     {section==='session'&&activeCampaign&&<>
@@ -206,10 +206,11 @@ function App(){
         ownerId={user.id} revision={characterCatalogRevision}
         availabilityEnabled={user.characterAvailabilityEnabled}
         assignmentsEnabled={user.characterAssignmentsEnabled}
+        portraitsEnabled={user.characterPortraitsEnabled}
         onOpenCharacter={openSessionCharacter}/>}
       {user.charactersEnabled&&!user.campaignRosterEnabled&&<ArubaCampaignCharacterCards
        key={activeCampaign.id} campaignId={activeCampaign.id} ownerId={user.id}
-       revision={characterCatalogRevision} onOpenCharacter={openSessionCharacter}/>}
+       revision={characterCatalogRevision} portraitsEnabled={user.characterPortraitsEnabled} onOpenCharacter={openSessionCharacter}/>}
 
       {sessionPanel==='notes'&&notesPanelReady&&
        <ArubaNotesRoute key={activeCampaign.id} campaignId={activeCampaign.id}
