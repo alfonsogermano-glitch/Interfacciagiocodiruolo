@@ -392,3 +392,45 @@ export async function saveCharacterPortrait(fetchImpl,campaignId,characterId,blo
  // This URL lives in-memory only; never passed to saveFullCharacterSheet.
  return {publicUrl:'data:image/jpeg;base64,'+dataBase64};
 }
+
+/** Owner-only original JPEG. Unlike cropped portraits, a player can NEVER
+ * access this endpoint; SQL rechecks active GM ownership on every request. */
+function portraitSourceEndpoint(campaignId,characterId){
+ portraitEndpoint(campaignId,characterId);
+ return '/vtt/character-portrait-source/'+characterId+'?campaignId='+campaignId;
+}
+export async function readCharacterPortraitSource(fetchImpl,campaignId,characterId){
+ const r=await fetchImpl(portraitSourceEndpoint(campaignId,characterId),{
+  method:'GET',credentials:'same-origin',cache:'no-store',redirect:'error'});
+ if(r.status===404)return null;
+ if(r.status===401)throw Error('Sessione scaduta');
+ if(!r.ok)throw Error('Sorgente ritratto non disponibile');
+ const data=await characterApiJson(r);
+ if(data?.characterId!==characterId||data.mimeType!=='image/jpeg'||
+   typeof data.dataBase64!=='string'||data.dataBase64.length<16||
+   data.dataBase64.length>2796208||
+   !/^[A-Za-z0-9+/]+={0,2}$/.test(data.dataBase64))
+  throw Error('Risposta sorgente non valida');
+ return 'data:image/jpeg;base64,'+data.dataBase64;
+}
+export async function saveCharacterPortraitSource(fetchImpl,campaignId,characterId,blob){
+ const endpoint=portraitSourceEndpoint(campaignId,characterId);
+ if(!(blob instanceof Blob)||blob.type!=='image/jpeg'||
+    blob.size<12||blob.size>2097152)
+  throw Error('Sorgente JPEG troppo grande: massimo 2 MB');
+ const bytes=new Uint8Array(await blob.arrayBuffer());
+ let raw='';
+ for(let i=0;i<bytes.length;i+=8192)
+  raw+=String.fromCharCode(...bytes.subarray(i,i+8192));
+ const dataBase64=btoa(raw);
+ const r=await fetchImpl(endpoint,{method:'PUT',credentials:'same-origin',
+  cache:'no-store',redirect:'error',headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({campaignId,mimeType:'image/jpeg',dataBase64})});
+ if(r.status===401)throw Error('Sessione scaduta');
+ if(r.status===404)throw Error('Sorgente non autorizzata');
+ if(!r.ok)throw Error('Salvataggio sorgente non riuscito');
+ const data=await characterApiJson(r);
+ if(data?.characterId!==characterId||data.stored!==true)
+  throw Error('Conferma sorgente non valida');
+ return {publicUrl:'data:image/jpeg;base64,'+dataBase64};
+}

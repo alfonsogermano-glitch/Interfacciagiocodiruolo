@@ -47,3 +47,32 @@ test('portrait capability checks explicit dependencies and the original cropper 
  assert.match(panel,/<ArubaGMCharacterPortrait/);
  assert.doesNotMatch(panel,/section==='immagine'/);
 });
+
+test('GM original image source is stored separately from its cropped JPEG',async()=>{
+ const original=readFileSync(new URL('../../../src/app/components/shared/ImageCropCore.tsx',import.meta.url),'utf8');
+ const media=readFileSync(new URL('../src/ArubaGMCharacterPortrait.tsx',import.meta.url),'utf8');
+ assert.match(original,/selectedFile && preserveSource && uploadSource/);
+ assert.match(original,/uploadSource\(sourceBlob\)/);
+ assert.match(media,/readCharacterPortraitSource\(fetch,campaignId,characterId\)/);
+ assert.match(media,/existingImageUrl=\{source\?\?preview\?\?undefined\}/);
+ assert.match(media,/preserveSource/);
+ assert.match(media,/uploadSource=\{blob=>saveCharacterPortraitSource/);
+ assert.match(media,/onUploaded=\{\(url,extra\)=>/);
+});
+test('source client enforces GM-only endpoint and upload size',async()=>{
+ const {readCharacterPortraitSource,saveCharacterPortraitSource}=await import('../src/client.mjs');
+ const sourceBlob=new Blob([jpeg],{type:'image/jpeg'});let saved;
+ await saveCharacterPortraitSource(async(url,options)=>{
+  saved={url,options};
+  return {ok:true,json:async()=>({characterId:character,stored:true})};
+ },campaign,character,sourceBlob);
+ assert.equal(saved.url,'/vtt/character-portrait-source/'+character+'?campaignId='+campaign);
+ assert.equal(saved.options.method,'PUT');
+ const read=await readCharacterPortraitSource(async()=>({
+  ok:true,json:async()=>({characterId:character,mimeType:'image/jpeg',
+   dataBase64:Buffer.from(jpeg).toString('base64')})
+ }),campaign,character);
+ assert.ok(read.startsWith('data:image/jpeg;base64,'));
+ await assert.rejects(()=>saveCharacterPortraitSource(async()=>{throw Error('should not send')},
+  campaign,character,new Blob([new Uint8Array(2097153)],{type:'image/jpeg'})));
+});

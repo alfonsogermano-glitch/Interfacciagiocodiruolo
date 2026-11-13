@@ -44,6 +44,7 @@ function mockApi(page,{enabled=true,authorized=true,assignmentsEnabled=false,por
   characterAssignments:new Map(),
   rejectNextAssignment:false,
   portrait:null,
+  portraitSource:null,
   characters:[{id:characterId,campaignId:campaign,ownerId:user,name:'Mara di prova',
    status:'active',sheetData:{
     name:'Mara di prova',style:'Jock',viaggio:'Campione',
@@ -70,6 +71,18 @@ function mockApi(page,{enabled=true,authorized=true,assignmentsEnabled=false,por
   if(path==='/vtt/bootstrap')return send(route,authorized?200:401,
    authorized?capability(enabled,assignmentsEnabled,portraitsEnabled):{error:'Non autenticato'});
   if(!authorized)return send(route,401,{error:'Non autenticato'});
+  if(portraitsEnabled&&path==='/vtt/character-portrait-source/'+characterId){
+   if(url.searchParams.get('campaignId')!==campaign)return send(route,400,{error:'Invalid source campaign'});
+   if(method==='GET')return store.portraitSource?
+    send(route,200,{characterId,mimeType:'image/jpeg',dataBase64:store.portraitSource}):
+    send(route,404,{error:'No original source'});
+   if(method==='PUT'){
+    if(body.campaignId!==campaign||body.mimeType!=='image/jpeg'||
+      typeof body.dataBase64!=='string')return send(route,400,{error:'Invalid portrait source'});
+    store.portraitSource=body.dataBase64;
+    return send(route,200,{stored:true,characterId});
+   }
+  }
   if(portraitsEnabled&&path==='/vtt/character-portrait/'+characterId){
    if(url.searchParams.get('campaignId')!==campaign)return send(route,400,{error:'Invalid campaign'});
    if(method==='GET')return store.portrait?
@@ -273,6 +286,10 @@ try{
   await page.waitForTimeout(200);
   assert.ok(store.portrait&&store.portrait.length>16,
    'Original cropper must PUT a generated JPEG into Aruba media API');
+  assert.ok(store.portraitSource&&store.portraitSource.length>16,
+   'Original cropper must preserve the full resized owner-only source');
+  const sourceWrites=store.requests.filter(r=>r.path==='/vtt/character-portrait-source/'+characterId&&r.method==='PUT');
+  assert.equal(sourceWrites.length,1);
   const writes=store.requests.filter(r=>r.path==='/vtt/character-portrait/'+characterId&&r.method==='PUT');
   assert.equal(writes.length,1);
   assert.equal(writes[0].body.campaignId,campaign);

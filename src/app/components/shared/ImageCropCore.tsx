@@ -51,6 +51,9 @@ export interface ImageCropCoreProps {
    * Original source preservation remains a separate, disabled feature.
    * Existing legacy consumers continue to use their original storage. */
   uploadCropped?: (blob: Blob) => Promise<{publicUrl: string}>;
+  /** Separate owner-only Aruba source transport; optional and never invoked
+   * for existing consumers unless preserveSource=true. */
+  uploadSource?: (blob: Blob) => Promise<{publicUrl: string}>;
   onRemove?: () => void;
   /** Se assente (uso inline, senza overlay da chiudere), "Annulla" si
    *  nasconde quando non c'e' nulla da annullare (immagine esistente non
@@ -138,7 +141,7 @@ function deriveSourceStoragePath(path: string): string {
   return path.replace(/(\.[^./]+)$/, '-source$1');
 }
 
-export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect = 1, uploadLabel, existingImageUrl, existingCropArea, cropGuideGeometry, preserveSource, onPickFromCollection, onUploaded, uploadCropped, onRemove, onClose, autosaveDebounceMs, onCancelAutosaved }: ImageCropCoreProps) {
+export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect = 1, uploadLabel, existingImageUrl, existingCropArea, cropGuideGeometry, preserveSource, onPickFromCollection, onUploaded, uploadCropped, uploadSource, onRemove, onClose, autosaveDebounceMs, onCancelAutosaved }: ImageCropCoreProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cropAreaRef = useRef<HTMLDivElement | null>(null);
   // Timer del debounce autosave - un solo salvataggio alla pausa, non uno
@@ -303,12 +306,19 @@ export function ImageCropCore({ bucket, storagePath, cropShape = 'rect', aspect 
     setIsUploading(true);
     setError(null);
     try {
+      // Persist the new original FIRST; don't point a newly cropped public
+      // portrait at an old source if the independent owner-only write fails.
+      let uploadedSourceUrl: string | undefined;
+      if (selectedFile && preserveSource && uploadSource) {
+        const sourceBlob = await getResizedSourceBlob(selectedFile, MAX_SOURCE_DIMENSION);
+        const { publicUrl: sourcePublicUrl } = await uploadSource(sourceBlob);
+        uploadedSourceUrl = sourcePublicUrl.startsWith('data:') ? sourcePublicUrl : `${sourcePublicUrl}?t=${Date.now()}`;
+      }
       const blob = await getCroppedBlob(rawImageSrc, croppedAreaPixels);
       const { publicUrl } = uploadCropped ? await uploadCropped(blob) : await uploadContentAsset(bucket, storagePath, blob, { upsert: true, contentType: 'image/jpeg' });
       const uploadedUrl = publicUrl.startsWith('data:') ? publicUrl : `${publicUrl}?t=${Date.now()}`;
 
-      let uploadedSourceUrl: string | undefined;
-      if (selectedFile && preserveSource && !uploadCropped) {
+      if (selectedFile && preserveSource && !uploadSource && !uploadCropped) {
         // Sorgente nuova da preservare: ridimensionata e caricata a parte,
         // cosi' la prossima apertura riparte dalla foto intera invece che
         // dall'ultimo quadrato salvato.
