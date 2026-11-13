@@ -267,8 +267,11 @@ test('Aruba imports original EntityCard and FilterToolbar visual components, wit
  const vite=readFileSync(new URL('../vite.config.mjs',import.meta.url),'utf8');
  const css=readFileSync(new URL('../src/legacy-wizard.css',import.meta.url),'utf8');
  const original=readFileSync(new URL('../../../src/app/components/session/shared/EntityCard.tsx',import.meta.url),'utf8');
- assert.match(page,/import \{EntityCard\} from/);
- assert.match(page,/pageItems.map\(d=><EntityCard/);
+ const adapter=readFileSync(new URL('../src/ArubaPortraitEntityCard.tsx',import.meta.url),'utf8');
+ assert.match(page,/import \{ArubaPortraitEntityCard\} from/);
+ assert.match(page,/pageItems.map\(d=><ArubaPortraitEntityCard/);
+ assert.match(adapter,/import \{EntityCard\} from/);
+ assert.match(adapter,/return <EntityCard/);
  assert.match(vite,/ArubaPortraitPending/);
  assert.match(css,/EntityCard\.tsx/);
  assert.match(original,/DraggablePortrait/);

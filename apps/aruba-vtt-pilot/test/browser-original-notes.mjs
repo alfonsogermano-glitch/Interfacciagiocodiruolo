@@ -205,6 +205,32 @@ try{
   assert.equal(await page.locator('[data-note-split-panel="true"]').count(),0);
   await page.close();
  }
+ // Portraits in the GM archive and original detail/Token must be loaded
+ // from authenticated Aruba only; the backend character JSON stays unchanged.
+ {
+  const page=await browser.newPage({viewport:{width:1440,height:900}});
+  page.on('pageerror',e=>errors.push('gm-portrait '+e.message));
+  const store=mockApi(page,{assignmentsEnabled:true,portraitsEnabled:true});
+  store.portrait=Buffer.from([255,216,255,224,0,16,74,70,73,70,0,1,255,217]).toString('base64');
+  await page.goto(base,{waitUntil:'domcontentloaded'});
+  await page.getByRole('button',{name:'Personaggi',exact:true}).click();
+  const library=page.getByRole('region',{name:'Archivio personaggi'});
+  await library.locator('img[src^="data:image/jpeg;base64,"]').first().waitFor();
+  await library.getByText('Mara di prova').first().click();
+  const sheet=page.getByRole('region',{name:'Scheda di Mara di prova'});
+  await sheet.waitFor();
+  const rail=page.getByLabel('Barra contestuale personaggio');
+  await rail.getByRole('button',{name:'Token'}).click();
+  await sheet.getByRole('img',{name:'Token di Mara di prova'}).waitFor();
+  assert.ok((await sheet.getByRole('img',{name:'Token di Mara di prova'}).first().getAttribute('src'))
+   .startsWith('data:image/jpeg;base64,'));
+  await rail.getByRole('button',{name:'Scheda'}).click();
+  assert.equal(store.requests.some(r=>/storage\/v1|supabase/.test(r.path)),false);
+  assert.equal(store.requests.filter(r=>r.path==='/vtt/character-portrait/'+characterId&&r.method==='GET').length>=2,true);
+  assert.equal(store.requests.some(r=>r.method==='PUT'&&r.path==='/vtt/characters/'+characterId),false,
+   'Photo preview must not alter character sheet JSON');
+  await page.close();
+ }
  // Real GM portrait cropping uses the ORIGINAL ImageCropCore, with
  // in-memory isolated Aruba PUT/GET. No production media is touched.
  {
