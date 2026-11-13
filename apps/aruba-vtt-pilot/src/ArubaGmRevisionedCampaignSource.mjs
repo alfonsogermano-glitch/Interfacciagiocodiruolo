@@ -103,6 +103,7 @@ export function createArubaGmRevisionedCampaignSource({
      campaignId,userId:record.userId,peerId:record.peerId,
      event,payload:requireObject(sourceEvent,'GM event'),
      state:requireObject(next,'Next authoritative state'),
+     previousState:requireObject(state,'Previous authoritative state'),
     });
     if(projection===null)continue;
     if(!object(projection)||!isBroadcastEvent(projection.event))
