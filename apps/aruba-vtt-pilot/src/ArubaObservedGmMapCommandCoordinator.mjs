@@ -14,7 +14,8 @@ const plain=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
 const number=x=>Number.isSafeInteger(x)&&x>=0;
 export function createArubaObservedGmMapCommandCoordinator({
  campaignId,gmUserId,dispatcher,source,tracker,getCurrentMapContext,
- getVerifiedPlayerPeer,isVerifiedMember,sendVerifiedResult,onError=()=>{},
+ getVerifiedPlayerPeer,isVerifiedMember,sendVerifiedResult,
+ onResyncRequired=()=>{},onError=()=>{},
 }){
  if(typeof dispatcher?.receiveFromPlayer!=='function'||
   typeof dispatcher?.authorizePlayerEvent!=='function'||
@@ -23,13 +24,19 @@ export function createArubaObservedGmMapCommandCoordinator({
   typeof getCurrentMapContext!=='function'||
   typeof getVerifiedPlayerPeer!=='function'||
   typeof isVerifiedMember!=='function'||
-  typeof sendVerifiedResult!=='function'||typeof onError!=='function')
+  typeof sendVerifiedResult!=='function'||typeof onResyncRequired!=='function'||
+  typeof onError!=='function')
   throw new TypeError('Original GM dispatcher, revision source and verified peer required');
- let closed=false;
+ let closed=false,suspended=false;
  const error=e=>{try{onError(e);}catch{}};
+ const suspend=reason=>{
+  if(suspended)return;
+  suspended=true;
+  try{onResyncRequired({campaignId,reason});}catch(e){error(e);}
+ };
  const bridge={
   receiveFromPlayer({campaignId:scope,fromUserId,event,payload,requestId}={}){
-   if(closed||scope!==campaignId)return false;
+   if(closed||suspended||scope!==campaignId)return false;
    // Read the verified live peer and its revision immediately before the
    // command. It is not taken from any player-provided wire envelope.
    let peer,context;
@@ -66,15 +73,22 @@ export function createArubaObservedGmMapCommandCoordinator({
     })===true;
     const finalPeer=getVerifiedPlayerPeer({campaignId,userId:fromUserId});
     if(!published||!finalPeer||finalPeer.peerId!==peer.peerId||
-     finalPeer.revision!==target){
-     // A private-only edit changes no player revision. This is NOT receipt.
+     (finalPeer.revision!==target&&finalPeer.revision!==peer.revision)){
      tracker.cancel({userId:fromUserId,peerId:peer.peerId,requestId});
-     return published;
+     suspend('Observed GM map could not be published consistently');
+     return false;
+    }
+    if(finalPeer.revision!==target){
+     // A private-only/no-op edit changes no player revision.
+     tracker.cancel({userId:fromUserId,peerId:peer.peerId,requestId});
+     return true;
     }
     return true;
    }catch(e){
     tracker.cancel({userId:fromUserId,peerId:peer.peerId,requestId});
-    error(e);return false;
+    error(e);
+    suspend('Observed GM map publish raised an error');
+    return false;
    }
   },
  };
@@ -83,8 +97,18 @@ export function createArubaObservedGmMapCommandCoordinator({
   sendVerifiedResult,onError,
  });
  return Object.freeze({
-  authorizePlayerEvent:args=>!closed&&dispatcher.authorizePlayerEvent(args),
-  receiveFromPlayer:args=>!closed&&results.receiveFromPlayer(args),
+  authorizePlayerEvent:args=>!closed&&!suspended&&dispatcher.authorizePlayerEvent(args),
+  receiveFromPlayer:args=>!closed&&!suspended&&results.receiveFromPlayer(args),
+  recoverAfterVerifiedResnapshot({authenticatedGmUserId,nextState}={}){
+   if(closed||!suspended||authenticatedGmUserId!==gmUserId||
+    typeof source.resetFromObservedMap!=='function')return false;
+   let ok=false;
+   try{ok=source.resetFromObservedMap({authenticatedGmUserId,nextState})===true;}
+   catch(e){error(e);}
+   if(ok)suspended=false;
+   return ok;
+  },
+  get suspended(){return suspended;},
   close(){closed=true;results.close();},
  });
 }

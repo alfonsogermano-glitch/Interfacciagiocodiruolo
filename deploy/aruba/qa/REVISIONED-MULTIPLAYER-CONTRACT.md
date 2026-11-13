@@ -235,3 +235,34 @@ into this bridge, and no durable DB completion or visual rendering is
 certified. A failure to publish an already-applied original handler change
 cannot automatically roll that change back; production integration needs
 a deliberate recovery/resnapshot policy before enabling this flow.
+
+## Recovery barrier after failed original-GM map publication
+
+Original `SessionWorkspace.tsx` contains asynchronous `publishMapPatch`
+calls. Its React state may not be current synchronously after an action
+handler returns. **Never attach the observed-state coordinator directly to
+the original handler refs until a committed/settled GM state notification
+is available.**
+
+The isolated coordinator now sets `suspended` and invokes
+`onResyncRequired` if an original handler has already executed but the
+subsequent visible-state publication fails, throws, loses the verified peer,
+or allocates an inconsistent revision. It stops accepting additional player
+commands. It intentionally **does not roll back** the authoritative GM
+state or guess what the old client observed.
+
+A trusted GM can recover via `recoverAfterVerifiedResnapshot` with
+GM-authorized **current** canonical map state. The source first validates
+the original map visibility projection, then revokes every previous peer
+and revision generation, installs the new authoritative state, and requires
+clients to reconnect with a **new initial snapshot at revision zero**.
+Only after this validated reset can the coordinator resume accepting
+player commands. Existing per-peer request result and receipt trackers
+must be separately revoked/rotated by the authenticated connection owner
+when the old peer is removed.
+
+This is a safety barrier tested in isolation, not automatic recovery,
+not persistence, and not an installed React UI feature. In particular,
+the current proof does not guarantee a newly settled React state at the
+instant the original asynchronous publication completes; that original
+lifecycle hook is needed before actual integration.

@@ -145,13 +145,39 @@ export function createArubaGmRevisionedCampaignSource({
    nextAuthoritativeState:nextState,
   });
  }
+ /**
+  * Emergency trusted resnapshot. Validate before disrupting active peers,
+  * revoke every old channel and peer revision generation, then install the
+  * GM's fresh observed state. Reconnect performs a fresh snapshot at rev 0.
+  * Never call with a player-supplied or stale React state value.
+  */
+ function resetFromObservedMap({authenticatedGmUserId,nextState}={}){
+  if(closed||committing||authenticatedGmUserId!==gmUserId)return false;
+  let next;
+  try{next=requireObject(nextState,'Recovery GM state');}catch{return false;}
+  // Validate the original visibility projection before replacing the state.
+  // A malformed canonical map must not disconnect existing participants.
+  try{
+   for(const record of peers.values()){
+    if(!active(record))continue;
+    requireObject(projectVisibleSnapshot({
+     campaignId,userId:record.userId,peerId:record.peerId,
+     state:requireObject(next,'Recovery map'),
+    }),'Recovery visible map');
+   }
+  }catch(error){try{onError(error);}catch{}return false;}
+  for(const record of [...peers.values()])revoke(record);
+  generation+=1;
+  state=next;
+  return true;
+ }
  function close(){
   if(closed)return;
   for(const record of [...peers.values()])revoke(record);
   closed=true;generation++;
  }
  return Object.freeze({
-  registerVerifiedPeer,commit,publishObservedMap,close,
+  registerVerifiedPeer,commit,publishObservedMap,resetFromObservedMap,close,
   get peerCount(){return peers.size;},
   get closed(){return closed;},
  });
