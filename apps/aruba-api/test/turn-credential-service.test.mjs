@@ -61,13 +61,13 @@ test('TURN settings reject permanent credentials in URL and weak secrets',()=>{
 test('TURN secret file allows exactly one terminal newline and matches coturn HMAC',()=>{
  const hex='a'.repeat(64);
  const identity={verify:async()=>({userId:player,campaignId:campaign,role:'player'})};
- for(const suffix of ['', '\n','\r\n']){
+ for(const suffix of ['', '\n']){
   const bytes=parseTurnSharedSecret(Buffer.from(hex+suffix));
   assert.equal(bytes.toString('utf8'),hex);
   assert.deepEqual(createHmac('sha1',bytes).update('1300:'+player).digest(),
    createHmac('sha1',Buffer.from(hex)).update('1300:'+player).digest());
  }
- for(const invalid of [hex+'\n\n',hex+' ',hex.toUpperCase(),hex.slice(0,63),' '+hex]){
+ for(const invalid of [hex+'\n\n',hex+'\r\n',hex+' ',hex.toUpperCase(),hex.slice(0,63),' '+hex]){
   assert.throws(()=>parseTurnSharedSecret(Buffer.from(invalid)));
  }
  assert.throws(()=>parseTurnSharedSecret('not-a-buffer'));

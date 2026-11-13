@@ -6,7 +6,7 @@ const TURN_URL=/^turns?:[a-zA-Z0-9.-]+(?::[0-9]{1,5})?(?:\?transport=(?:tcp|udp)
 const MAX_TTL=900;
 
 /**
- * Normalize precisely one optional trailing LF/CRLF from an operator-created
+ * Normalize precisely one optional trailing LF from an operator-created
  * secret file. Reject all other whitespace and incorrect encodings.
  * Coturn's POSIX launcher strips the final newline when reading the same file.
  * HMAC must use the ASCII hex text itself, not the hex-decoded bytes.
@@ -14,9 +14,9 @@ const MAX_TTL=900;
 export function parseTurnSharedSecret(content){
  if(!Buffer.isBuffer(content))throw new TypeError('TURN secret file must be bytes');
  const original=content.toString('utf8');
- if(!/^[0-9a-f]{64}(?:\r?\n)?$/.test(original))
+ if(!/^[0-9a-f]{64}\n?$/.test(original))
   throw new TypeError('TURN secret file must contain 64 lowercase hex characters');
- return Buffer.from(original.replace(/\r?\n$/,''),'ascii');
+ return Buffer.from(original.replace(/\n$/,''),'ascii');
 }
 
 /**
