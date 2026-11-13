@@ -117,3 +117,65 @@ test('GM source uses original visibility for snapshots, deltas and per-player re
  assert.equal(session.snapshot().payload.mapTokens.length,2);
  source.close();
 });
+
+test('original fog cover/reveal, persistence, explored holes and blockers survive unchanged',()=>{
+ const state=original();
+ state.mapFog=[{
+  id:'fog-a',kind:'polygon',operation:'cover',
+  persistence:'semi-persistent',opacity:0.4,
+  rings:[[{x:0,y:0},{x:5,y:0},{x:5,y:5},{x:0,y:5}],
+    [{x:1,y:1},{x:2,y:1},{x:2,y:2},{x:1,y:2}]],
+  exploredAreas:[[[{x:0,y:0},{x:3,y:3},{x:0,y:3}]]],
+  lightExploredAreas:[[[{x:0,y:0},{x:2,y:2},{x:0,y:2}]]],
+  visionBlocker:{kind:'door',confidence:1,source:'manual'},
+  enabled:true,fullMap:false,
+ }];
+ const projected=projectOriginalMapForPlayer(state);
+ assert.deepEqual(projected.mapFog,state.mapFog);
+ projected.mapFog[0].exploredAreas[0][0][0].x=987;
+ assert.equal(state.mapFog[0].exploredAreas[0][0][0].x,0);
+});
+test('fog exploration and cover edits consume a visible revision, not other private edits',()=>{
+ const before=original(),after=original();
+ before.mapFog=[{id:'fog-1',kind:'rectangle',operation:'cover',opacity:1,
+  persistence:'permanent',exploredAreas:[]}];
+ after.mapFog=structuredClone(before.mapFog);
+ after.mapFog[0].exploredAreas=[[[{x:0,y:0},{x:1,y:0},{x:1,y:1}]]];
+ const revision=projectOriginalMapDelta({event:'active_scene_map_patch',
+  previousState:before,state:after});
+ assert.equal(revision.event,'active_scene_map_patch');
+ assert.deepEqual(revision.payload.mapFog,after.mapFog);
+ const privateEdit=structuredClone(after);
+ privateEdit.gmNotes.text='hidden';
+ assert.equal(projectOriginalMapDelta({event:'active_scene_map_patch',
+  previousState:after,state:privateEdit}),null);
+});
+test('original light and vision sources on public tokens and POIs survive exactly',()=>{
+ const state=original();
+ state.mapTokens[0].light={enabled:true,radius:12,shape:'cone',coneAngle:50,
+  coneDirection:125,outlineVisible:true,effect:'flicker',flickerPreset:'torch'};
+ state.mapTokens[0].vision={enabled:true,radius:20,shape:'circle'};
+ state.mapTokens[1].light={enabled:true,radius:999,shape:'circle'};
+ state.mapPois[1].light={enabled:true,radius:7,shape:'cone',
+  coneAngle:40,coneDirection:92};
+ state.mapPois[1].vision={enabled:true,radius:8,shape:'circle'};
+ state.mapPois[0].light={enabled:true,radius:9999};
+ const projected=projectOriginalMapForPlayer(state);
+ assert.deepEqual(projected.mapTokens[0].light,state.mapTokens[0].light);
+ assert.deepEqual(projected.mapTokens[0].vision,state.mapTokens[0].vision);
+ assert.deepEqual(projected.mapPois[0].light,state.mapPois[1].light);
+ assert.deepEqual(projected.mapPois[0].vision,state.mapPois[1].vision);
+ assert.doesNotMatch(JSON.stringify(projected),/9999|999/);
+ const changed=structuredClone(state);
+ changed.mapTokens[0].light.radius=16;
+ const delta=projectOriginalMapDelta({event:'active_scene_map_patch',
+  previousState:state,state:changed});
+ assert.equal(delta.payload.mapTokens[0].light.radius,16);
+});
+test('invalid fog objects fail closed instead of emitting a partially visible scene',()=>{
+ const state=original();
+ state.mapFog=[{id:null,operation:'cover'}];
+ assert.throws(()=>projectOriginalMapForPlayer(state),/Invalid original map object/);
+ state.mapFog={invalid:true};
+ assert.throws(()=>projectOriginalMapForPlayer(state),/Original GM map arrays/);
+});

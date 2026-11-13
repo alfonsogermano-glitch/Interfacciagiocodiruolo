@@ -16,14 +16,14 @@ import {
 
 const isObject=x=>!!x&&typeof x==='object'&&!Array.isArray(x);
 const copy=x=>JSON.parse(JSON.stringify(x));
-const keys=['mapTokens','mapDrawings','mapPois','mapObjectOrder'];
 function validateMap(state){
  if(!isObject(state)||!Array.isArray(state.mapTokens)||
   !Array.isArray(state.mapDrawings)||!Array.isArray(state.mapPois)||
-  (state.mapObjectOrder!==undefined&&!Array.isArray(state.mapObjectOrder)))
+  (state.mapObjectOrder!==undefined&&!Array.isArray(state.mapObjectOrder))||
+  (state.mapFog!==undefined&&!Array.isArray(state.mapFog)))
   throw new TypeError('Original GM map arrays required');
- for(const family of ['mapTokens','mapDrawings','mapPois']){
-  for(const entry of state[family]){
+ for(const family of ['mapTokens','mapDrawings','mapPois','mapFog']){
+  for(const entry of state[family]??[]){
    if(!isObject(entry)||typeof entry.id!=='string'||!entry.id)
     throw new TypeError('Invalid original map object');
   }
@@ -47,6 +47,10 @@ export function projectOriginalMapForPlayer(state){
  return {
   mapTokens:tokens,mapDrawings:drawings,mapPois:pois,
   mapObjectOrder:filterMapObjectOrder(order,visible),
+  // Original SessionWorkspace publishes the full mapFog document (including
+  // exploration, persistence and vision blockers) without a per-fog visibility
+  // filter. Do not invent extra filtering or drop its geometry on Aruba.
+  mapFog:current.mapFog??[],
  };
 }
 /**

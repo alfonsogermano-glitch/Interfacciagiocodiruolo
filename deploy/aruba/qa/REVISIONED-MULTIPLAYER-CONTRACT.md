@@ -51,3 +51,20 @@ projection callbacks; a custom UI reducer must also reject invalid data.
 Passing unit tests does not demonstrate all original map assets and state
 fields, persisted revisions, snapshot chunking, or physical-network behavior.
 Do not turn this on in the VTT until those requirements are verified.
+
+## Source-aligned original map fog and lighting
+
+The isolated `ArubaOriginalMapRevisionProjection.mjs` uses the original
+`sessionMapVisibility.ts` and `mapObjectLayers.ts` projections. It also
+includes `mapFog` as originally published by `SessionWorkspace.tsx` on
+`active_scene_map_patch`: it **does not invent a visibility flag for fog**.
+This includes operations cover/reveal, persistence, opacity, geometry,
+`exploredAreas`, `lightExploredAreas`, and vision blockers. The complete
+`light` and `vision` objects of visible tokens and POIs are retained
+unaltered; hidden tokens/POIs remain omitted under the original rules.
+
+Source geometry and lighting are carried as data; no rendering equivalence,
+line-of-sight algorithms, shader behavior or cross-device visual fidelity
+is established by these tests. Existing 60 KB frame limits still require
+separate chunking for complex scenes. Never enable in the public VTT based
+on these tests alone.

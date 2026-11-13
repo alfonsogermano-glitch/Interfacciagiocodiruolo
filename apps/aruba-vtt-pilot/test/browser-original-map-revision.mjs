@@ -69,7 +69,9 @@ try{
     campaignId:campaign,gmUserId:gm,
     initialState:{
      mapTokens:[
-      {id:'visible-token',visible:true,name:'Visible',x:0,y:0,hiddenFromPlayers:true},
+      {id:'visible-token',visible:true,name:'Visible',x:0,y:0,hiddenFromPlayers:true,
+       light:{enabled:true,radius:10,shape:'cone',coneAngle:60,coneDirection:90},
+       vision:{enabled:true,radius:20,shape:'circle'}},
       {id:'hidden-token',visible:false,name:'TOP SECRET TOKEN',x:2,y:2},
      ],
      mapDrawings:[
@@ -90,6 +92,8 @@ try{
       {family:'poi',id:'visible-poi'},
       {family:'drawing',id:'hidden-drawing'},
      ],
+     mapFog:[{id:'fog-main',kind:'rectangle',operation:'cover',persistence:'semi-persistent',
+      opacity:0.6,enabled:true,exploredAreas:[],lightExploredAreas:[]}],
      gmNotes:'PRIVATE NEVER SEND',
     },
     applyGmEvent:({state,payload})=>({...state,...payload}),
@@ -150,6 +154,10 @@ try{
  assert.deepEqual(initial[0].payload.mapDrawings.map(d=>d.id),['visible-drawing']);
  assert.deepEqual(initial[0].payload.mapPois.map(p=>p.id),['visible-poi']);
  assert.equal(initial[0].payload.mapPois[0].noteId,null);
+ assert.equal(initial[0].payload.mapFog.length,1);
+ assert.equal(initial[0].payload.mapFog[0].persistence,'semi-persistent');
+ assert.equal(initial[0].payload.mapTokens[0].light.radius,10);
+ assert.equal(initial[0].payload.mapTokens[0].vision.radius,20);
  assert.deepEqual(initial[0].payload.mapObjectOrder,[
   {family:'drawing',id:'visible-drawing'},
   {family:'token',id:'visible-token'},
@@ -164,7 +172,9 @@ try{
   window.gameSource.commit({
    authenticatedGmUserId:gm,event:'active_scene_map_patch',
    payload:{mapTokens:[
-    {id:'visible-token',visible:true,name:'Visible',x:11,y:12,hiddenFromPlayers:true},
+    {id:'visible-token',visible:true,name:'Visible',x:11,y:12,hiddenFromPlayers:true,
+     light:{enabled:true,radius:14,shape:'cone',coneAngle:60,coneDirection:90},
+     vision:{enabled:true,radius:20,shape:'circle'}},
     {id:'hidden-token',visible:false,name:'TOP SECRET TOKEN',x:99,y:99},
    ]},
   });
@@ -177,18 +187,32 @@ try{
      noteVisibleToPlayers:false,label:'SECRET POI'},
    ]},
   });
+  window.gameSource.commit({
+   authenticatedGmUserId:gm,event:'active_scene_map_patch',
+   payload:{mapFog:[{
+    id:'fog-main',kind:'rectangle',operation:'cover',
+    persistence:'semi-persistent',opacity:0.6,enabled:true,
+    exploredAreas:[[[{x:0,y:0},{x:1,y:0},{x:1,y:1}]]],
+    lightExploredAreas:[[[{x:0,y:0},{x:1,y:1},{x:0,y:1}]]],
+   }]},
+  });
  },{gm});
  assert.equal(await host.evaluate(()=>window.privateCommitAccepted),true);
  assert.equal(await host.evaluate(()=>window.gmRevisionAfterPrivate),0);
- await guest.waitForFunction(()=>window.receiver?.revision===2,null,{timeout:10000});
+ await guest.waitForFunction(()=>window.receiver?.revision===3,null,{timeout:10000});
  const frames=await guest.evaluate(()=>window.deltaFrames);
  assert.deepEqual(frames.map(f=>[f.revision,f.event]),[
   [1,'active_scene_map_patch'],[2,'active_scene_map_patch'],
+  [3,'active_scene_map_patch'],
  ]);
  assert.equal(frames[0].payload.mapTokens[0].x,11);
+ assert.equal(frames[0].payload.mapTokens[0].light.radius,14);
+ assert.equal(frames[0].payload.mapTokens[0].vision.radius,20);
  assert.deepEqual(frames[0].payload.mapObjectOrder,initial[0].payload.mapObjectOrder);
  assert.equal(frames[1].payload.mapPois[0].noteId,'PRIVATE-NOTE-ID');
  assert.deepEqual(frames[1].payload.mapTokens.map(t=>t.id),['visible-token']);
+ assert.equal(frames[2].payload.mapFog[0].exploredAreas.length,1);
+ assert.equal(frames[2].payload.mapFog[0].lightExploredAreas.length,1);
  const delivered=await guest.evaluate(()=>JSON.stringify([window.snapshotFrames,window.deltaFrames]));
  assert.doesNotMatch(delivered,/TOP SECRET TOKEN|SECRET DRAWING|SECRET-POI-NOTE|SECRET POI|gmNotes|PRIVATE NEVER SEND|SECRET TWO/);
  assert.deepEqual(await guest.evaluate(()=>window.errors),[]);
@@ -201,9 +225,9 @@ try{
  await host.evaluate(({gm})=>{
   window.gameSource.commit({authenticatedGmUserId:gm,event:'active_scene_map_patch',payload:{gmNotes:'forbidden'}});
  },{gm});
- assert.equal(await guest.evaluate(()=>window.deltaFrames.length),2);
+ assert.equal(await guest.evaluate(()=>window.deltaFrames.length),3);
  await Promise.all([gmContext.close(),playerContext.close()]);
- console.log('BROWSER_ORIGINAL_MAP_REVISION_SUCCESS: real Chromium WebRTC, original map visibility, layer order, private data, revocation');
+ console.log('BROWSER_ORIGINAL_MAP_REVISION_SUCCESS: real Chromium WebRTC, original map visibility, fog exploration, lighting, layer order, revocation');
 }finally{
  if(browser)await browser.close();
  if(gateway)gateway.close();
