@@ -11,7 +11,7 @@ services:
     cap_drop: [ALL]
     security_opt: ["no-new-privileges:true"]
     tmpfs:
-      - /run/hollowgate:mode=0700,size=1m
+      - /run/hollowgate:mode=0700,size=1m,uid=65534,gid=65534
     environment:
       TURN_HOSTNAME: ${TURN_HOSTNAME:?Set dedicated TURN hostname}
       TURN_PUBLIC_IPV4: ${TURN_PUBLIC_IPV4:?Set verified public IPv4}

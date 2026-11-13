@@ -5,7 +5,7 @@ This is an **opt-in, separate** coturn service. It is deliberately not linked to
 ## Before a manual trial
 
 1. Verify that the actual VPS public IPv4, the proposed TURN hostname DNS and the host's existing UDP/TCP bindings are correct. **Do not assume** any hostname or address is configured.
-2. Prepare a **new random 32-byte secret encoded as 64 lowercase hex characters**. Store its 64-character ASCII text (no quotes or leading spaces, optionally followed by exactly one LF newline) in `/opt/hollowgate/config/turn_shared_secret`, readable only by the administrator (`chmod 600`). Use this exact file also as the Aruba API `TURN_SHARED_SECRET_FILE`. Never commit, print or paste its contents.
+2. Prepare a **new random 32-byte secret encoded as 64 lowercase hex characters**. Store its 64-character ASCII text (no quotes or leading spaces, optionally followed by exactly one LF newline) in `/opt/hollowgate/config/turn_shared_secret`, owned by coturn image UID/GID 65534:65534 with mode `0600`; the host administrator retains privileged access. **Use a separate private copy with identical ASCII bytes for the API**, owned by its runtime UID 1001 with mode `0600`, and mount that copy at the API `TURN_SHARED_SECRET_FILE` path. Never share one `0600` file between two different unprivileged container UIDs. Never commit, print or paste its contents.
 3. Supply a valid matching TLS certificate and private key as `/opt/hollowgate/config/tls/turn-fullchain.pem` and `turn-privkey.pem`. They must be accessible to the container's mount namespace. Certificate issuance and renewal are separate controlled operations.
 4. Review host firewall **and Aruba provider firewall** before allowing `3478/udp`, `3478/tcp`, `5349/tcp` and relay `49160-49200/udp`. All other unnecessary ports should remain closed. This service uses **host networking**, so the container has direct access to host ports.
 5. Confirm that no existing service is bound on those ports and the relay will not interfere with existing production workloads. This profile has `restart: "no"`.
@@ -27,3 +27,6 @@ The API now validates a file containing exactly 64 lowercase hex characters, opt
 
 ### Runtime coturn 4.18 smoke test
 The 4.18 release removed `no-cli` and `no-dtls`. A CI job now starts the real image and launcher with disposable secrets and TLS on a Docker bridge without published ports. This checks process startup only, not public relay connectivity or UDP allocations.
+
+### Unprivileged container ownership
+The official Alpine image runs as `nobody:nogroup` (65534:65534). Its `/run/hollowgate` tmpfs must be owned by that identity; the secret and certificate/key bind mounts must be readable by that identity with strict mode 0600. The Aruba API uses another unprivileged UID, so supply an independently permissioned private copy of the **same key bytes** for that service. Verify all ownership/mounts before manually starting anything.
