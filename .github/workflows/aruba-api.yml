@@ -193,6 +193,9 @@ jobs:
       - name: Verify real WebRTC game DataChannel authorization and membership revocation
         working-directory: apps/aruba-vtt-pilot
         run: node test/browser-webrtc-game-router.mjs
+      - name: Verify revisioned source and player receiver over real Chromium WebRTC
+        working-directory: apps/aruba-vtt-pilot
+        run: node test/browser-revisioned-events.mjs
       - name: Verify isolated relay-only Chromium WebRTC through real coturn
         working-directory: apps/aruba-vtt-pilot
         run: bash ../../deploy/aruba/turn/qa/verify-browser-relay.sh
