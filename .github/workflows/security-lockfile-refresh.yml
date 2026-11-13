@@ -1,0 +1,75 @@
+name: Security lockfile refresh (one-shot, branch-only)
+on:
+  push:
+    branches:
+      - feature/aruba-api-foundation
+permissions:
+  contents: write
+jobs:
+  refresh:
+    if: startsWith(github.event.head_commit.message, 'chore(security): regenerate audited dependency lockfiles')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+      - name: Verify scoped PR branch and no concurrent edits
+        shell: bash
+        run: |
+          test "$GITHUB_REF" = 'refs/heads/feature/aruba-api-foundation'
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - name: Update the 9 aligned Tiptap packages and Vite in root
+        shell: bash
+        run: |
+          npm install --package-lock-only --ignore-scripts --save-exact \
+            @tiptap/core@3.33.1 @tiptap/extension-image@3.33.1 \
+            @tiptap/extension-table@3.33.1 @tiptap/extension-task-item@3.33.1 \
+            @tiptap/extension-task-list@3.33.1 @tiptap/extension-text-align@3.33.1 \
+            @tiptap/extension-underline@3.33.1 @tiptap/pm@3.33.1 \
+            @tiptap/react@3.33.1 @tiptap/starter-kit@3.33.1 \
+            --save
+          npm install --package-lock-only --ignore-scripts --save-exact --save-dev vite@6.4.6
+          npm audit fix --package-lock-only --ignore-scripts
+          npm audit --audit-level=high
+      - name: Update isolated Aruba pilot lockfile with the same patched versions
+        working-directory: apps/aruba-vtt-pilot
+        shell: bash
+        run: |
+          npm install --package-lock-only --ignore-scripts --save-exact \
+            @tiptap/core@3.33.1 @tiptap/extension-image@3.33.1 \
+            @tiptap/extension-table@3.33.1 @tiptap/extension-task-item@3.33.1 \
+            @tiptap/extension-task-list@3.33.1 @tiptap/extension-text-align@3.33.1 \
+            @tiptap/extension-underline@3.33.1 @tiptap/pm@3.33.1 \
+            @tiptap/react@3.33.1 @tiptap/starter-kit@3.33.1 \
+            --save
+          npm install --package-lock-only --ignore-scripts --save-exact --save-dev vite@6.4.6
+          npm audit fix --package-lock-only --ignore-scripts
+          npm audit --audit-level=high
+      - name: Verify clean installs and full original VTT regressions
+        shell: bash
+        run: |
+          npm ci
+          npm run check
+          npm audit --audit-level=high
+          cd apps/aruba-vtt-pilot
+          npm ci
+          npm test
+          npm run build
+          npm audit --audit-level=high
+      - name: Commit only package and lock changes, never force push
+        shell: bash
+        run: |
+          test "$(git rev-parse --abbrev-ref HEAD)" = 'feature/aruba-api-foundation'
+          git diff --name-only > /tmp/hg-security-files.txt
+          if grep -Ev '^(package(-lock)?\\.json|apps/aruba-vtt-pilot/package(-lock)?\\.json)$' /tmp/hg-security-files.txt; then
+            echo 'Unexpected non-dependency modifications, refusing push' >&2
+            exit 1
+          fi
+          git add package.json package-lock.json apps/aruba-vtt-pilot/package.json apps/aruba-vtt-pilot/package-lock.json
+          git diff --cached --quiet && exit 0
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'fix(security): update Tiptap and Vite with audited lockfiles'
+          git push origin HEAD:refs/heads/feature/aruba-api-foundation
