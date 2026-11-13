@@ -17,3 +17,15 @@ The separate `ArubaRevisionedSnapshotStream.mjs` is a **test-only, opt-in primit
 Implement the canonical revisioned GM state producer, per-member visibility projection, atomic snapshot + event cursor acquisition, recovery or intentional full resync on gaps, browser receiver with revision validation, large snapshot chunking, and testing against original map/token/dice/notes events and two physical networks.
 
 Keep the current fail-closed release parity gate enabled. Do not deploy or enable this experimental primitive in production.
+
+## GM-local revision source prototype
+
+`ArubaGmRevisionedCampaignSource.mjs` is a separate **opt-in in-memory producer**, with no original VTT shell wiring. The caller supplies the initial GM-owned state and three required synchronous, trusted callbacks:
+
+- `applyGmEvent` computes the next canonical state without side effects or asynchronous work.
+- `projectVisibleSnapshot` returns a player-specific view of that state.
+- `projectVisibleEvent` returns either a player-specific, already-authorized event or `null` for hidden events.
+
+A single synchronous commit prepares the next state and every recipient's projection **before** changing the state or incrementing any revisions. A failed projector aborts the whole transaction. Each verified connection starts a new revision sequence with its initial snapshot; only the events visible to that recipient advance its counter. A hidden GM-only event does not even consume a revision or reveal its existence. The source registers the stream's delivery callback before requesting an asynchronous snapshot, so intervening committed events can be reconciled against the snapshot's revision.
+
+**Important:** This is not yet the original campaign state reducer, it does not persist or replay events, and does not provide a cross-process transaction or authenticated peer discovery. The application must verify the GM and each participant before invoking it, ensure the snapshot projection and event projection are semantically consistent, and reconnect with a fresh verified peer ID. Do not enable without the full original-state parity tests and source-driven visibility review.
