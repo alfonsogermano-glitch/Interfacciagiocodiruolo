@@ -1,14 +1,15 @@
 import type {Campaign} from '../../../src/app/campaigns/campaignTypes';
 import {RULESETS} from '../../../src/app/campaigns/campaignTypes';
+import {ArubaOriginalCampaignRosterQA} from './ArubaOriginalCampaignRosterQA';
 
 /** Read-only Aruba campaign overview for the ORIGINAL shell QA.
  * This intentionally does not mount CampaignHome: that original component
  * still writes through Supabase and its realtime campaign context.
  * Only fields returned by the owner-scoped Aruba campaign API are shown.
  */
-export function ArubaOriginalCampaignOverviewQA({campaigns,campaign,section,onSelectCampaign}:{
+export function ArubaOriginalCampaignOverviewQA({campaigns,campaign,section,onSelectCampaign,rosterEnabled=false}:{
  campaigns:Campaign[];campaign:Campaign|null;section:string;
- onSelectCampaign:(campaign:Campaign)=>void;
+ onSelectCampaign:(campaign:Campaign)=>void;rosterEnabled?:boolean;
 }){
  if(section==='campaign-home'){
   if(!campaign)return <p data-campaign-overview-state="missing">Nessuna campagna selezionata.</p>;
@@ -19,6 +20,7 @@ export function ArubaOriginalCampaignOverviewQA({campaigns,campaign,section,onSe
     <p className="mt-2 text-sm text-[var(--dash-muted)]">{RULESETS[campaign.ruleset]?.name??'Regolamento non disponibile'}</p>
     {campaign.description&&<p className="mt-4 whitespace-pre-wrap break-words text-sm">{campaign.description}</p>}
    </header>
+   <ArubaOriginalCampaignRosterQA campaignId={campaign.id} enabled={rosterEnabled}/>
    <p className="text-sm text-[var(--dash-muted)]" data-campaign-session-state="not-connected">
     La sessione originale non è ancora collegata ad Aruba in questa anteprima di verifica.
    </p>

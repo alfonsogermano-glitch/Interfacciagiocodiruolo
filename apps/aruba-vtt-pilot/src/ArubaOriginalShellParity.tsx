@@ -20,10 +20,10 @@ const fixtureCampaign:Campaign={
  createdAt:'2026-11-13T00:00:00.000Z',updatedAt:'2026-11-13T00:00:00.000Z',
 };
 export function ArubaOriginalShellParity({campaigns=[fixtureCampaign],displayName='GM di collaudo',
- qaUser=null,mapWorkspaceQa=false,charactersEnabled=false}:{
+ qaUser=null,mapWorkspaceQa=false,charactersEnabled=false,rosterEnabled=false}:{
  campaigns?:Campaign[];displayName?:string;
  qaUser?:{id:string;email:string;displayName:string;role:'standard'|'admin'}|null;
- mapWorkspaceQa?:boolean;charactersEnabled?:boolean;
+ mapWorkspaceQa?:boolean;charactersEnabled?:boolean;rosterEnabled?:boolean;
 }={}){
  const [view,setView]=useState<'home'|'dashboard'|'campaign-home'>('dashboard');
  const [section,setSection]=useState('chapters');
@@ -54,7 +54,7 @@ export function ArubaOriginalShellParity({campaigns=[fixtureCampaign],displayNam
     {section==='characters'?<ArubaOriginalCharactersQA campaignId={campaign?.id??null}
      ownerId={qaUser?.id??fixtureCampaign.ownerId} enabled={charactersEnabled}/>:
      <ArubaOriginalCampaignOverviewQA campaigns={campaigns} campaign={campaign}
-      section={section} onSelectCampaign={selectCampaign}/>}
+      section={section} onSelectCampaign={selectCampaign} rosterEnabled={rosterEnabled}/>}
     {mapWorkspaceQa&&<ArubaOriginalMapToolQA/>}
    </section>
   </AppShell>

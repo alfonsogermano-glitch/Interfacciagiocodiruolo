@@ -12,7 +12,7 @@ type State=
  | {kind:'unauthorized'}
  | {kind:'unavailable'}
  | {kind:'error';message:string}
- | {kind:'ready';name:string;campaigns:Campaign[];charactersEnabled:boolean;user:{
+ | {kind:'ready';name:string;campaigns:Campaign[];charactersEnabled:boolean;rosterEnabled:boolean;user:{
    id:string;email:string;displayName:string;role:'standard'|'admin';
   }};
 
@@ -34,7 +34,7 @@ export function ArubaAuthenticatedOriginalShellQA(){
      ...c,ruleset:c.ruleset as Campaign['ruleset'],
      updatedAt:c.createdAt??'',
     }));
-    setState({kind:'ready',name:user.displayName,campaigns,charactersEnabled:user.charactersEnabled,user:{id:user.id,email:user.email,displayName:user.displayName,role:user.role}});
+    setState({kind:'ready',name:user.displayName,campaigns,charactersEnabled:user.charactersEnabled,rosterEnabled:user.campaignRosterEnabled,user:{id:user.id,email:user.email,displayName:user.displayName,role:user.role}});
    }catch(e){
     if(active)setState({kind:'error',message:e instanceof Error?e.message:'Errore autenticazione'});
    }
@@ -49,6 +49,6 @@ export function ArubaAuthenticatedOriginalShellQA(){
    'Non è stato possibile caricare le campagne Aruba.'}
  </main>;
  return <div data-original-shell-auth-state="ready">
-  <ArubaOriginalShellParity campaigns={state.campaigns} displayName={state.name} qaUser={state.user} charactersEnabled={state.charactersEnabled}/>
+  <ArubaOriginalShellParity campaigns={state.campaigns} displayName={state.name} qaUser={state.user} charactersEnabled={state.charactersEnabled} rosterEnabled={state.rosterEnabled}/>
  </div>;
 }

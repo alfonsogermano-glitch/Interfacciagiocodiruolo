@@ -24,7 +24,7 @@ async function run(mode){
    user:{id:owner,email:'qa@example.org',displayName:'GM Aruba',role:'standard'},
    capabilities:{
     campaigns:{read:allowed,write:allowed},characters:{read:['characters','character-error','switch-campaign'].includes(mode),write:['characters','character-error','switch-campaign'].includes(mode)},
-    gameSession:false,
+    campaignRoster:{read:mode==='roster',write:false},gameSession:false,
    },
   }});
  });
@@ -39,6 +39,10 @@ async function run(mode){
   if(mode==='switch-campaign'&&route.request().url().includes(secondCampaign.id))
    return route.fulfill({json:{characters:[{...characters[0],id:'00000000-0000-4000-8000-000000000011',campaignId:secondCampaign.id,name:'Personaggio seconda campagna'}]}});
   await route.fulfill({json:{characters}});
+ });
+ await page.route('**/vtt/campaigns/*/roster',async route=>{
+  requests.push({path:'/vtt/roster',method:route.request().method()});
+  await route.fulfill({json:{members:[{userId:owner,displayName:'GM Aruba',role:'gm'}]}});
  });
  await page.goto(base,{waitUntil:'domcontentloaded'});
  if(mode==='unauthorized'){
@@ -86,6 +90,14 @@ async function run(mode){
   assert.equal(await page.locator('[data-active-section]').getAttribute('data-active-section'),'campaign-home');
   assert.equal(await page.locator('[data-campaign-overview-state="selected"]').getAttribute('data-campaign-id'),campaigns[0].id);
   assert.equal(await page.locator('[data-campaign-session-state="not-connected"]').count(),1);
+  if(mode==='roster'){
+   await page.locator('[data-original-roster-state="ready"]').waitFor();
+   assert.equal(await page.locator('[data-original-roster-state="ready"]').getByText('GM Aruba').count(),1);
+   assert.equal(requests.filter(r=>r.path==='/vtt/roster').length,1);
+  }else{
+   assert.equal(await page.locator('[data-original-roster-state="unavailable"]').count(),1);
+   assert.equal(requests.some(r=>r.path==='/vtt/roster'),false);
+  }
   if(['characters','character-error','switch-campaign'].includes(mode)){
    await page.getByRole('button',{name:'Personaggi',exact:true}).click();
    if(mode==='character-error'){
@@ -132,6 +144,7 @@ try{
  await run('characters');
  await run('character-error');
  await run('switch-campaign');
+ await run('roster');
  await run('expired-campaign-session');
  assert.deepEqual(errors,[]);
  console.log('Original AppShell with authenticated Aruba campaign API: scope, capability and 401 cases PASS.');
