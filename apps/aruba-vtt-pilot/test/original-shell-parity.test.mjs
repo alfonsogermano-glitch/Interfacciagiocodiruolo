@@ -165,7 +165,7 @@ test('shipping original Noir navigation has generated utilities, scoped tokens a
  assert.match(css,/height:100vh;min-height:0;overflow:hidden/);
  assert.match(main,/className="workspace" data-dashboard-palette="noir"/);
  assert.match(main,/<LeftSidebar/);
- assert.match(main,/<GmSectionSidebar/);
+ assert.match(main,/<ArubaGmSectionSidebar/);
 });
 
 test('shipping original TopBar is isolated from Supabase and uses real Aruba identity',()=>{
