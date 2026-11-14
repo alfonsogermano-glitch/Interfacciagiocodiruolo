@@ -31,7 +31,7 @@ test('campaigns and games remain fail-closed on malformed capabilities',()=>{
 });
 test('campaign list is scoped to logged-in identity and rejects malformed records',async()=>{
  const list=await listOwnedCampaigns(async()=>({ok:true,json:async()=>({campaigns:[
-  sample,{...sample,id:'be2f1a87-b8ee-4b34-9da0-07efda11379b',ownerId:'another-account'}]})}),user.id);
+  sample,{...sample,id:'be2f1a87-b8ee-4b34-9da0-07efda11379b',ownerId:'22345678-1234-4123-8123-123456789abc'}]})}),user.id);
  assert.equal(list.length,1);
  assert.equal(list[0].ownerId,user.id);
  assert.throws(()=>validateCampaign({...sample,name:null}));
@@ -46,7 +46,7 @@ test('campaign creation passes only whitelisted fields with same-origin cookies'
  assert.equal(sent.options.credentials,'same-origin');
  assert.deepEqual(Object.keys(JSON.parse(sent.options.body)).sort(),['description','name','ruleset']);
  await assert.rejects(()=>createOwnedCampaign(async()=>{}, {name:'Storia',description:'',ruleset:'invalid'},user.id));
- await assert.rejects(()=>createOwnedCampaign(async()=>({ok:true,json:async()=>({campaign:{...sample,ownerId:'wrong'}})}),
+ await assert.rejects(()=>createOwnedCampaign(async()=>({ok:true,json:async()=>({campaign:{...sample,ownerId:'22345678-1234-4123-8123-123456789abc'}})}),
   {name:'Storia',description:'',ruleset:'hsc'},user.id),/Proprietario/);
 });
 test('logout uses server revocation without local storage',async()=>{
@@ -113,7 +113,7 @@ test('campaign edit calls PATCH with only editable fields and rejects forged res
  assert.equal(sent.options.credentials,'same-origin');
  assert.deepEqual(JSON.parse(sent.options.body),{name:'Aggiornata',description:''});
  await assert.rejects(()=>updateOwnedCampaign(async()=>{},sample.id,{name:'X',description:'',ruleset:'custom'},user.id));
- await assert.rejects(()=>updateOwnedCampaign(async()=>({ok:true,json:async()=>({campaign:{...sample,ownerId:'different'}})}),
+ await assert.rejects(()=>updateOwnedCampaign(async()=>({ok:true,json:async()=>({campaign:{...sample,ownerId:'22345678-1234-4123-8123-123456789abc'}})}),
   sample.id,{name:'X',description:''},user.id),/autorizzata/);
 });
 
