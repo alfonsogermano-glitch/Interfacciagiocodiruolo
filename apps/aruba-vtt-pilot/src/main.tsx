@@ -13,6 +13,7 @@ import {ArubaSessionCharactersPanel} from './ArubaSessionCharactersPanel';
 import {ArubaCampaignCharacterCards,type SessionEntityOpenRequest} from './ArubaCampaignCharacterCards';
 import {ArubaCampaignPlayerRows} from './ArubaCampaignPlayerRows';
 import {ArubaAssignedCharacterPanel} from './ArubaAssignedCharacterPanel';
+import {GmSectionSidebar} from '../../../src/app/layout/GmSectionSidebar';
 import {HouseIcon,UsersThreeIcon,ScrollIcon,GitBranchIcon,PlayIcon,FileTextIcon,IdentificationBadgeIcon,GhostIcon,LightbulbIcon,BookmarkSimpleIcon,MapTrifoldIcon,ImageIcon,SwordIcon} from '@phosphor-icons/react';
 
 type PilotUser={id:string;email:string;displayName:string;role:'admin'|'standard';characterAvailabilityEnabled:boolean;characterAssignmentsEnabled:boolean;playerCharactersEnabled:boolean;characterPortraitsEnabled:boolean;campaignsEnabled:boolean;charactersEnabled:boolean;entityNotesEnabled:boolean;campaignNotesEnabled:boolean;campaignNoteFoldersEnabled:boolean;originalNotesPanelEnabled:boolean;campaignRosterEnabled:boolean};
@@ -239,13 +240,12 @@ function App(){
      activePanel={sessionPanel}
      onToggleNotes={()=>{closeSessionCharacter();setSessionPanel(value=>value==='notes'?null:'notes');}}
      onToggleCharacters={()=>{closeSessionCharacter();setSessionPanel(value=>value==='characters'?null:'characters');}}/>:
-   section!=='characters'&&<aside className="gm-sidebar" aria-label="Strumenti Game Master">
-   {gmMenu.map(({id,label,Icon},i)=><div key={id} className={id==='map'?'gm-group-break':''}>
-    <button type="button" aria-label={label} aria-current={section===id?'page':undefined}
-      className={'gm-link'+(section===id?' active':'')} onClick={()=>{setSection(id);setSessionPanel(null);closeSessionCharacter();setEntityDetail(null);}}>
-      <Icon size={19} weight="duotone" aria-hidden="true"/><span>{label}</span>
-    </button></div>)}
-  </aside>}
+   section!=='characters'&&<GmSectionSidebar
+    activeTab={section==='preparation'?'scene-encounter':section==='sheets'?'players':section==='equipment'?'equipment-catalog':section==='assets'?'visual-assets':section}
+    onChangeTab={id=>{
+     const target=id==='scene-encounter'?'preparation':id==='players'?'sheets':id==='equipment-catalog'?'equipment':id==='visual-assets'?'assets':id;
+     setSection(target as Section);setSessionPanel(null);closeSessionCharacter();setEntityDetail(null);
+    }}/>
    </div>
   </div>
   {section==='session'&&activeCampaign&&sessionCharacterRequest&&user.charactersEnabled&&
