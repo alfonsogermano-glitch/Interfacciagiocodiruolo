@@ -42,10 +42,13 @@ test('original hook flushes a pending map patch before publishing a new scene',a
  const hook=await readFile(new URL('../../../src/app/components/session/useActiveScene.ts',import.meta.url),'utf8');
  assert.match(hook,/const publish = useCallback\(async \(value: ActiveScenePublication\) => \{[\s\S]*?flushPendingPublication\(\);[\s\S]*?const publishedAtMs/);
 });
-test('original hook cancels pending debounce and waits for queued map writes before clearing',async()=>{
+test('original hook cancels pending debounce and queues clearing after map writes',async()=>{
  const {readFile}=await import('node:fs/promises');
  const hook=await readFile(new URL('../../../src/app/components/session/useActiveScene.ts',import.meta.url),'utf8');
- assert.match(hook,/const clear = useCallback\(async \(\) => \{[\s\S]*?publicationPendingRef\.current = null;[\s\S]*?await publicationQueueRef\.current;[\s\S]*?await clearActiveScene/);
+ const clear=hook.slice(hook.indexOf('const clear = useCallback'));
+ assert.match(clear,/publicationPendingRef\.current = null;/);
+ assert.match(clear,/const operation = publicationQueueRef\.current\.then\(async \(\) => \{/);
+ assert.match(clear,/await clearActiveScene\(campaignId\)/);
 });
 
 test('scene clear is serialized as a queued operation and not merely preceded by a queue wait',async()=>{
