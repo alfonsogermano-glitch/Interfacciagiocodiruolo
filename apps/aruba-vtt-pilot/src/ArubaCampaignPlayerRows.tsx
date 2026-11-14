@@ -43,8 +43,8 @@ export function ArubaCampaignPlayerRows({campaignId,ownerId,revision,availabilit
   try{
    await setCharacterAvailability(fetch,campaignId,id,!now);
    if(generation===requestGeneration.current&&currentKeyRef.current===currentKey)setAvailability(prev=>new Map(prev).set(id,!now));
-  }catch(e){if(generation===requestGeneration.current)setSaveError(e instanceof Error?e.message:'Impossibile aggiornare la disponibilità');}
-  finally{if(generation===requestGeneration.current)setPending(null);}
+  }catch(e){if(generation===requestGeneration.current&&currentKeyRef.current===currentKey)setSaveError(e instanceof Error?e.message:'Impossibile aggiornare la disponibilità');}
+  finally{if(generation===requestGeneration.current&&currentKeyRef.current===currentKey)setPending(null);}
  }
  async function changeAssignment(id:string,playerId:string){
   if(!assignmentsEnabled||!availabilityEnabled||pending||busy||error||snapshotKey!==currentKey||!availability.get(id))return;

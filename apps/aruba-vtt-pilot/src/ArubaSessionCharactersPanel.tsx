@@ -18,11 +18,13 @@ export function ArubaSessionCharactersPanel({campaignId,ownerId,initialSelection
  const [busy,setBusy]=useState(true);
  const [error,setError]=useState<string|null>(null);
  const [retry,setRetry]=useState(0);
+ const [loadedKey,setLoadedKey]=useState('');
+ const requestKey=campaignId+':'+ownerId+':'+retry;
  useEffect(()=>{
   let active=true;
-  setBusy(true);setError(null);setCharacters([]);
+  setBusy(true);setError(null);setCharacters([]);setLoadedKey('');
   void listCharacterDrafts(fetch,campaignId,ownerId)
-   .then(list=>{if(active)setCharacters(list.filter(c=>c.status==='active'));})
+   .then(list=>{if(active){setCharacters(list.filter(c=>c.status==='active'));setLoadedKey(requestKey);}})
    .catch(e=>{if(active)setError(e instanceof Error?e.message:'Impossibile caricare le schede');})
    .finally(()=>{if(active)setBusy(false);});
   return()=>{active=false;};
@@ -33,10 +35,10 @@ export function ArubaSessionCharactersPanel({campaignId,ownerId,initialSelection
    <div className="aruba-session-character-list">
     <h2>Schede</h2>
     <p className="muted">Personaggi della campagna · schede originali Hollowgate</p>
-    {busy&&<p role="status">Caricamento schede…</p>}
+    {(busy||loadedKey!==requestKey&&!error)&&<p role="status">Caricamento schede…</p>}
     {error&&<div role="alert" className="error"><p>{error}</p><button type="button" onClick={()=>setRetry(n=>n+1)}>Riprova caricamento schede</button></div>}
-    {!busy&&!error&&!characters.length&&<p>Nessun personaggio disponibile nella campagna.</p>}
-    {!busy&&!error&&characters.map(c=>
+    {!busy&&!error&&loadedKey===requestKey&&!characters.length&&<p>Nessun personaggio disponibile nella campagna.</p>}
+    {!busy&&!error&&loadedKey===requestKey&&characters.map(c=>
      <button key={c.id} type="button" className={'aruba-session-character-row'+(initialSelection?.id===c.id?' selected':'')}
       aria-current={initialSelection?.id===c.id?'true':undefined}
       onClick={()=>onOpenCharacter(c.id)} aria-label={'Apri scheda di '+c.name}>

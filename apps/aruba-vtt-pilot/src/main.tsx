@@ -82,15 +82,16 @@ function App(){
  function openCampaign(id:string){
   if(!user?.campaignsEnabled||!campaigns.some(c=>c.id===id&&c.ownerId===user.id))return;
   setActiveCampaignId(id);setSection('campaigns');setSessionPanel(null);closeSessionCharacter();setEntityDetail(null);
+  setShowEdit(false);setCampaignError(null);
  }
  useEffect(()=>{
   if(!user?.campaignsEnabled)return;
   let alive=true;
-  setCampaignLoading(true);
+  setCampaignLoading(true);setCampaignError(null);
   void listOwnedCampaigns(fetcher,user.id).then(result=>{
     if(alive){setCampaigns(result);setActiveCampaignId(id=>result.some(c=>c.id===id)?id:null);}
   }).catch(error=>{
-    if(alive)setCampaignError(error instanceof Error?error.message:'Errore campagne');
+    if(alive){setCampaigns([]);setActiveCampaignId(null);setCampaignError(error instanceof Error?error.message:'Errore campagne');}
   }).finally(()=>{if(alive)setCampaignLoading(false);});
   return ()=>{alive=false;};
  },[user?.id,user?.campaignsEnabled]);
@@ -217,7 +218,7 @@ function App(){
         userId={user.id} ownerId={activeCampaign.ownerId}
         onClose={()=>setSessionPanel(null)}/>}
       {sessionPanel==='characters'&&user.charactersEnabled&&
-       <ArubaSessionCharactersPanel campaignId={activeCampaign.id}
+       <ArubaSessionCharactersPanel key={activeCampaign.id} campaignId={activeCampaign.id}
         ownerId={user.id} initialSelection={sessionCharacterRequest}
         onClose={()=>{setSessionPanel(null);closeSessionCharacter();}}
         onOpenCharacter={openSessionCharacter}/>}
