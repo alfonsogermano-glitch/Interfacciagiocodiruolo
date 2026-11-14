@@ -46,10 +46,14 @@ export function createWebRtcSession({origin,campaignId,role,WebSocketImpl,PeerCo
   if(data.type!=='signal'||!['offer','answer','ice'].includes(data.kind))return;
   const id=role==='host'?data.peerId:campaignId;
   if(!UUID.test(id))return;
-  if(role==='host'&&data.kind==='offer'||role==='player'&&data.kind==='answer')return;
+  if((role==='host'&&data.kind==='offer')||(role==='player'&&data.kind==='answer'))return;
+  // Only a server-announced peer may answer the host's offer.
+  // A stray answer/ICE must never create an unauthorized host-side peer.
+  if(role==='host'&&!peers.has(id))return;
   const peer=makePeer(id);if(!peer)return;
   if(data.kind==='ice'){
    if(!data.payload?.candidate)return;
+   if(role==='player'&&!peers.has(id))return;
    if(!peer.pc.remoteDescription){if(peer.pendingIce.length>=128){drop(id);return;}peer.pendingIce.push(data.payload.candidate);}
    else await peer.pc.addIceCandidate(data.payload.candidate);
   }else if(typeof data.payload?.sdp==='string'){

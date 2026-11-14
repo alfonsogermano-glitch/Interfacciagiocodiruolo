@@ -108,3 +108,14 @@ test('valid RFC 4122 peer identity negotiates an offer rather than silently disc
  assert.equal(Socket.last.sent[0].targetPeerId,peerId);
  session.close();
 });
+
+test('host ignores unsolicited answers and ICE from peers not announced by server',async()=>{
+ const session=createWebRtcSession({origin:'https://staging.hollowgate.quest/',campaignId,role:'host',WebSocketImpl:Socket,PeerConnectionImpl:Peer});
+ Socket.last.message({type:'ready',role:'host',peerId});
+ Socket.last.message({type:'signal',kind:'answer',peerId,payload:{sdp:'unannounced'}});
+ Socket.last.message({type:'signal',kind:'ice',peerId,payload:{candidate:{candidate:'fake'}}});
+ await tick();await tick();
+ assert.equal(session.send({scene:1},peerId),false);
+ assert.equal(Socket.last.sent.length,0);
+ session.close();
+});
