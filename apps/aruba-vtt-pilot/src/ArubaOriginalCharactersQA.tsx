@@ -32,7 +32,7 @@ export function ArubaOriginalCharactersQA({campaignId,ownerId,enabled}:{
  const key=enabled&&campaignId?ownerId+':'+campaignId:'';
  const [selected,setSelected]=useState<{key:string;id:string}|null>(null);
  useEffect(()=>{
-  if(!key||!campaignId)return;
+  if(!key||!campaignId){setSelected(null);setState({key:'',kind:'loading',items:[]});return;}
   let active=true;
   setSelected(null);
   setState({key,kind:'loading',items:[]});

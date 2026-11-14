@@ -23,7 +23,7 @@ async function run(mode){
    backend:'aruba-staging',
    user:{id:owner,email:'qa@example.org',displayName:'GM Aruba',role:'standard'},
    capabilities:{
-    campaigns:{read:allowed,write:allowed},characters:{read:['characters','character-error','switch-campaign'].includes(mode),write:['characters','character-error','switch-campaign'].includes(mode)},
+    campaigns:{read:allowed,write:allowed},characters:{read:['characters','character-error','switch-campaign','character-revoked'].includes(mode),write:['characters','character-error','switch-campaign'].includes(mode)},
     campaignRoster:{read:['roster','roster-error','roster-switch'].includes(mode),write:false},gameSession:false,
    },
   }});
@@ -36,6 +36,7 @@ async function run(mode){
  await page.route('**/vtt/characters?*',async route=>{
   requests.push({path:'/vtt/characters',method:route.request().method()});
   if(mode==='character-error')return route.fulfill({status:503,json:{error:'Unavailable'}});
+  if(mode==='character-revoked')return route.fulfill({status:403,json:{error:'Forbidden'}});
   if(mode==='switch-campaign'&&route.request().url().includes(secondCampaign.id))
    return route.fulfill({json:{characters:[{...characters[0],id:'00000000-0000-4000-8000-000000000011',campaignId:secondCampaign.id,name:'Personaggio seconda campagna'}]}});
   await route.fulfill({json:{characters}});
@@ -78,7 +79,7 @@ async function run(mode){
    assert.equal(await page.locator('[data-campaign-overview-state="list"]').getByRole('button').count(),0);
   }else{
   await page.getByRole('button',{name:'Campagna Aruba del GM'}).waitFor();
-  if(['characters','character-error','switch-campaign'].includes(mode)){
+  if(['characters','character-error','switch-campaign','character-revoked'].includes(mode)){
    await page.getByRole('button',{name:'Personaggi',exact:true}).click();
    await page.locator('[data-original-characters-state="no-campaign"]').waitFor();
    assert.equal(requests.some(r=>r.path==='/vtt/characters'),false);
@@ -114,7 +115,7 @@ async function run(mode){
   }
   if(['characters','character-error','switch-campaign'].includes(mode)){
    await page.getByRole('button',{name:'Personaggi',exact:true}).click();
-   if(mode==='character-error'){
+   if(mode==='character-error'||mode==='character-revoked'){
     await page.locator('[data-original-characters-state="error"]').waitFor();
     assert.equal(await page.getByText('Investigatore Aruba').count(),0);
    }else{
@@ -167,6 +168,7 @@ try{
  await run('empty');
  await run('characters');
  await run('character-error');
+ await run('character-revoked');
  await run('switch-campaign');
  await run('roster');
  await run('roster-error');
