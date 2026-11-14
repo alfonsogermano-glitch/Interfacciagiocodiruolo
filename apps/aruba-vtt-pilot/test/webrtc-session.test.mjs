@@ -205,3 +205,22 @@ test('replacement data channel closes the superseded channel without disconnecti
  assert.equal(replacement.sent.length,1);
  session.close();
 });
+
+test('late connection-state event from a retired peer cannot disconnect its replacement',async()=>{
+ const session=createWebRtcSession({origin:'https://staging.hollowgate.quest/',campaignId,role:'host',WebSocketImpl:Socket,PeerConnectionImpl:Peer});
+ Socket.last.message({type:'ready',role:'host',peerId});
+ Socket.last.message({type:'peer-joined',peerId,campaignId});
+ await waitForSignal('offer');
+ const retired=Peer.last;
+ Socket.last.message({type:'peer-left',peerId,campaignId});
+ await tick();
+ Socket.last.message({type:'peer-joined',peerId,campaignId});
+ for(let i=0;i<30&&Socket.last.sent.filter(x=>x.kind==='offer').length<2;i++)await tick();
+ assert.equal(Socket.last.sent.filter(x=>x.kind==='offer').length,2);
+ const active=Peer.last;
+ assert.notEqual(active,retired);
+ retired.connectionState='disconnected';retired.onconnectionstatechange();
+ assert.equal(session.send({scene:'replacement'},peerId),true);
+ assert.equal(active.channel.sent.length,1);
+ session.close();
+});

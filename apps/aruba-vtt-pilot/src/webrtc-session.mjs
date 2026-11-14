@@ -27,7 +27,7 @@ export function createWebRtcSession({origin,campaignId,role,WebSocketImpl,PeerCo
   if(peers.has(id))return peers.get(id);
   const pc=new PeerConnectionImpl({iceServers});const peer={id,pc,channel:null,pendingIce:[]};peers.set(id,peer);
   pc.onicecandidate=event=>{if(!stopped&&peers.get(id)===peer&&event.candidate)signal.send('ice',{candidate:event.candidate.toJSON?.()??event.candidate},role==='host'?id:undefined);};
-  pc.onconnectionstatechange=()=>{if(['failed','closed','disconnected'].includes(pc.connectionState))drop(id);};
+  pc.onconnectionstatechange=()=>{if(peers.get(id)===peer&&['failed','closed','disconnected'].includes(pc.connectionState))drop(id);};
   if(role==='host')channelReady(peer,pc.createDataChannel('hollowgate-game',{ordered:true}));
   else pc.ondatachannel=event=>{if(event.channel.label==='hollowgate-game')channelReady(peer,event.channel);else event.channel.close();};
   return peer;
