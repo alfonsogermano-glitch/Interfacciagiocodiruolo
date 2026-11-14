@@ -436,6 +436,10 @@ try{
   await page.locator('[data-entity-context="characters-detail"]').waitFor({state:'detached'});
   await sessionRail.getByRole('button',{name:'Schede',exact:true}).click();
   await page.locator('.aruba-session-characters-host').waitFor({state:'detached'});
+  // Closing the detail remounts the server-backed roster. Ensure that its
+  // keyboard target is unique before exercising the second open request.
+  await page.waitForFunction(id=>document.querySelectorAll('[data-campaign-character-id="'+id+'"]').length===1,characterId);
+  assert.equal(await card.count(),1,'Only one character card after closing the original detail');
   await cardOpener.focus();
   await page.keyboard.press('Enter');
   await page.getByRole('region',{name:'Scheda di Mara di prova'}).waitFor();
