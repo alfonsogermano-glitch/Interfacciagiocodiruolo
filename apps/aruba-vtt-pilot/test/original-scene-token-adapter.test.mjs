@@ -28,3 +28,11 @@ test('original token visibility fields reject ambiguous values rather than expos
  for(const patch of [{visible:'false'},{hiddenFromPlayers:'true'},{visible:null}])
   assert.throws(()=>projectOriginalSceneTokens({...base,mapTokens:[{...base.mapTokens[0],...patch}]},campaign),/Invalid original map token/);
 });
+
+test('original adapter bounds oversized scenes and malformed optional sizes before allocating snapshots',()=>{
+ const base={campaignId:campaign,sceneId:scene,mapTokens:[]};
+ assert.throws(()=>projectOriginalSceneTokens({...base,mapTokens:Array(501).fill(null)},campaign),/unavailable/);
+ for(const size of [null,0,1.5,21,'2'])
+  assert.throws(()=>projectOriginalSceneTokens({...base,mapTokens:[{id:token,name:'Scout',x:0,y:0,size}]},campaign),/Invalid original map token/);
+ assert.throws(()=>projectOriginalSceneTokens(base,'not-a-campaign'),/unavailable/);
+});
