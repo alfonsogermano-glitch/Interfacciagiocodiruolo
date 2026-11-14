@@ -35,10 +35,10 @@ test('GM live session broadcasts snapshots over its authenticated game channel a
  Socket.last.message({type:'ready',role:'host',peerId});
  Socket.last.message({type:'peer-joined',peerId,campaignId});await waitForOffer();
  Peer.last.channel.onopen();
- assert.equal(Peer.last.channel.sent[0].kind,'snapshot');
- assert.equal(Peer.last.channel.sent[0].state.tokens.length,0);
+ assert.equal(Peer.last.channel.sent[0].payload.kind,'snapshot');
+ assert.equal(Peer.last.channel.sent[0].payload.state.tokens.length,0);
  assert.equal(live.publish({tokens:[{id:'one',x:3}]}),true);
- assert.equal(Peer.last.channel.sent[1].revision,2);
+ assert.equal(Peer.last.channel.sent[1].payload.revision,2);
  assert.equal(received.length,2);
  live.close();assert.equal(live.publish({tokens:[]}),false);assert.equal(live.getSnapshot(),null);
 });
@@ -49,7 +49,7 @@ test('player requests snapshot when channel opens and accepts GM revision',async
  for(let i=0;i<30&&!Socket.last.sent.some(x=>x.kind==='answer');i++)await tick();
  assert.equal(Socket.last.sent[0]?.kind,'answer');
  const channel=new Channel('hollowgate-game');Peer.last.ondatachannel({channel});channel.onopen();
- assert.equal(channel.sent[0].kind,'request-snapshot');
+ assert.equal(channel.sent[0].payload.kind,'request-snapshot');
  channel.onmessage({data:JSON.stringify({type:'game',campaignId,payload:{kind:'snapshot',campaignId,revision:1,state:{scene:'forest'}}})});
  assert.equal(received[0].state.scene,'forest');
  assert.equal(live.publish({scene:'forged'}),false);
