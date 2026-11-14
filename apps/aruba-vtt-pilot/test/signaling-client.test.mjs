@@ -37,3 +37,17 @@ test('player cannot forge GM target, and disconnect invalidates transport',()=>{
  assert.equal(client.send('answer',{sdp:'a'}),true);
  FakeSocket.last.close();assert.equal(disconnected,1);assert.equal(client.send('ice',{candidate:{candidate:'x'}}),false);
 });
+
+test('signaling forwards only the first valid ready handshake',()=>{
+ const events=[];
+ const client=createSignalingClient({origin:'https://staging.hollowgate.quest/',campaignId,role:'host',WebSocketImpl:FakeSocket,onEvent:x=>events.push(x),onDisconnect:()=>{}});
+ FakeSocket.last.emit('message',{data:JSON.stringify({type:'ready',role:'player',peerId})});
+ assert.equal(client.ready,false);
+ FakeSocket.last.emit('message',{data:JSON.stringify({type:'ready',role:'host',peerId})});
+ FakeSocket.last.emit('message',{data:JSON.stringify({type:'ready',role:'player',peerId})});
+ FakeSocket.last.emit('message',{data:JSON.stringify({type:'ready',role:'host',peerId:'not-a-uuid'})});
+ FakeSocket.last.emit('message',{data:JSON.stringify({type:'ready',role:'host',peerId})});
+ assert.equal(client.ready,true);
+ assert.deepEqual(events,[{type:'ready',role:'host',peerId}]);
+ client.close();
+});

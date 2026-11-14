@@ -20,7 +20,14 @@ export function createSignalingClient({origin,campaignId,role,WebSocketImpl,onEv
   if(closed||typeof event.data!=='string'||event.data.length>65536)return;
   let data;try{data=JSON.parse(event.data);}catch{return;}
   if(!data||typeof data!=='object'||Array.isArray(data))return;
-  if(data.type==='ready'&&data.role===role&&UUID.test(data.peerId??''))ready=true;
+  if(data.type==='ready'){
+   // Accept the initial authenticated handshake only once; never forward a
+   // malformed or contradictory second ready event to the peer lifecycle.
+   if(ready||data.role!==role||!UUID.test(data.peerId??''))return;
+   ready=true;
+   onEvent(data);
+   return;
+  }
   if(!ready)return;
   if(['ready','peer-joined','peer-left','signal'].includes(data.type))onEvent(data);
  });
