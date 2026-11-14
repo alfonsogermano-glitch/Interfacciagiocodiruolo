@@ -98,7 +98,7 @@ test('campaign selection is only offered for Aruba-owned campaigns already retur
  assert.match(code,/activeCampaign=user\?\.campaignsEnabled\?campaigns\.find\(c=>c\.id===activeCampaignId&&c\.ownerId===user\.id\)/);
  assert.match(code,/setActiveCampaignId\(id=>result\.some\(c=>c\.id===id\)\?id:null\)/);
  assert.match(code,/onSelectCampaign=\{campaign=>openCampaign\(campaign\.id\)\}/);
- assert.match(code,/onClick=\{\(\)=>openCampaign\(c\.id\)\}/);
+ assert.match(code,/onSelectCampaign=\{campaign=>openCampaign\(campaign\.id\)\}/);
  assert.doesNotMatch(code,/localStorage|sessionStorage/);
 });
 
