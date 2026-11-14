@@ -243,7 +243,7 @@ function App(){
     onChangeTab={id=>{
      const target=id==='scene-encounter'?'preparation':id==='players'?'sheets':id==='equipment-catalog'?'equipment':id==='visual-assets'?'assets':id;
      setSection(target as Section);setSessionPanel(null);closeSessionCharacter();setEntityDetail(null);
-    }}/>
+    }}/>}
    </div>
   </div>
   {section==='session'&&activeCampaign&&sessionCharacterRequest&&user.charactersEnabled&&
