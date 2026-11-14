@@ -1,15 +1,15 @@
-import {MessageSquare,FileText,StickyNote,Dices,MapPinned,Swords} from 'lucide-react';
+import {ChatCircleDotsIcon,FileTextIcon,NoteIcon,DiceFiveIcon,MapTrifoldIcon,SwordIcon} from '@phosphor-icons/react';
 /** Source-aligned icon order of original SessionRightSidebar.
  * Unsupported capabilities are genuinely disabled except the Aruba character list, never fake actions. */
 const shared=[
- {id:'chat',label:'Chat',Icon:MessageSquare},
- {id:'characters',label:'Schede',Icon:FileText},
- {id:'notes',label:'Note',Icon:StickyNote},
- {id:'dice',label:'Dadi',Icon:Dices},
+ {id:'chat',label:'Chat',Icon:ChatCircleDotsIcon},
+ {id:'characters',label:'Schede',Icon:FileTextIcon},
+ {id:'notes',label:'Note',Icon:NoteIcon},
+ {id:'dice',label:'Dadi',Icon:DiceFiveIcon},
 ] as const;
 const gm=[
- {id:'encounters',label:'Incontri',Icon:MapPinned},
- {id:'combat',label:'Combatti',Icon:Swords},
+ {id:'encounters',label:'Incontri',Icon:MapTrifoldIcon},
+ {id:'combat',label:'Combatti',Icon:SwordIcon},
 ] as const;
 export function ArubaSessionRightRail({notesEnabled,charactersEnabled,activePanel,onToggleNotes,onToggleCharacters}:{
  notesEnabled:boolean;charactersEnabled:boolean;
@@ -18,14 +18,15 @@ export function ArubaSessionRightRail({notesEnabled,charactersEnabled,activePane
  return <aside className="session-right-rail gm-sidebar"
   aria-label="Strumenti sessione" data-aruba-session-rail="true">
   {[...shared,...gm].map(({id,label,Icon})=>{
-   const enabled=(id==='notes'&&notesEnabled)||(id==='characters'&&charactersEnabled);
+   const enabled=(id==='notes'&&notesEnabled)||(id==='characters'&&charactersEnabled)||id==='dice';
    return <button key={id} type="button" aria-label={label}
     className={'session-rail-link'+(activePanel===id?' active':'')}
     aria-pressed={enabled?activePanel===id:undefined}
     disabled={!enabled} title={enabled?label:label+' · non ancora migrato'}
     onClick={()=>{if(id==='notes'&&enabled)onToggleNotes();
-     if(id==='characters'&&enabled)onToggleCharacters();}}>
-    <Icon size={18} aria-hidden="true"/><span>{label}</span>
+     if(id==='characters'&&enabled)onToggleCharacters();
+     if(id==='dice')window.dispatchEvent(new CustomEvent('hollowgate:aruba-open-dice'));}}>
+    <Icon size={21} weight="duotone" aria-hidden="true"/><span>{label}</span>
    </button>;
   })}
  </aside>;

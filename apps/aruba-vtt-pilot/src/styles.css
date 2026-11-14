@@ -329,3 +329,15 @@
  gap:16px;padding:9px 18px;background:var(--dash-surface);color:var(--dash-text);
  border-bottom:1px solid var(--dash-border);font-size:13px}
 .aruba-topbar-notice button{color:var(--dash-accent-2);background:transparent;border:0}
+
+/* Phosphor session rail: keep original 80px geometry and a single dice picker. */
+.workspace[data-dashboard-palette="noir"] .session-right-rail{
+ background:var(--dash-sidebar-bg);height:100%;min-height:0;
+ flex-shrink:0;overflow-y:auto;scrollbar-width:thin;
+}
+.workspace[data-dashboard-palette="noir"] .session-rail-link:focus-visible{
+ outline:2px solid var(--dash-accent-2);outline-offset:-2px;
+}
+.workspace[data-dashboard-palette="noir"] .session-rail-link:disabled{
+ opacity:.38;filter:grayscale(.4);
+}
