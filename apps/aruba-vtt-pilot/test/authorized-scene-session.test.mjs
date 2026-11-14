@@ -19,3 +19,11 @@ test('scene sessions reject malformed campaign, owner and scene identifiers befo
  for(const patch of [{sceneId:'bad'},{campaign:{id:'bad',ownerId:gm}},{campaign:{id:campaign,ownerId:'bad'}}])
   assert.throws(()=>createAuthorizedSceneSession({...args,bootstrap,campaign:{id:campaign,ownerId:gm},...patch}),/not authorized/);
 });
+
+test('scene authorization rejects duplicate or contradictory memberships for the same user and campaign',()=>{
+ const valid={campaignId:campaign,userId:gm,role:'gm'};
+ const context={...args,campaign:{id:campaign,ownerId:gm}};
+ for(const memberships of [[valid,valid],[valid,{...valid,role:'player'}]]){
+  assert.throws(()=>createAuthorizedSceneSession({...context,bootstrap:{id:gm,gameSessionEnabled:true,campaignMemberships:memberships}}),/not authorized/);
+ }
+});

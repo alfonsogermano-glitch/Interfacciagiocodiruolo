@@ -7,6 +7,8 @@ export function createAuthorizedSceneSession({bootstrap,campaign,sceneId,origin,
  if(!bootstrap||bootstrap.gameSessionEnabled!==true||!UUID.test(bootstrap.id??'')||
   !campaign||!UUID.test(campaign.id??'')||!UUID.test(campaign.ownerId??'')||!UUID.test(sceneId??'')||
   !Array.isArray(bootstrap.campaignMemberships)||
+  bootstrap.campaignMemberships.filter(member=>member&&member.campaignId===campaign.id&&
+   member.userId===bootstrap.id).length!==1||
   !bootstrap.campaignMemberships.some(member=>member&&member.campaignId===campaign.id&&
    member.userId===bootstrap.id&&member.role===(campaign.ownerId===bootstrap.id?'gm':'player')))
   throw new Error('Aruba scene session not authorized');
