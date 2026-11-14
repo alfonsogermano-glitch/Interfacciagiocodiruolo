@@ -38,6 +38,8 @@ export function createWebRtcSession({origin,campaignId,role,WebSocketImpl,PeerCo
   if(stopped)return;
   if(data.type==='peer-left'&&role==='host'){if(data.campaignId===campaignId)drop(data.peerId);return;}
   if(data.type==='peer-joined'&&role==='host'&&data.campaignId===campaignId&&UUID.test(data.peerId??'')){
+   // A duplicate peer-joined must not renegotiate an existing connection.
+   if(peers.has(data.peerId))return;
    const peer=makePeer(data.peerId);if(!peer)return;
    const offer=await peer.pc.createOffer();if(stopped||peers.get(peer.id)!==peer)return;
    await peer.pc.setLocalDescription(offer);if(stopped||peers.get(peer.id)!==peer)return;

@@ -135,3 +135,16 @@ test('player ignores unsolicited ICE without allocating a peer connection',async
  assert.equal(allocations,1);
  session.close();
 });
+
+test('duplicate GM peer-joined events do not produce overlapping offers',async()=>{
+ let offers=0;
+ class CountedPeer extends Peer{async createOffer(){offers++;return super.createOffer();}}
+ const session=createWebRtcSession({origin:'https://staging.hollowgate.quest/',campaignId,role:'host',WebSocketImpl:Socket,PeerConnectionImpl:CountedPeer});
+ Socket.last.message({type:'ready',role:'host',peerId});
+ Socket.last.message({type:'peer-joined',peerId,campaignId});
+ Socket.last.message({type:'peer-joined',peerId,campaignId});
+ await waitForSignal('offer');await tick();await tick();
+ assert.equal(offers,1);
+ assert.equal(Socket.last.sent.filter(x=>x.kind==='offer').length,1);
+ session.close();
+});
