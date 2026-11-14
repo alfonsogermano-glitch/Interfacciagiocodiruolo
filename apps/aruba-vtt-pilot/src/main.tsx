@@ -14,6 +14,8 @@ import {ArubaCampaignCharacterCards,type SessionEntityOpenRequest} from './Aruba
 import {ArubaCampaignPlayerRows} from './ArubaCampaignPlayerRows';
 import {ArubaAssignedCharacterPanel} from './ArubaAssignedCharacterPanel';
 import {GmSectionSidebar} from '../../../src/app/layout/GmSectionSidebar';
+import {LeftSidebar} from '../../../src/app/layout/LeftSidebar';
+import type {Campaign as OriginalCampaign} from '../../../src/app/campaigns/campaignTypes';
 import {HouseIcon,UsersThreeIcon,ScrollIcon,GitBranchIcon,PlayIcon,FileTextIcon,IdentificationBadgeIcon,GhostIcon,LightbulbIcon,BookmarkSimpleIcon,MapTrifoldIcon,ImageIcon,SwordIcon} from '@phosphor-icons/react';
 
 type PilotUser={id:string;email:string;displayName:string;role:'admin'|'standard';characterAvailabilityEnabled:boolean;characterAssignmentsEnabled:boolean;playerCharactersEnabled:boolean;characterPortraitsEnabled:boolean;campaignsEnabled:boolean;charactersEnabled:boolean;entityNotesEnabled:boolean;campaignNotesEnabled:boolean;campaignNoteFoldersEnabled:boolean;originalNotesPanelEnabled:boolean;campaignRosterEnabled:boolean};
@@ -140,20 +142,16 @@ function App(){
   </section>
  </main>;
  return <div className="workspace">
-  <aside className="primary-sidebar" aria-label="Navigazione principale">
-   <div className="primary-identity" aria-label="Hollowgate"><span className="mark">✧</span><span>HOLLOWGATE</span></div>
-   <nav className="primary-nav">
-    {leftMenu.map(({id,label,Icon})=><button key={id} type="button" aria-label={label}
-      aria-current={section===id?'page':undefined}
-      className={'primary-link'+(section===id?' active':'')}
-      onClick={()=>{setSection(id);setSessionPanel(null);closeSessionCharacter();setEntityDetail(null);}}><Icon size={22} weight="duotone" aria-hidden="true"/><span>{label}</span></button>)}
-   </nav>
-   <div className="primary-campaigns" aria-label="Campagne">
-    {campaigns.slice(0,4).map(c=><button key={c.id} type="button" title={c.name}
-      aria-pressed={activeCampaignId===c.id}
-      onClick={()=>openCampaign(c.id)}><span aria-hidden="true">✧</span><small>{c.name}</small></button>)}
-   </div>
-  </aside>
+  <LeftSidebar
+   view={section==='home'?'home':section==='session'?'campaign-home':'dashboard'}
+   activeSection={section}
+   campaigns={campaigns.map(c=>({...c,ruleset:c.ruleset as OriginalCampaign['ruleset'],updatedAt:c.createdAt??''}))}
+   selectedCampaignId={activeCampaignId}
+   onGoHome={()=>{setSection('home');setSessionPanel(null);closeSessionCharacter();setEntityDetail(null);}}
+   onGoToHomeSection={id=>{setSection(id);setSessionPanel(null);closeSessionCharacter();setEntityDetail(null);}}
+   onGoToCharacters={()=>{setSection('characters');setSessionPanel(null);closeSessionCharacter();setEntityDetail(null);}}
+   onGoToCampaigns={()=>{setSection('campaigns');setSessionPanel(null);closeSessionCharacter();setEntityDetail(null);}}
+   onSelectCampaign={campaign=>openCampaign(campaign.id)}/>
   <div className="main-area">
    <header className="topbar">
     <div><span className="crumb">HOLLOWGATE / </span>{menu.find(m=>m.id===section)?.label}{activeCampaign&&section!=='home'&&<span className="campaign-context"> / {activeCampaign.name}</span>}</div>
