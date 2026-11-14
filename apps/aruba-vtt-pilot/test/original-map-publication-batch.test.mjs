@@ -36,3 +36,14 @@ test('different chapter never inherits prior scene fields',()=>{
  assert.deepEqual(next.mapTokens,[]);
  assert.deepEqual(next.mapFog,[{id:'new-fog'}]);
 });
+
+test('original hook flushes a pending map patch before publishing a new scene',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const hook=await readFile(new URL('../../../src/app/components/session/useActiveScene.ts',import.meta.url),'utf8');
+ assert.match(hook,/const publish = useCallback\(async \(value: ActiveScenePublication\) => \{[\s\S]*?flushPendingPublication\(\);[\s\S]*?const publishedAtMs/);
+});
+test('original hook cancels pending debounce and waits for queued map writes before clearing',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const hook=await readFile(new URL('../../../src/app/components/session/useActiveScene.ts',import.meta.url),'utf8');
+ assert.match(hook,/const clear = useCallback\(async \(\) => \{[\s\S]*?publicationPendingRef\.current = null;[\s\S]*?await publicationQueueRef\.current;[\s\S]*?await clearActiveScene/);
+});

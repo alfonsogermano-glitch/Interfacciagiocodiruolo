@@ -239,6 +239,9 @@ export function useActiveScene(campaignId: string | null | undefined) {
 
   const publish = useCallback(async (value: ActiveScenePublication) => {
     if (!campaignId) return;
+    // The original map debounce must settle before switching scenes, or its
+    // delayed patch could overwrite the newly published scene on the server.
+    flushPendingPublication();
     const publishedAtMs = Math.max(Date.now(), publicationClockRef.current + 1, Date.parse(value.publishedAt) || 0);
     publicationClockRef.current = publishedAtMs;
     const next = { ...value, publishedAt: new Date(publishedAtMs).toISOString() };
@@ -250,7 +253,7 @@ export function useActiveScene(campaignId: string | null | undefined) {
     });
     publicationQueueRef.current = operation.catch(() => {});
     await operation;
-  }, [campaignId, send]);
+  }, [campaignId, send, flushPendingPublication]);
 
   const publishMapPatch = useCallback(async (value: ActiveScenePublication, fields: ActiveSceneMapFields) => {
     if (!campaignId) return;
@@ -272,6 +275,13 @@ export function useActiveScene(campaignId: string | null | undefined) {
 
   const clear = useCallback(async () => {
     if (!campaignId) return;
+    // Discard an unsent debounce and serialize clearing after in-flight saves.
+    if (publicationDebounceRef.current !== null) {
+      clearTimeout(publicationDebounceRef.current);
+      publicationDebounceRef.current = null;
+    }
+    publicationPendingRef.current = null;
+    await publicationQueueRef.current;
     await clearActiveScene(campaignId);
     latestPublicationRef.current = null;
     setActiveScene(null);
