@@ -59,7 +59,13 @@ function App(){
   setSessionPanel('characters');
   setSessionCharacterRequest({kind:'pg',id,requestId:++requestSequence.current});
  }
- function closeSessionCharacter(){setSessionCharacterRequest(null);}
+ function closeSessionCharacter(){
+  setSessionCharacterRequest(null);
+  // The roster is hidden while the original Schede panel owns the surface.
+  // Returning from a character detail must restore the campaign roster rather
+  // than leave the panel selected with no visible assignment controls.
+  setSessionPanel(value=>value==='characters'?null:value);
+ }
 
  // Same architectural contract as original App.tsx/rightSidebarContext.
  // Detail selection belongs to App, not to the catalog or a legacy inline sheet.
