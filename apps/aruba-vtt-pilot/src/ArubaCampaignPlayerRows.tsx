@@ -54,11 +54,13 @@ export function ArubaCampaignPlayerRows({campaignId,ownerId,revision,availabilit
   setPending(id);setSaveError(null);
   try{
    await setCharacterAssignment(fetch,campaignId,id,playerId||null);
-   if(generation===requestGeneration.current)setAssignments(prev=>{
-    const next=new Map(prev);
-    if(playerId)next.set(id,playerId);else next.delete(id);
-    return next;
-   });
+   // Re-read the authoritative assignment map after a confirmed mutation.
+   // A detail-panel refresh may have replaced the local snapshot while the
+   // PATCH was in flight; never publish a stale optimistic map over it.
+   const confirmed=await listCharacterAssignments(fetch,campaignId);
+   if(generation===requestGeneration.current&&currentKeyRef.current===currentKey){
+    setAssignments(confirmed);
+   }
   }catch(e){if(generation===requestGeneration.current)setSaveError(e instanceof Error?e.message:'Impossibile aggiornare l’assegnazione');}
   finally{if(generation===requestGeneration.current)setPending(null);}
  }
