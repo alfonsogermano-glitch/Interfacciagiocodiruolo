@@ -1,8 +1,8 @@
 import {createCampaignSceneSession} from './campaign-scene-session.mjs';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Enforce server-verified membership and feature capability before opening a scene transport.
- * Aruba pilot bootstrap currently advertises gameSession=false, so this remains fail-closed
- * until the API and UI intentionally enable the capability together. */
+ * The bootstrap capability is opt-in and membership-scoped. The UI must still
+ * explicitly request an authorized scene before any transport can open. */
 export function createAuthorizedSceneSession({bootstrap,campaign,sceneId,origin,WebSocketImpl,PeerConnectionImpl,iceServers,onStatus,onScene}){
  if(!bootstrap||bootstrap.gameSessionEnabled!==true||!UUID.test(bootstrap.id??'')||
   !campaign||!UUID.test(campaign.id??'')||!UUID.test(campaign.ownerId??'')||!UUID.test(sceneId??'')||

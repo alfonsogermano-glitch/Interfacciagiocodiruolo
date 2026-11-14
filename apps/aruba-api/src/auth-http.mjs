@@ -575,6 +575,13 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         const user = await getSessionUser(token);
         if (!user) return response(res, 401, {error:'Non autenticato'}, LOGOUT_COOKIE);
         const memberships=gameSessionBootstrap ? await gameSessionBootstrap(user) : null;
+        if(memberships!==null){
+          const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          if(!Array.isArray(memberships)||memberships.length>100||
+            !memberships.every(m=>m&&m.userId===user.id&&uuid.test(m.campaignId??'')&&m.role==='gm')||
+            new Set(memberships.map(m=>m.campaignId)).size!==memberships.length)
+            throw new Error('Invalid game session memberships');
+        }
         return response(res, 200, {
           user,
           ...(memberships ? {campaignMemberships:memberships} : {}),

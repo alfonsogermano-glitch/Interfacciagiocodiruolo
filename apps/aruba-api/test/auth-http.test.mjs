@@ -149,3 +149,21 @@ test('bootstrap exposes only server-verified GM memberships when explicitly enab
   assert.deepEqual(payload.campaignMemberships,[{userId,campaignId,role:'gm'}]);
  });
 });
+
+test('bootstrap rejects malformed or forged membership lists before sending session capability',async()=>{
+ const userId='00000000-0000-4000-8000-000000000002';
+ const campaignId='00000000-0000-4000-8000-000000000001';
+ for(const memberships of [undefined,{},[{userId,campaignId,role:'player'}],
+  [{userId:'00000000-0000-4000-8000-000000000003',campaignId,role:'gm'}],
+  [{userId,campaignId,role:'gm'},{userId,campaignId,role:'gm'}]]){
+  const handler=createAuthHttpHandler({origin:ORIGIN,login:async()=>{},
+   getSessionUser:async()=>({id:userId,email:'gm@example.org',displayName:'GM',role:'standard'}),
+   revokeSession:async()=>{},
+   gameSessionBootstrap:async()=>memberships});
+  await withServer(handler,async base=>{
+   const response=await fetch(base+'/vtt/bootstrap',{headers:{cookie:'__Host-hg_session='+TOKEN}});
+   assert.notEqual(response.status,200);
+   assert.doesNotMatch(JSON.stringify(await response.json()),/campaignMemberships/);
+  });
+ }
+});
