@@ -22,14 +22,16 @@ export function ArubaCampaignPlayerRows({campaignId,ownerId,revision,availabilit
  const [saveError,setSaveError]=useState<string|null>(null);
  const [error,setError]=useState<string|null>(null);
  const [retryRevision,setRetryRevision]=useState(0);
+ const [snapshotKey,setSnapshotKey]=useState('');
+ const currentKey=campaignId+':'+ownerId+':'+revision+':'+retryRevision;
  const rows=useMemo<Row[]>(()=> {
-  if(busy||error)return [];
+  if(busy||error||snapshotKey!==currentKey)return [];
   try{return composeOwnedCampaignPlayerRows(members,characters,ownerId,assignments);}
   catch{return [];}
- },[members,characters,ownerId,assignments,busy,error]);
- const groupingError=!busy&&!error&&rows.length===0?'Assegnazioni o partecipanti non verificati':null;
+ },[members,characters,ownerId,assignments,busy,error,snapshotKey,currentKey]);
+ const groupingError=!busy&&!error&&snapshotKey===currentKey&&rows.length===0?'Assegnazioni o partecipanti non verificati':null;
  async function changeAvailable(id:string,now:boolean){
-  if(!availabilityEnabled||pending||assignments.has(id))return;
+  if(!availabilityEnabled||pending||busy||error||snapshotKey!==currentKey||assignments.has(id))return;
   setPending(id);setSaveError(null);
   try{
    await setCharacterAvailability(fetch,campaignId,id,!now);
@@ -38,7 +40,7 @@ export function ArubaCampaignPlayerRows({campaignId,ownerId,revision,availabilit
   finally{setPending(null);}
  }
  async function changeAssignment(id:string,playerId:string){
-  if(!assignmentsEnabled||!availabilityEnabled||pending||!availability.get(id))return;
+  if(!assignmentsEnabled||!availabilityEnabled||pending||busy||error||snapshotKey!==currentKey||!availability.get(id))return;
   const verifiedPlayer=members.some(m=>m.userId===playerId&&m.role==='player');
   if(playerId!==''&&!verifiedPlayer)return;
   setPending(id);setSaveError(null);
@@ -54,6 +56,7 @@ export function ArubaCampaignPlayerRows({campaignId,ownerId,revision,availabilit
  }
  useEffect(()=>{
   let active=true;
+  setSnapshotKey('');setPending(null);
   setMembers([]);setCharacters([]);setAssignments(new Map());setAvailability(new Map());
   setError(null);setSaveError(null);setBusy(true);
   void Promise.all([
@@ -69,6 +72,7 @@ export function ArubaCampaignPlayerRows({campaignId,ownerId,revision,availabilit
    for(const charId of links.keys())
     if(flags.get(charId)!==true)throw Error('Assegnazione a personaggio non disponibile');
    setMembers(roster);setCharacters(pgs);setAvailability(flags);setAssignments(links);
+   setSnapshotKey(currentKey);
   }).catch(reason=>{
    if(active)setError(reason instanceof Error?reason.message:'Partecipanti non disponibili');
   }).finally(()=>{if(active)setBusy(false);});
@@ -77,12 +81,12 @@ export function ArubaCampaignPlayerRows({campaignId,ownerId,revision,availabilit
  return <section className="aruba-campaign-player-rows" aria-label="Partecipanti campagna">
   <h2>Giocatori e personaggi</h2>
   <p className="muted">Ruoli e assegnazioni verificati dal server · le schede restano di proprietà del GM.</p>
-  {busy&&<p role="status">Caricamento partecipanti…</p>}
+  {(busy||snapshotKey!==currentKey&&!error)&&<p role="status">Caricamento partecipanti…</p>}
   {error&&<div role="alert"><p>{error}</p><button type="button" disabled={busy}
    onClick={()=>setRetryRevision(current=>current+1)}>Riprova caricamento partecipanti</button></div>}
   {groupingError&&<p role="alert">{groupingError}</p>}
   {saveError&&<p role="alert">{saveError}</p>}
-  {!busy&&!error&&!groupingError&&rows.map(row=><section key={row.userId}
+  {!busy&&!error&&!groupingError&&snapshotKey===currentKey&&rows.map(row=><section key={row.userId}
    className="aruba-campaign-player-row" data-campaign-member-id={row.userId}
    aria-label={'Partecipante '+row.displayName}>
    <div className="aruba-campaign-member">
