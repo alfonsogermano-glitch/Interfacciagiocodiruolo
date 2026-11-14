@@ -282,8 +282,15 @@ try{
   const confirm=media.locator('[data-image-crop-action="confirm"]');
   await confirm.waitFor();
   await confirm.click();
-  await page.waitForFunction(()=>true); // wait below for the in-memory API's PUT
-  await page.waitForTimeout(200);
+  // Await the asynchronous crop/export and BOTH isolated media writes.
+  // A fixed 200 ms delay races browser canvas encoding on CI runners.
+  await assert.doesNotReject(async()=>{
+   const deadline=Date.now()+10000;
+   while(!(store.portrait&&store.portrait.length>16&&store.portraitSource&&store.portraitSource.length>16)){
+    if(Date.now()>deadline)throw new Error('Timed out waiting for original cropper Aruba media writes; requests='+JSON.stringify(store.requests.filter(r=>r.method==='PUT')));
+    await new Promise(resolve=>setTimeout(resolve,100));
+   }
+  });
   assert.ok(store.portrait&&store.portrait.length>16,
    'Original cropper must PUT a generated JPEG into Aruba media API');
   assert.ok(store.portraitSource&&store.portraitSource.length>16,
