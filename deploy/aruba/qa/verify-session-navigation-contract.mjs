@@ -70,8 +70,10 @@ assert(pilot.includes('<ArubaSessionRightRail notesEnabled={notesPanelReady}')&&
  'Pilot Notes/session rail changed: re-audit before marking parity');
 assert(pilot.includes('c.ownerId===user.id')&&pilot.includes('activeCampaign.ownerId===user.id'),
  'Owner-only pilot campaign gate changed: re-evaluate player access');
-assert(pilot.includes('className="topbar"')&&!pilot.includes('<TopBar'),
- 'Pilot top bar integration changed: re-review layout');
+assert(pilot.includes('<TopBar activeSection={section}')&&
+ pilot.includes('<ArubaTopBarQaIdentity user=')&&
+ !pilot.includes('<header className="topbar">'),
+ 'Shipping pilot must mount the original TopBar with Aruba identity, not a synthetic header');
 assert(!pilot.includes('<SessionRightSidebar')&&!pilot.includes('<SessionWorkspace'),
  'Pilot session UI evolved: reclassify divergences');
 assert(audit.subsystems.some(s=>s.id==='session-right-rail'&&s.state==='divergente'),
