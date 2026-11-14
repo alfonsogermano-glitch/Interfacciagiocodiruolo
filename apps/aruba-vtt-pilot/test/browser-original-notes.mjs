@@ -218,6 +218,39 @@ try{
   assert.equal(await page.locator('[data-note-split-panel="true"]').count(),0);
   await page.close();
  }
+ // Mobile regression: character detail must not overlap the persistent rail.
+ {
+  const page=await browser.newPage({viewport:{width:390,height:844}});
+  page.on('pageerror',e=>errors.push('mobile-character '+e.message));
+  mockApi(page,{assignmentsEnabled:true});
+  await page.goto(base,{waitUntil:'domcontentloaded'});
+  await page.getByRole('button',{name:'Campagne',exact:true}).click();
+  await page.getByRole('button',{name:'Apri campagna'}).click();
+  await page.getByRole('button',{name:'Entra nella campagna'}).click();
+  await page.locator('[data-aruba-session-rail="true"]').waitFor();
+  await page.locator('[data-campaign-character-id="'+characterId+'"]')
+   .getByRole('button',{name:'Apri scheda campagna di Mara di prova'}).click();
+  const detail=page.locator('[data-entity-context="characters-detail"]');
+  await detail.waitFor();
+  await page.getByRole('region',{name:'Scheda di Mara di prova'}).waitFor();
+  const layout=await page.evaluate(()=>{
+   const panel=document.querySelector('.aruba-entity-overlay [data-session-slide-over="true"]');
+   const rail=document.querySelector('.aruba-entity-rail');
+   const back=document.querySelector('.aruba-entity-back-column');
+   const content=document.querySelector('.aruba-entity-detail-main');
+   if(!panel||!rail||!back||!content)throw Error('Missing original character detail structure');
+   const p=panel.getBoundingClientRect(),r=rail.getBoundingClientRect();
+   const b=back.getBoundingClientRect(),c=content.getBoundingClientRect();
+   return {panelRight:p.right,railLeft:r.left,backBottom:b.bottom,contentTop:c.top,
+    contentWidth:c.width,viewport:window.innerWidth};
+  });
+  assert.ok(layout.panelRight<=layout.railLeft+2,'Detail must not overlap the 80px rail: '+JSON.stringify(layout));
+  assert.ok(layout.backBottom<=layout.contentTop+2,'Back control must sit above sheet on mobile: '+JSON.stringify(layout));
+  assert.ok(layout.contentWidth>150,'Sheet content must retain usable width: '+JSON.stringify(layout));
+  await detail.getByRole('button',{name:/Torna ai personaggi/}).click();
+  await detail.waitFor({state:'detached'});
+  await page.close();
+ }
  // Portraits in the GM archive and original detail/Token must be loaded
  // from authenticated Aruba only; the backend character JSON stays unchanged.
  {
