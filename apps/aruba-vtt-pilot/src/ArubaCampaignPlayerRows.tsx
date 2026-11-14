@@ -2,7 +2,7 @@ import {useEffect,useMemo,useRef,useState} from 'react';
 import {ArubaPortraitEntityCard} from './ArubaPortraitEntityCard';
 import {listOwnedCampaignRoster,listCharacterDrafts,listCharacterAvailability,setCharacterAvailability,
  listCharacterAssignments,setCharacterAssignment} from './client.mjs';
-import {composeOwnedCampaignPlayerRows} from './campaign-player-rows.mjs';
+import {composeOwnedCampaignPlayerRows,validateOwnedCampaignPlayerSnapshot} from './campaign-player-rows.mjs';
 type Char={id:string;campaignId:string;ownerId:string;name:string;status:string;
  sheetData:Record<string,unknown>};
 type Member={userId:string;displayName:string;role:'gm'|'player'};
@@ -25,9 +25,11 @@ export function ArubaCampaignPlayerRows({campaignId,ownerId,revision,availabilit
  const [snapshotKey,setSnapshotKey]=useState('');
  const currentKey=campaignId+':'+ownerId+':'+revision+':'+retryRevision;
  const requestGeneration=useRef(0);
- // Invalidate stale async writes immediately during render, before effects run.
  const currentKeyRef=useRef(currentKey);
- if(currentKeyRef.current!==currentKey){currentKeyRef.current=currentKey;requestGeneration.current++;}
+ useEffect(()=>{
+  currentKeyRef.current=currentKey;
+  requestGeneration.current++;
+ },[currentKey]);
  const rows=useMemo<Row[]>(()=> {
   if(busy||error||snapshotKey!==currentKey)return [];
   try{return composeOwnedCampaignPlayerRows(members,characters,ownerId,assignments);}
@@ -40,7 +42,7 @@ export function ArubaCampaignPlayerRows({campaignId,ownerId,revision,availabilit
   setPending(id);setSaveError(null);
   try{
    await setCharacterAvailability(fetch,campaignId,id,!now);
-   if(generation===requestGeneration.current)setAvailability(prev=>new Map(prev).set(id,!now));
+   if(generation===requestGeneration.current&&currentKeyRef.current===currentKey)setAvailability(prev=>new Map(prev).set(id,!now));
   }catch(e){if(generation===requestGeneration.current)setSaveError(e instanceof Error?e.message:'Impossibile aggiornare la disponibilità');}
   finally{if(generation===requestGeneration.current)setPending(null);}
  }
@@ -74,9 +76,7 @@ export function ArubaCampaignPlayerRows({campaignId,ownerId,revision,availabilit
    if(!active)return;
    // Validate the complete server snapshot BEFORE publishing any portion of it
    // to React. A rejected assignment must not leave a partially trusted roster.
-   composeOwnedCampaignPlayerRows(roster,pgs,ownerId,links);
-   for(const charId of links.keys())
-    if(flags.get(charId)!==true)throw Error('Assegnazione a personaggio non disponibile');
+   validateOwnedCampaignPlayerSnapshot(roster,pgs,ownerId,flags,links,availabilityEnabled,assignmentsEnabled);
    setMembers(roster);setCharacters(pgs);setAvailability(flags);setAssignments(links);
    setSnapshotKey(currentKey);
   }).catch(reason=>{

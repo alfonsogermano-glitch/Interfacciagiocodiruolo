@@ -38,3 +38,18 @@ export function composeOwnedCampaignPlayerRows(members,characters,ownerId,assign
  }
  return rows;
 }
+
+/** Validate roster, ownership, availability and assignments as one atomic snapshot. */
+export function validateOwnedCampaignPlayerSnapshot(members,characters,ownerId,availability,assignments,availabilityEnabled,assignmentsEnabled){
+ if(!(availability instanceof Map)||!(assignments instanceof Map))throw new Error('Stato campagna non valido');
+ if(assignmentsEnabled&&!availabilityEnabled)throw new Error('Assegnazioni senza disponibilità verificata');
+ const rows=composeOwnedCampaignPlayerRows(members,characters,ownerId,assignments);
+ const ids=new Set(characters.map(c=>c.id));
+ for(const [id,value] of availability){
+  if(!ids.has(id)||typeof value!=='boolean')throw new Error('Disponibilità non verificata');
+ }
+ for(const [id] of assignments){
+  if(!availabilityEnabled||availability.get(id)!==true)throw new Error('Assegnazione a personaggio non disponibile');
+ }
+ return rows;
+}

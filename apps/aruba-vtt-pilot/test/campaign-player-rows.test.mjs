@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {composeOwnedCampaignPlayerRows} from '../src/campaign-player-rows.mjs';
+import {composeOwnedCampaignPlayerRows,validateOwnedCampaignPlayerSnapshot} from '../src/campaign-player-rows.mjs';
 const owner='4a3465ec-47d7-4021-9f0d-e70da8cbd001';
 const player='4a3465ec-47d7-4021-9f0d-e70da8cbd002';
 const members=[{userId:owner,displayName:'GM',role:'gm'},
@@ -53,4 +53,15 @@ test('forged, unverified or stale player assignments fail closed',()=>{
   assert.throws(()=>composeOwnedCampaignPlayerRows(members,[active],owner,links));
  assert.throws(()=>composeOwnedCampaignPlayerRows(members,[{...active,status:'draft'}],owner,
   new Map([[active.id,player]])));
+});
+
+test('atomic snapshot rejects assignments without verified availability',()=>{
+ const assigned=new Map([[active.id,player]]);
+ assert.throws(()=>validateOwnedCampaignPlayerSnapshot(members,[active],owner,new Map(),assigned,true,true));
+ assert.throws(()=>validateOwnedCampaignPlayerSnapshot(members,[active],owner,new Map([[active.id,true]]),assigned,false,true));
+ assert.deepEqual(validateOwnedCampaignPlayerSnapshot(members,[active],owner,new Map([[active.id,true]]),assigned,true,true).map(r=>r.characters.length),[0,1]);
+});
+test('atomic snapshot rejects unknown or malformed availability entries',()=>{
+ for(const flags of [new Map([['unknown',true]]),new Map([[active.id,'yes']])])
+  assert.throws(()=>validateOwnedCampaignPlayerSnapshot(members,[active],owner,flags,new Map(),true,false));
 });
