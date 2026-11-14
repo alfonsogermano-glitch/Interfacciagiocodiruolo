@@ -1,6 +1,6 @@
 import {validateSceneDraft} from './scene-contract.mjs';
 import {ChapterRejected} from './chapter-contract.mjs';
-const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function createSceneService({pool}){
  if(typeof pool?.query!=='function')throw new TypeError('PostgreSQL pool required');
  async function assertOwner(ownerId,campaignId){
