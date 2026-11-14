@@ -19,7 +19,7 @@ export function validateChapterDraft(campaignId,draft){
  draft.nextChapterIds.some(id=>typeof id!=='string'||!UUID.test(id)||id===draft.id)||
  new Set(draft.nextChapterIds).size!==draft.nextChapterIds.length||
  !(draft.mapUrl===null||(typeof draft.mapUrl==='string'&&draft.mapUrl.length<=2048&&
-  !/supabase(?:\\.co|\\.in)/i.test(draft.mapUrl)))||
+  !/supabase(?:\.co|\.in)/i.test(draft.mapUrl)))||
  !draft.mapMetadata||typeof draft.mapMetadata!=='object'||Array.isArray(draft.mapMetadata)||
  !draft.locationMetadata||typeof draft.locationMetadata!=='object'||Array.isArray(draft.locationMetadata)||
  !(draft.sourceEnvironment===undefined||draft.sourceEnvironment===null||
