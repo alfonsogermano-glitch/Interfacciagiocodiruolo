@@ -115,3 +115,17 @@ test('GM transport binds original publication to its authorized campaign, not ca
  assert.deepEqual(host.getScene().tokens,[]);
  host.close();
 });
+
+test('malformed high revision cannot poison the player scene revision watermark',async()=>{
+ const session=createCampaignSceneSession({origin:'https://staging.hollowgate.quest',campaignId,sceneId,role:'player',WebSocketImpl:Socket,PeerConnectionImpl:Peer});
+ Socket.last.message({type:'ready',role:'player',peerId:tokenId});
+ Socket.last.message({type:'signal',kind:'offer',payload:{sdp:'offer'}});
+ for(let i=0;i<30&&!Socket.last.sent.some(x=>x.kind==='answer');i++)await tick();
+ const channel=new Channel('hollowgate-game');Peer.last.ondatachannel({channel});channel.onopen();
+ const deliver=(revision,state)=>channel.onmessage({data:JSON.stringify({type:'game',campaignId,payload:{kind:'snapshot',campaignId,revision,state}})});
+ deliver(99,{sceneId,tokens:[{id:tokenId,name:'Invalid',x:0,y:0,size:1,visible:false}]});
+ assert.equal(session.getScene(),null);
+ deliver(1,{sceneId,tokens:[{id:tokenId,name:'Valid',x:0,y:0,size:1,visible:true}]});
+ assert.equal(session.getScene()?.tokens[0].name,'Valid');
+ session.close();
+});

@@ -26,8 +26,8 @@ function copy(value){
  return result;
 }
 /** GM owns revision and state; players may request refresh but never replace state. */
-export function createGameStateReplicator({campaignId,role,send,onSnapshot=()=>{}}){
- if(!UUID.test(campaignId)||!['host','player'].includes(role)||typeof send!=='function'||typeof onSnapshot!=='function')
+export function createGameStateReplicator({campaignId,role,send,onSnapshot=()=>{},validateSnapshot=()=>true}){
+ if(!UUID.test(campaignId)||!['host','player'].includes(role)||typeof send!=='function'||typeof onSnapshot!=='function'||typeof validateSnapshot!=='function')
   throw new TypeError('Invalid replication context');
  let revision=0,state=null,closed=false;
  function publish(snapshot){
@@ -46,7 +46,7 @@ export function createGameStateReplicator({campaignId,role,send,onSnapshot=()=>{
   }
   // Player transport identifies its single GM channel by campaignId, never by a player UUID.
   if(peerId!==campaignId||payload.kind!=='snapshot'||!Number.isSafeInteger(payload.revision)||payload.revision<=revision||payload.revision<1)return false;
-  let next;try{next=copy(payload.state);}catch{return false;}
+  let next;try{next=copy(payload.state);if(validateSnapshot(next)!==true)return false;}catch{return false;}
   revision=payload.revision;state=next;onSnapshot({revision,state:copy(state)});return true;
  }
  return {

@@ -1,7 +1,7 @@
 import {createWebRtcSession} from './webrtc-session.mjs';
 import {createGameStateReplicator} from './game-state-replicator.mjs';
 /** Explicitly opt-in GM-hosted session transport. No UI or bootstrap capability bypass. */
-export function createCampaignLiveSession({origin,campaignId,role,WebSocketImpl,PeerConnectionImpl,iceServers=[],onStatus=()=>{},onSnapshot=()=>{}}){
+export function createCampaignLiveSession({origin,campaignId,role,WebSocketImpl,PeerConnectionImpl,iceServers=[],onStatus=()=>{},onSnapshot=()=>{},validateSnapshot=()=>true}){
  let stopped=false;
  // The signaling client may synchronously deliver status during construction;
  // defer any refresh request until a channel is actually open.
@@ -16,7 +16,7 @@ export function createCampaignLiveSession({origin,campaignId,role,WebSocketImpl,
   },
   onData:event=>{if(!stopped)replicator?.receive(event);},
  });
- replicator=createGameStateReplicator({campaignId,role,send:(payload,peerId)=>transport.send(payload,peerId),onSnapshot});
+ replicator=createGameStateReplicator({campaignId,role,send:(payload,peerId)=>transport.send(payload,peerId),onSnapshot,validateSnapshot});
  return {
   publish(snapshot){return !stopped&&replicator.publish(snapshot);},
   requestSnapshot(){return !stopped&&replicator.requestSnapshot();},

@@ -1,5 +1,6 @@
 import {createCampaignLiveSession} from './campaign-live-session.mjs';
 import {createLiveSceneCoordinator} from './live-scene-coordinator.mjs';
+import {validatePlayerSceneSnapshot} from './player-scene-view.mjs';
 /** Compose authenticated transport and role-limited scene state for the VTT renderer.
  * The caller must first pass the authorized campaign membership gate. */
 export function createCampaignSceneSession({origin,campaignId,sceneId,role,WebSocketImpl,PeerConnectionImpl,iceServers,onStatus,onScene=()=>{}}){
@@ -14,6 +15,7 @@ export function createCampaignSceneSession({origin,campaignId,sceneId,role,WebSo
    onStatus?.(event);
   },
   onSnapshot:snapshot=>{if(!closed&&role==='player')coordinator?.receiveSnapshot(snapshot);},
+  validateSnapshot:state=>role!=='player'||(state.sceneId===sceneId&&Boolean(validatePlayerSceneSnapshot(state))),
  });
  coordinator=createLiveSceneCoordinator({role,sceneId,liveSession:live,onScene});
  return {
