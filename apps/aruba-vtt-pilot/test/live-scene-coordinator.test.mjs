@@ -54,7 +54,7 @@ test('GM imports the original published scene into the same authoritative coordi
  const sent=[];const displayed=[];let online=false;
  const host=createLiveSceneCoordinator({role:'host',sceneId,liveSession:{publish:s=>{if(!online)return false;sent.push(s);return true;},getSnapshot:()=>null},onScene:s=>displayed.push(s)});
  const campaignId='32345678-1234-4123-8123-123456789abc';
- const publication={campaignId,sceneId,mapTokens:[{...token,hiddenFromPlayers:true}]};
+ const publication={campaignId,sceneId,mapTokens:[{...token,visible:false,hiddenFromPlayers:true}]};
  assert.equal(host.loadOriginal(publication,campaignId),false);
  assert.deepEqual(host.getScene().tokens,[]);
  online=true;
