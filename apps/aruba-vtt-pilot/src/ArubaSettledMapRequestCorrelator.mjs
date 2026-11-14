@@ -191,9 +191,17 @@ export function createArubaSettledMapRequestCorrelator({
   }finally{processing=false;}
  }
  const unsubscribe=subscribe(campaignId,settled);
- const unsubscribeFailure=subscribeFailure(campaignId,()=>{
-  if(!closed)suspend('Original queued map save or broadcast failed');
- });
+ let unsubscribeFailure;
+ try{
+  unsubscribeFailure=subscribeFailure(campaignId,()=>{
+   if(!closed)suspend('Original queued map save or broadcast failed');
+  });
+ }catch(e){
+  // A partially constructed correlator must never leave a live original
+  // publication listener behind when failure-observer setup fails.
+  unsubscribe();
+  throw e;
+ }
  function revoke({userId,peerId}={}){
   if(closed)return;
   for(const [id,entry] of pending){

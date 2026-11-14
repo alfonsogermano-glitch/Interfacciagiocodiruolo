@@ -329,3 +329,18 @@ test('registration refuses a baseline older than the latest observed settled pub
  assert.equal(x.tracker.pendingCount,1);
  x.close();
 });
+
+test('a failing failure-observer subscription rolls back the settled listener',()=>{
+ const x=setup();
+ let subscribed=0,unsubscribed=0;
+ assert.throws(()=>createArubaSettledMapRequestCorrelator({
+  campaignId:campaign,gmUserId:gm,source:x.source,tracker:x.tracker,
+  getVerifiedPeer:()=>x.handle,isVerifiedMember:()=>true,
+  proveRequestedEffect:()=>true,
+  subscribe:()=>{subscribed++;return ()=>{unsubscribed++;};},
+  subscribeFailure:()=>{throw Error('subscription unavailable');},
+ }),/subscription unavailable/);
+ assert.equal(subscribed,1);
+ assert.equal(unsubscribed,1);
+ x.close();
+});
