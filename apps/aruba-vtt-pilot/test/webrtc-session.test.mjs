@@ -76,7 +76,7 @@ test('closed session never sends an offer after delayed asynchronous negotiation
  assert.equal(Socket.last.sent.length,0);
 });
 
-test('player serializes ICE and offer processing and drops failed negotiation',async()=>{
+test('player discards pre-offer ICE while negotiating a valid offer',async()=>{
  class DelayedPeer extends Peer{
   async setRemoteDescription(x){await new Promise(resolve=>setImmediate(resolve));this.remoteDescription=x;}
  }
@@ -87,7 +87,7 @@ test('player serializes ICE and offer processing and drops failed negotiation',a
  Socket.last.message({type:'signal',kind:'offer',payload:{sdp:'gm-offer'}});
  await waitForSignal('answer');
  assert.equal(Socket.last.sent[0]?.kind,'answer');
- assert.equal(Peer.last.ice?.length,1);
+ assert.equal(Peer.last.ice?.length??0,0);
  session.close();
 });
 test('game channel send failure disconnects only failing peer without throwing',async()=>{
