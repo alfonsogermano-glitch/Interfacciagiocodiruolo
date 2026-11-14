@@ -42,3 +42,9 @@ test('dice engine remounts when authenticated player or active campaign changes'
  const main=read('../src/main.tsx');
  assert.match(main,/<ArubaQuickDice key=\{activeCampaign\.id\+':'\+user\.id\}/);
 });
+
+test('session dice palette does not leak into campaign management or home views',()=>{
+ const main=read('../src/main.tsx');
+ assert.match(main,/\{section==='session'&&activeCampaign&&<ArubaQuickDice key=/);
+ assert.doesNotMatch(main,/\{activeCampaign&&<ArubaQuickDice/);
+});
