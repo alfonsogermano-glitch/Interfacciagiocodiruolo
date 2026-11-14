@@ -499,3 +499,57 @@ export async function deleteArubaChapter(fetchImpl,campaignId,chapterId){
  if(data?.deleted!==true)throw Error('Conferma eliminazione non valida');
  return true;
 }
+
+/** Original GM Scene API adapter. Mount only after ChapterManager dependencies
+ * are migrated; never fall back to the retired Supabase client. */
+function sceneUrl(campaignId,sceneId=null){
+ if(typeof campaignId!=='string'||!CHAPTER_UUID.test(campaignId)||
+   (sceneId!==null&&(typeof sceneId!=='string'||!CHAPTER_UUID.test(sceneId))))
+   throw Error('Identificativo scena o campagna non valido');
+ return '/vtt/campaigns/'+campaignId+'/scenes'+(sceneId?'/'+sceneId:'');
+}
+async function sceneResponse(r){
+ if(r.status===401)throw Error('Sessione scaduta: effettua nuovamente il login.');
+ if(r.status===404)throw Error('Campagna o scena non autorizzata');
+ if(!r.ok)throw Error('Operazione scene non riuscita');
+ return r.json();
+}
+export async function listArubaScenes(fetchImpl,campaignId){
+ const r=await fetchImpl(sceneUrl(campaignId),{
+  method:'GET',credentials:'same-origin',cache:'no-store',redirect:'error'});
+ const data=await sceneResponse(r);
+ if(!Array.isArray(data?.scenes)||data.scenes.length>1000)
+  throw Error('Risposta scene non valida');
+ const ids=new Set();
+ for(const scene of data.scenes){
+  if(!scene||typeof scene!=='object'||Array.isArray(scene)||
+   !CHAPTER_UUID.test(scene.id??'')||scene.campaignId!==campaignId||
+   !CHAPTER_UUID.test(scene.chapterId??'')||ids.has(scene.id))
+   throw Error('Risposta scene non valida');
+  ids.add(scene.id);
+ }
+ return data.scenes;
+}
+export async function saveArubaScene(fetchImpl,campaignId,draft){
+ if(!draft||typeof draft!=='object'||Array.isArray(draft)||
+   !CHAPTER_UUID.test(draft.id??'')||!CHAPTER_UUID.test(draft.chapterId??'')||
+   (draft.campaignId!==undefined&&draft.campaignId!==campaignId))
+  throw Error('Scena non valida');
+ const r=await fetchImpl(sceneUrl(campaignId),{
+  method:'PUT',credentials:'same-origin',cache:'no-store',redirect:'error',
+  headers:{'Content-Type':'application/json'},body:JSON.stringify(draft)});
+ const data=await sceneResponse(r);
+ if(data?.scene?.id!==draft.id||data.scene.campaignId!==campaignId||
+   data.scene.chapterId!==draft.chapterId||
+   typeof data.scene.title!=='string'||!data.scene.title.trim()||
+   typeof data.scene.createdAt!=='string'||typeof data.scene.updatedAt!=='string')
+  throw Error('Conferma scena non valida');
+ return data.scene;
+}
+export async function deleteArubaScene(fetchImpl,campaignId,sceneId){
+ const r=await fetchImpl(sceneUrl(campaignId,sceneId),{
+  method:'DELETE',credentials:'same-origin',cache:'no-store',redirect:'error'});
+ const data=await sceneResponse(r);
+ if(data?.deleted!==true)throw Error('Conferma eliminazione scena non valida');
+ return true;
+}
