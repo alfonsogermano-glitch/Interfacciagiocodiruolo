@@ -350,7 +350,7 @@ try{
    const card=document.querySelector('[data-campaign-member-id="'+id+'"] [data-campaign-character-id]');
    return card!==null;
   },user,{timeout:5000}).catch(async()=>{
-   const snapshot=await page.locator('.aruba-campaign-player-rows').innerText();
+   const snapshot=(await page.locator('.aruba-campaign-player-rows').allInnerTexts()).join(' || DUPLICATE PARTICIPANTS REGION || ');
    throw new Error('Released character did not return to GM; serverAssignment='+
     String(store.characterAssignments.get(characterId)??'none')+'; UI='+snapshot);
   });
