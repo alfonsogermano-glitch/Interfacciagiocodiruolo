@@ -9,7 +9,7 @@ export function createLiveSceneCoordinator({role,sceneId,liveSession,onScene=()=
   const gm=createGmSceneController({liveSession,sceneId});
   return {
    dispatch(action){const result=gm.dispatch(action);if(result)onScene(gm.getState());return result;},
-   publishInitial(){return gm.publishInitial();},
+   publishInitial(){const published=gm.publishInitial();if(published)onScene(gm.getState());return published;},
    getScene(){return gm.getState();},
    receiveSnapshot(){return false;},
    reset(){},

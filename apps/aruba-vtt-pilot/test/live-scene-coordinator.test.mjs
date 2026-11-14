@@ -38,3 +38,14 @@ test('player scene coordinator rejects snapshots belonging to another scene even
  assert.equal(player.getScene().sceneId,sceneId);
  assert.throws(()=>createLiveSceneCoordinator({role:'player',sceneId:'bad',liveSession:{}}),/Invalid/);
 });
+
+test('GM initial scene is surfaced to renderer only after successful initial publish',()=>{
+ const displayed=[];
+ const host=createLiveSceneCoordinator({role:'host',sceneId,liveSession:{publish:()=>true,getSnapshot:()=>null},onScene:s=>displayed.push(s)});
+ assert.equal(host.publishInitial(),true);
+ assert.deepEqual(displayed,[{sceneId,tokens:[]}]);
+ const failed=[];
+ const offline=createLiveSceneCoordinator({role:'host',sceneId,liveSession:{publish:()=>false,getSnapshot:()=>null},onScene:s=>failed.push(s)});
+ assert.equal(offline.publishInitial(),false);
+ assert.deepEqual(failed,[]);
+});
