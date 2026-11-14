@@ -42,3 +42,13 @@ test('chapter map references cannot silently retain the retired Supabase host',(
  }
  assert.equal(validateChapterDraft(CAMPAIGN,{...base(),mapUrl:'/assets/maps/chapter.webp'}).mapUrl,'/assets/maps/chapter.webp');
 });
+
+test('chapter save contract always returns timestamps required by Aruba frontend',()=>{
+ const result=validateChapterDraft(CAMPAIGN,base());
+ assert.equal(new Date(result.createdAt).toISOString(),result.createdAt);
+ assert.equal(result.updatedAt,result.createdAt);
+ const original='2026-01-02T03:04:05.000Z';
+ const withCreation=validateChapterDraft(CAMPAIGN,{...base(),createdAt:original});
+ assert.equal(withCreation.createdAt,original);
+ assert.equal(withCreation.updatedAt,original);
+});

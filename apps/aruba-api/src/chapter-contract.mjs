@@ -28,5 +28,8 @@ export function validateChapterDraft(campaignId,draft){
   (typeof draft[key]==='string'&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(draft[key])&&
    !Number.isNaN(Date.parse(draft[key]))&&new Date(draft[key]).toISOString()===draft[key])))
  throw new ChapterRejected('Dati capitolo non validi');
- return Object.freeze({...draft,title:draft.title.trim(),campaignId,nextChapterIds:Object.freeze([...draft.nextChapterIds])});
+ const timestamp=new Date().toISOString();
+ return Object.freeze({...draft,title:draft.title.trim(),campaignId,
+  createdAt:draft.createdAt??timestamp,updatedAt:draft.updatedAt??draft.createdAt??timestamp,
+  nextChapterIds:Object.freeze([...draft.nextChapterIds])});
 }
