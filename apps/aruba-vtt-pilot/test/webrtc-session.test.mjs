@@ -68,3 +68,27 @@ test('closed session never sends an offer after delayed asynchronous negotiation
  session.close();await tick();await tick();
  assert.equal(Socket.last.sent.length,0);
 });
+
+test('player serializes ICE and offer processing and drops failed negotiation',async()=>{
+ class DelayedPeer extends Peer{
+  async setRemoteDescription(x){await new Promise(resolve=>setImmediate(resolve));this.remoteDescription=x;}
+ }
+ const statuses=[];
+ const session=createWebRtcSession({origin:'https://staging.hollowgate.quest/',campaignId,role:'player',WebSocketImpl:Socket,PeerConnectionImpl:DelayedPeer,onStatus:x=>statuses.push(x)});
+ Socket.last.message({type:'ready',role:'player',peerId});
+ Socket.last.message({type:'signal',kind:'ice',payload:{candidate:{candidate:'candidate:1'}}});
+ Socket.last.message({type:'signal',kind:'offer',payload:{sdp:'gm-offer'}});
+ await tick();await tick();await tick();
+ assert.equal(Socket.last.sent[0]?.kind,'answer');
+ assert.equal(Peer.last.ice?.length,1);
+ session.close();
+});
+test('game channel send failure disconnects only failing peer without throwing',async()=>{
+ const session=createWebRtcSession({origin:'https://staging.hollowgate.quest/',campaignId,role:'host',WebSocketImpl:Socket,PeerConnectionImpl:Peer});
+ Socket.last.message({type:'ready',role:'host',peerId});
+ Socket.last.message({type:'peer-joined',peerId,campaignId});await tick();
+ Peer.last.channel.send=()=>{throw new Error('channel closed mid-send');};
+ assert.equal(session.send({scene:1},peerId),false);
+ assert.equal(session.send({scene:2},peerId),false);
+ session.close();
+});

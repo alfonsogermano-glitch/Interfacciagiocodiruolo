@@ -6,12 +6,13 @@ export function createWebRtcSession({origin,campaignId,role,WebSocketImpl,PeerCo
   typeof onStatus!=='function'||typeof onData!=='function'||!Array.isArray(iceServers))
   throw new TypeError('Invalid peer session');
  const peers=new Map();let stopped=false;
+ let pending=Promise.resolve();
  function notify(state,peerId){if(!stopped)onStatus({state,peerId});}
  function drop(id){const peer=peers.get(id);if(!peer)return;peers.delete(id);peer.channel?.close();peer.pc.close();notify('disconnected',id);}
  function channelReady(peer,channel){
   peer.channel=channel;
-  channel.onopen=()=>notify('connected',peer.id);
-  channel.onclose=()=>notify('channel-closed',peer.id);
+  channel.onopen=()=>{if(peers.get(peer.id)===peer)notify('connected',peer.id);};
+  channel.onclose=()=>{if(peers.get(peer.id)===peer)notify('channel-closed',peer.id);};
   channel.onmessage=event=>{
    if(stopped||peers.get(peer.id)!==peer||typeof event.data!=='string'||event.data.length>65536)return;
    let data;try{data=JSON.parse(event.data);}catch{return;}
@@ -63,7 +64,11 @@ export function createWebRtcSession({origin,campaignId,role,WebSocketImpl,PeerCo
  }
  const signal=createSignalingClient({origin,campaignId,role,WebSocketImpl,
   onEvent:data=>{if(data.type==='ready')notify('ready',data.peerId);
-   else void onSignal(data).catch(()=>{notify('negotiation-failed',data.peerId);if(role==='host'&&UUID.test(data.peerId??''))drop(data.peerId);});},
+   else pending=pending.then(()=>onSignal(data)).catch(()=>{
+    notify('negotiation-failed',data.peerId);
+    const id=role==='host'?data.peerId:campaignId;
+    if(UUID.test(id??''))drop(id);
+   });},
   onDisconnect:()=>{for(const id of [...peers.keys()])drop(id);notify('signaling-disconnected');},
  });
  return {
@@ -74,7 +79,9 @@ export function createWebRtcSession({origin,campaignId,role,WebSocketImpl,PeerCo
    if(typeof message!=='string'||message.length>65536)return false;
    const targets=role==='host'?(peerId?[peers.get(peerId)]:[...peers.values()]):[peers.get(campaignId)];
    let sent=false;
-   for(const peer of targets){if(peer?.channel?.readyState==='open'){peer.channel.send(message);sent=true;}}
+   for(const peer of targets){if(peer?.channel?.readyState==='open'){
+    try{peer.channel.send(message);sent=true;}catch{drop(peer.id);}
+   }}
    return sent;
   },
   close(){if(stopped)return;stopped=true;signal.close();for(const id of [...peers.keys()])drop(id);},
