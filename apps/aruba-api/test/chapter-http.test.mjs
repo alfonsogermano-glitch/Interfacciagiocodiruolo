@@ -15,11 +15,11 @@ async function serve(chapters,callback){
   origin,login:async()=>{},revokeSession:async()=>{},
   getSessionUser:async value=>value===token?{id:owner}:null,
   campaigns:{list:async()=>({campaigns:[]}),create:async()=>({}),update:async()=>({})},
-  chapters:chapters&&{
+  chapters:chapters?{
    list:async(...args)=>{calls.push(['list',...args]);return {chapters:[]};},
    save:async(...args)=>{calls.push(['save',...args]);return {chapter:args[2]};},
    remove:async(...args)=>{calls.push(['remove',...args]);return {deleted:true};},
-  },
+  }:null,
  });
  const server=createApp({checkDatabase:async()=>{},authHandler:handler});
  server.listen(0,'127.0.0.1');await once(server,'listening');
