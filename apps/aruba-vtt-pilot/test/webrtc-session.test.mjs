@@ -251,3 +251,29 @@ test('queued peer-joined cannot create a new connection after signaling disconne
  assert.equal(session.send({scene:1},peerId),false);
  session.close();
 });
+
+test('failed GM offer signaling drops peer rather than leaving a stalled connection',async()=>{
+ class FailingOfferSocket extends Socket{send(data){if(JSON.parse(data).kind==='offer')throw new Error('send failure');super.send(data);}}
+ const statuses=[];
+ const session=createWebRtcSession({origin:'https://staging.hollowgate.quest/',campaignId,role:'host',WebSocketImpl:FailingOfferSocket,PeerConnectionImpl:Peer,onStatus:e=>statuses.push(e)});
+ Socket.last.message({type:'ready',role:'host',peerId});
+ Socket.last.message({type:'peer-joined',peerId,campaignId});
+ await tick();await tick();
+ assert.equal(statuses.some(e=>e.state==='negotiation-failed'),true);
+ assert.equal(session.send({scene:1},peerId),false);
+ assert.equal(Peer.last.connectionState,'closed');
+ session.close();
+});
+
+test('failed player answer signaling drops peer rather than leaving a stalled connection',async()=>{
+ class FailingAnswerSocket extends Socket{send(data){if(JSON.parse(data).kind==='answer')throw new Error('send failure');super.send(data);}}
+ const statuses=[];
+ const session=createWebRtcSession({origin:'https://staging.hollowgate.quest/',campaignId,role:'player',WebSocketImpl:FailingAnswerSocket,PeerConnectionImpl:Peer,onStatus:e=>statuses.push(e)});
+ Socket.last.message({type:'ready',role:'player',peerId});
+ Socket.last.message({type:'signal',kind:'offer',payload:{sdp:'offer-sdp'},campaignId});
+ await tick();await tick();
+ assert.equal(statuses.some(e=>e.state==='negotiation-failed'),true);
+ assert.equal(session.send({scene:1}),false);
+ assert.equal(Peer.last.connectionState,'closed');
+ session.close();
+});

@@ -47,7 +47,9 @@ export function createWebRtcSession({origin,campaignId,role,WebSocketImpl,PeerCo
    const peer=makePeer(data.peerId);if(!peer)return;
    const offer=await peer.pc.createOffer();if(stopped||peers.get(peer.id)!==peer)return;
    await peer.pc.setLocalDescription(offer);if(stopped||peers.get(peer.id)!==peer)return;
-   signal.send('offer',{sdp:offer.sdp},peer.id);return;
+   if(!signal.send('offer',{sdp:offer.sdp},peer.id)){
+    notify('negotiation-failed',peer.id);drop(peer.id);
+   }return;
   }
   if(data.type!=='signal'||!['offer','answer','ice'].includes(data.kind))return;
   const id=role==='host'?data.peerId:campaignId;
@@ -72,7 +74,9 @@ export function createWebRtcSession({origin,campaignId,role,WebSocketImpl,PeerCo
    if(role==='player'&&data.kind==='offer'){
     const answer=await peer.pc.createAnswer();if(stopped||peers.get(peer.id)!==peer)return;
     await peer.pc.setLocalDescription(answer);if(stopped||peers.get(peer.id)!==peer)return;
-    signal.send('answer',{sdp:answer.sdp});
+    if(!signal.send('answer',{sdp:answer.sdp})){
+     notify('negotiation-failed',peer.id);drop(peer.id);
+    }
    }
   }
  }
