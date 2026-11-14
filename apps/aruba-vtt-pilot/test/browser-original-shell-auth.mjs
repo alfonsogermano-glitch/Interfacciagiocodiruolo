@@ -4,7 +4,7 @@ const base='http://127.0.0.1:4175/vtt/original-shell-auth.html';
 const owner='00000000-0000-4000-8000-000000000002';
 const outsider='00000000-0000-4000-8000-000000000009';
 const secondCampaign={id:'00000000-0000-4000-8000-000000000004',ownerId:owner,name:'Seconda campagna Aruba',description:'',ruleset:'hsc',createdAt:'2026-11-13T00:00:00Z'};
-const characters=[{id:'00000000-0000-4000-8000-000000000010',campaignId:'00000000-0000-4000-8000-000000000001',ownerId:owner,name:'Investigatore Aruba',status:'draft',sheetData:{professione:'Investigatore',puntiFerita:12}}];
+const characters=[{id:'00000000-0000-4000-8000-000000000010',campaignId:'00000000-0000-4000-8000-000000000001',ownerId:owner,name:'Investigatore Aruba',status:'draft',sheetData:{professione:'Investigatore',puntiFerita:12,caratteristiche:{forza:65,destrezza:55},equipaggiamento:['Lanterna','Taccuino']}}];
 const campaigns=[
  {id:'00000000-0000-4000-8000-000000000001',ownerId:owner,name:'Campagna Aruba del GM',description:'',ruleset:'hsc',createdAt:'2026-11-13T00:00:00Z'},
  {id:'00000000-0000-4000-8000-000000000003',ownerId:outsider,name:'Campagna estranea',description:'',ruleset:'hsc',createdAt:'2026-11-13T00:00:00Z'},
@@ -124,6 +124,10 @@ async function run(mode){
     await page.locator('[data-original-character-detail]').waitFor();
     assert.equal(await page.locator('[data-original-character-detail]').getByText('Investigatore',{exact:true}).count(),1);
     assert.equal(await page.locator('[data-original-character-detail]').getByText('12',{exact:true}).count(),1);
+    assert.equal(await page.locator('[data-original-character-detail]').getByText('caratteristiche / forza',{exact:true}).count(),1);
+    assert.equal(await page.locator('[data-original-character-detail]').getByText('65',{exact:true}).count(),1);
+    assert.equal(await page.locator('[data-original-character-detail]').getByText('equipaggiamento / 1',{exact:true}).count(),1);
+    assert.equal(await page.locator('[data-original-character-detail]').getByText('Lanterna',{exact:true}).count(),1);
     await page.getByRole('button',{name:'Chiudi scheda'}).click();
     assert.equal(await page.locator('[data-original-character-detail]').count(),0);
    }
