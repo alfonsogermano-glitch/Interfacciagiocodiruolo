@@ -49,3 +49,21 @@ test('GM initial scene is surfaced to renderer only after successful initial pub
  assert.equal(offline.publishInitial(),false);
  assert.deepEqual(failed,[]);
 });
+
+test('GM imports the original published scene into the same authoritative coordinator',()=>{
+ const sent=[];const displayed=[];let online=false;
+ const host=createLiveSceneCoordinator({role:'host',sceneId,liveSession:{publish:s=>{if(!online)return false;sent.push(s);return true;},getSnapshot:()=>null},onScene:s=>displayed.push(s)});
+ const campaignId='32345678-1234-4123-8123-123456789abc';
+ const publication={campaignId,sceneId,mapTokens:[{...token,hiddenFromPlayers:true}]};
+ assert.equal(host.loadOriginal(publication,campaignId),false);
+ assert.deepEqual(host.getScene().tokens,[]);
+ online=true;
+ assert.equal(host.loadOriginal(publication,campaignId),true);
+ assert.equal(host.getScene().tokens[0].id,tokenId);
+ assert.deepEqual(sent[0].tokens,[]);
+ assert.equal(displayed.length,1);
+ assert.throws(()=>host.loadOriginal({...publication,sceneId:campaignId},campaignId),/mismatch/);
+ assert.equal(host.getScene().tokens.length,1);
+ const player=createLiveSceneCoordinator({role:'player',sceneId,liveSession:{}});
+ assert.equal(player.loadOriginal(publication,campaignId),false);
+});

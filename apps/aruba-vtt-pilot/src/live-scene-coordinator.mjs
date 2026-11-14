@@ -9,6 +9,7 @@ export function createLiveSceneCoordinator({role,sceneId,liveSession,onScene=()=
   const gm=createGmSceneController({liveSession,sceneId});
   return {
    dispatch(action){const result=gm.dispatch(action);if(result)onScene(gm.getState());return result;},
+   loadOriginal(publication,campaignId){const result=gm.loadOriginal(publication,campaignId);if(result)onScene(gm.getState());return result;},
    publishInitial(){const published=gm.publishInitial();if(published)onScene(gm.getState());return published;},
    getScene(){return gm.getState();},
    receiveSnapshot(){return false;},
@@ -18,6 +19,7 @@ export function createLiveSceneCoordinator({role,sceneId,liveSession,onScene=()=
  const view=createPlayerSceneView();
  return {
   dispatch(){return false;},
+  loadOriginal(){return false;},
   publishInitial(){return false;},
   getScene(){return view.getScene()?.scene??null;},
   receiveSnapshot(snapshot){
