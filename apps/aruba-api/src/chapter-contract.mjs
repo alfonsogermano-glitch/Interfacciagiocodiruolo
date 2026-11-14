@@ -24,7 +24,7 @@ export function validateChapterDraft(campaignId,draft){
  !(draft.sourceEnvironment===undefined||draft.sourceEnvironment===null||
  (typeof draft.sourceEnvironment==='object'&&!Array.isArray(draft.sourceEnvironment)))||
  !['createdAt','updatedAt'].every(key=>draft[key]===undefined||
-  (typeof draft[key]==='string'&&/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/.test(draft[key])&&
+  (typeof draft[key]==='string'&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(draft[key])&&
    !Number.isNaN(Date.parse(draft[key]))&&new Date(draft[key]).toISOString()===draft[key])))
  throw new ChapterRejected('Dati capitolo non validi');
  return Object.freeze({...draft,title:draft.title.trim(),campaignId,nextChapterIds:Object.freeze([...draft.nextChapterIds])});
