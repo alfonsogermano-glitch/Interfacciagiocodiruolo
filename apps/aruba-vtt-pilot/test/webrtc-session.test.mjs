@@ -148,3 +148,21 @@ test('duplicate GM peer-joined events do not produce overlapping offers',async()
  assert.equal(Socket.last.sent.filter(x=>x.kind==='offer').length,1);
  session.close();
 });
+
+test('player ignores duplicate offers until the previous peer disconnects',async()=>{
+ let allocations=0;
+ class CountedPeer extends Peer{constructor(...args){super(...args);allocations++;}}
+ const session=createWebRtcSession({origin:'https://staging.hollowgate.quest/',campaignId,role:'player',WebSocketImpl:Socket,PeerConnectionImpl:CountedPeer});
+ Socket.last.message({type:'ready',role:'player',peerId});
+ Socket.last.message({type:'signal',kind:'offer',payload:{sdp:'first'}});
+ Socket.last.message({type:'signal',kind:'offer',payload:{sdp:'duplicate'}});
+ await waitForSignal('answer');await tick();await tick();
+ assert.equal(allocations,1);
+ assert.equal(Socket.last.sent.filter(x=>x.kind==='answer').length,1);
+ Peer.last.connectionState='disconnected';Peer.last.onconnectionstatechange();
+ Socket.last.message({type:'signal',kind:'offer',payload:{sdp:'reconnected'}});
+ for(let i=0;i<30&&Socket.last.sent.filter(x=>x.kind==='answer').length<2;i++)await tick();
+ assert.equal(allocations,2);
+ assert.equal(Socket.last.sent.filter(x=>x.kind==='answer').length,2);
+ session.close();
+});

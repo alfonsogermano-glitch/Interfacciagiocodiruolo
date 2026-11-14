@@ -54,6 +54,9 @@ export function createWebRtcSession({origin,campaignId,role,WebSocketImpl,PeerCo
   if(role==='host'&&!peers.has(id))return;
   // A player must receive a GM offer before accepting ICE or creating a peer.
   if(role==='player'&&data.kind==='ice'&&!peers.has(id))return;
+  // A second offer for the same player connection is stale; a new offer is
+  // accepted only after the old peer has been dropped on disconnect.
+  if(role==='player'&&data.kind==='offer'&&peers.has(id))return;
   const peer=makePeer(id);if(!peer)return;
   if(data.kind==='ice'){
    if(!data.payload?.candidate)return;
