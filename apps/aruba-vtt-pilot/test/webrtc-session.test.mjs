@@ -237,3 +237,17 @@ test('ICE candidate serialization failure disconnects only the affected peer wit
  assert.equal(session.send({scene:1},peerId),false);
  session.close();
 });
+
+test('queued peer-joined cannot create a new connection after signaling disconnects',async()=>{
+ let allocations=0;
+ class CountedPeer extends Peer{constructor(...args){super(...args);allocations++;}}
+ const session=createWebRtcSession({origin:'https://staging.hollowgate.quest/',campaignId,role:'host',WebSocketImpl:Socket,PeerConnectionImpl:CountedPeer});
+ Socket.last.message({type:'ready',role:'host',peerId});
+ Socket.last.message({type:'peer-joined',peerId,campaignId});
+ Socket.last.close();
+ await tick();await tick();
+ assert.equal(allocations,0);
+ assert.equal(Socket.last.sent.filter(x=>x.kind==='offer').length,0);
+ assert.equal(session.send({scene:1},peerId),false);
+ session.close();
+});

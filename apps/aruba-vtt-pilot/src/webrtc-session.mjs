@@ -5,7 +5,7 @@ export function createWebRtcSession({origin,campaignId,role,WebSocketImpl,PeerCo
  if(!['host','player'].includes(role)||typeof PeerConnectionImpl!=='function'||
   typeof onStatus!=='function'||typeof onData!=='function'||!Array.isArray(iceServers))
   throw new TypeError('Invalid peer session');
- const peers=new Map();let stopped=false;
+ const peers=new Map();let stopped=false,signalingDisconnected=false;
  let pending=Promise.resolve();
  function notify(state,peerId){if(!stopped)onStatus({state,peerId});}
  function drop(id){const peer=peers.get(id);if(!peer)return;peers.delete(id);peer.channel?.close();peer.pc.close();notify('disconnected',id);}
@@ -39,7 +39,7 @@ export function createWebRtcSession({origin,campaignId,role,WebSocketImpl,PeerCo
   for(const candidate of peer.pendingIce.splice(0))await peer.pc.addIceCandidate(candidate);
  }
  async function onSignal(data){
-  if(stopped)return;
+  if(stopped||signalingDisconnected)return;
   if(data.type==='peer-left'&&role==='host'){if(data.campaignId===campaignId)drop(data.peerId);return;}
   if(data.type==='peer-joined'&&role==='host'&&data.campaignId===campaignId&&UUID.test(data.peerId??'')){
    // A duplicate peer-joined must not renegotiate an existing connection.
@@ -83,7 +83,7 @@ export function createWebRtcSession({origin,campaignId,role,WebSocketImpl,PeerCo
     const id=role==='host'?data.peerId:campaignId;
     if(UUID.test(id??''))drop(id);
    });},
-  onDisconnect:()=>{for(const id of [...peers.keys()])drop(id);notify('signaling-disconnected');},
+  onDisconnect:()=>{signalingDisconnected=true;for(const id of [...peers.keys()])drop(id);notify('signaling-disconnected');},
  });
  return {
   send(payload,peerId){
