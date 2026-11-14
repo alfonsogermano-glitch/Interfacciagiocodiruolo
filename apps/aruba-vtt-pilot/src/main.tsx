@@ -256,7 +256,7 @@ function App(){
      activePanel={sessionPanel}
      onToggleNotes={()=>{setSessionCharacterRequest(null);setSessionPanel(value=>value==='notes'?null:'notes');}}
      onToggleCharacters={()=>{setSessionCharacterRequest(null);setSessionPanel(value=>value==='characters'?null:'characters');}}/>:
-   section!=='characters'&&<GmSectionSidebar
+   section!=='characters'&&<GmSectionSidebar iconSet="phosphor"
     activeTab={section==='preparation'?'scene-encounter':section==='sheets'?'players':section==='equipment'?'equipment-catalog':section==='assets'?'visual-assets':section}
     onChangeTab={id=>{
      const target=id==='scene-encounter'?'preparation':id==='players'?'sheets':id==='equipment-catalog'?'equipment':id==='visual-assets'?'assets':id;
