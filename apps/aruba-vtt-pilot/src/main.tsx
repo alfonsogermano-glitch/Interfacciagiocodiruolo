@@ -9,6 +9,7 @@ import {ArubaCharacterDrafts} from './ArubaCharacterDrafts';
 import {ArubaCharacterDetailPanel} from './ArubaCharacterDetailPanel';
 import {ArubaNotesRoute} from './ArubaNotesRoute';
 import {ArubaSessionRightRail} from './ArubaSessionRightRail';
+import {ArubaGmLiveScene} from './ArubaGmLiveScene';
 import {ArubaSessionCharactersPanel} from './ArubaSessionCharactersPanel';
 import {ArubaCampaignCharacterCards,type SessionEntityOpenRequest} from './ArubaCampaignCharacterCards';
 import {ArubaCampaignPlayerRows} from './ArubaCampaignPlayerRows';
@@ -20,7 +21,7 @@ import {ArubaTopBarQaIdentity} from './ArubaOriginalTopBarAdapter';
 import type {Campaign as OriginalCampaign} from '../../../src/app/campaigns/campaignTypes';
 import {HouseIcon,UsersThreeIcon,ScrollIcon,GitBranchIcon,PlayIcon,FileTextIcon,IdentificationBadgeIcon,GhostIcon,LightbulbIcon,BookmarkSimpleIcon,MapTrifoldIcon,ImageIcon,SwordIcon} from '@phosphor-icons/react';
 
-type PilotUser={id:string;email:string;displayName:string;role:'admin'|'standard';characterAvailabilityEnabled:boolean;characterAssignmentsEnabled:boolean;playerCharactersEnabled:boolean;characterPortraitsEnabled:boolean;campaignsEnabled:boolean;charactersEnabled:boolean;entityNotesEnabled:boolean;campaignNotesEnabled:boolean;campaignNoteFoldersEnabled:boolean;originalNotesPanelEnabled:boolean;campaignRosterEnabled:boolean};
+type PilotUser={id:string;email:string;displayName:string;role:'admin'|'standard';characterAvailabilityEnabled:boolean;characterAssignmentsEnabled:boolean;playerCharactersEnabled:boolean;characterPortraitsEnabled:boolean;campaignsEnabled:boolean;charactersEnabled:boolean;entityNotesEnabled:boolean;campaignNotesEnabled:boolean;campaignNoteFoldersEnabled:boolean;originalNotesPanelEnabled:boolean;campaignRosterEnabled:boolean;gameSessionEnabled:boolean;campaignMemberships:{userId:string;campaignId:string;role:'gm'}[]};
 type Campaign={id:string;ownerId:string;name:string;description:string;ruleset:string;createdAt:string};
 type Status={state:'loading'}|{state:'unauthorized'}|{state:'error'}|{state:'ready';user:PilotUser};
 type Section='home'|'campaigns'|'characters'|'session'|'chapters'|'preparation'|'sheets'|'npcs'|'monsters'|'clues'|'equipment'|'map'|'situations'|'phases'|'combat'|'assets';
@@ -207,6 +208,8 @@ function App(){
       <div className="overline">CAMPAGNA · CONTESTO SESSIONE</div>
       <h1>{activeCampaign.name}</h1>
       <p className="muted">I comandi di sessione verranno attivati dopo la migrazione dei rispettivi servizi. La gestione GM rimane separata.</p>
+      {user.gameSessionEnabled&&user.campaignMemberships.some(m=>m.userId===user.id&&m.campaignId===activeCampaign.id&&m.role==='gm')&&
+       <ArubaGmLiveScene key={activeCampaign.id} bootstrap={user} campaign={activeCampaign}/>}
       <button type="button" className="session-return" onClick={()=>{setSessionPanel(null);closeSessionCharacter();setSection('campaigns');}}>Torna alla gestione campagne</button>
       {user.campaignRosterEnabled&&user.charactersEnabled&&
        <ArubaCampaignPlayerRows key={activeCampaign.id} campaignId={activeCampaign.id}
