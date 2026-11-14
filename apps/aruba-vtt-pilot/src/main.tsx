@@ -211,7 +211,7 @@ function App(){
       {user.gameSessionEnabled&&user.campaignMemberships.some(m=>m.userId===user.id&&m.campaignId===activeCampaign.id&&m.role==='gm')&&
        <ArubaGmLiveScene key={activeCampaign.id} bootstrap={user} campaign={activeCampaign}/>}
       <button type="button" className="session-return" onClick={()=>{setSessionPanel(null);closeSessionCharacter();setSection('campaigns');}}>Torna alla gestione campagne</button>
-      {user.campaignRosterEnabled&&user.charactersEnabled&&
+      {user.campaignRosterEnabled&&user.charactersEnabled&&!sessionCharacterRequest&&
        <ArubaCampaignPlayerRows key={activeCampaign.id} campaignId={activeCampaign.id}
         ownerId={user.id} revision={characterCatalogRevision}
         availabilityEnabled={user.characterAvailabilityEnabled}
