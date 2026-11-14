@@ -43,7 +43,9 @@ test('GM creates offer only after authenticated peer joins, then drops on depart
  assert.equal(Socket.last.sent[0].kind,'offer');assert.equal(Socket.last.sent[0].targetPeerId,peerId);
  assert.equal(session.send({hello:1},peerId),true);
  assert.deepEqual(Peer.last.channel.sent[0],{type:'game',campaignId,payload:{hello:1}});
- Socket.last.message({type:'peer-left',peerId});await tick();
+ Socket.last.message({type:'peer-left',peerId,campaignId:'other-campaign'});await tick();
+ assert.equal(session.send({hello:'still-connected'},peerId),true);
+ Socket.last.message({type:'peer-left',peerId,campaignId});await tick();
  assert.equal(session.send({hello:2},peerId),false);session.close();
 });
 test('player answers GM offer and ignores cross-campaign game data',async()=>{

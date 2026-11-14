@@ -36,7 +36,7 @@ export function createWebRtcSession({origin,campaignId,role,WebSocketImpl,PeerCo
  }
  async function onSignal(data){
   if(stopped)return;
-  if(data.type==='peer-left'&&role==='host'){drop(data.peerId);return;}
+  if(data.type==='peer-left'&&role==='host'){if(data.campaignId===campaignId)drop(data.peerId);return;}
   if(data.type==='peer-joined'&&role==='host'&&data.campaignId===campaignId&&UUID.test(data.peerId??'')){
    const peer=makePeer(data.peerId);if(!peer)return;
    const offer=await peer.pc.createOffer();if(stopped||peers.get(peer.id)!==peer)return;
