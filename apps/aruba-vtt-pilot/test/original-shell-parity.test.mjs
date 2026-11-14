@@ -177,3 +177,9 @@ test('shipping original TopBar is isolated from Supabase and uses real Aruba ide
   assert.ok(vite.includes(dependency));
  assert.doesNotMatch(main,/<header className="topbar">/);
 });
+
+test('production Vite TopBar isolation plugin remains valid JavaScript',async()=>{
+ const {spawnSync}=await import('node:child_process');
+ const result=spawnSync(process.execPath,['--check','vite.config.mjs'],{cwd:new URL('../',import.meta.url),encoding:'utf8'});
+ assert.equal(result.status,0,result.stderr);
+});
