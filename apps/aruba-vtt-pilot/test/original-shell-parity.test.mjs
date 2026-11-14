@@ -137,3 +137,16 @@ test('authenticated original shell renders owner-scoped campaign data without le
  assert.match(browser,/data-campaign-overview-state="list"/);
  assert.match(browser,/data-campaign-overview-state="selected"/);
 });
+
+test('shipping Aruba pilot mounts the original left and GM navigation, not duplicated pilot sidebars',()=>{
+ const main=read('../src/main.tsx');
+ assert.match(main,/import \{LeftSidebar\} from '\.\.\/\.\.\/\.\.\/src\/app\/layout\/LeftSidebar'/);
+ assert.match(main,/import \{GmSectionSidebar\} from '\.\.\/\.\.\/\.\.\/src\/app\/layout\/GmSectionSidebar'/);
+ assert.match(main,/<LeftSidebar/);
+ assert.match(main,/<GmSectionSidebar/);
+ assert.doesNotMatch(main,/<aside className="primary-sidebar"/);
+ assert.doesNotMatch(main,/<aside className="gm-sidebar"/);
+ for(const mapping of ["scene-encounter","players","equipment-catalog","visual-assets"])
+  assert.ok(main.includes(mapping),'missing original GM section mapping '+mapping);
+ assert.match(main,/onSelectCampaign=\{campaign=>openCampaign\(campaign\.id\)\}/);
+});
