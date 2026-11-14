@@ -24,14 +24,14 @@ async function run(mode){
    user:{id:owner,email:'qa@example.org',displayName:'GM Aruba',role:'standard'},
    capabilities:{
     campaigns:{read:allowed,write:allowed},characters:{read:['characters','character-error','switch-campaign'].includes(mode),write:['characters','character-error','switch-campaign'].includes(mode)},
-    campaignRoster:{read:mode==='roster',write:false},gameSession:false,
+    campaignRoster:{read:['roster','roster-error','roster-switch'].includes(mode),write:false},gameSession:false,
    },
   }});
  });
  await page.route('**/vtt/campaigns',async route=>{
   requests.push({path:'/vtt/campaigns',method:route.request().method()});
   if(mode==='expired-campaign-session')return route.fulfill({status:401,json:{error:'Session expired'}});
-  await route.fulfill({json:{campaigns:mode==='empty'?[]:mode==='switch-campaign'?[campaigns[0],secondCampaign]:campaigns}});
+  await route.fulfill({json:{campaigns:mode==='empty'?[]:['switch-campaign','roster-switch'].includes(mode)?[campaigns[0],secondCampaign]:campaigns}});
  });
  await page.route('**/vtt/characters?*',async route=>{
   requests.push({path:'/vtt/characters',method:route.request().method()});
@@ -42,6 +42,9 @@ async function run(mode){
  });
  await page.route('**/vtt/campaigns/*/roster',async route=>{
   requests.push({path:'/vtt/roster',method:route.request().method()});
+  if(mode==='roster-error')return route.fulfill({status:403,json:{error:'Forbidden'}});
+  if(mode==='roster-switch'&&route.request().url().includes(secondCampaign.id))
+   return route.fulfill({json:{members:[{userId:owner,displayName:'GM seconda campagna',role:'gm'}]}});
   await route.fulfill({json:{members:[{userId:owner,displayName:'GM Aruba',role:'gm'}]}});
  });
  await page.goto(base,{waitUntil:'domcontentloaded'});
@@ -90,10 +93,21 @@ async function run(mode){
   assert.equal(await page.locator('[data-active-section]').getAttribute('data-active-section'),'campaign-home');
   assert.equal(await page.locator('[data-campaign-overview-state="selected"]').getAttribute('data-campaign-id'),campaigns[0].id);
   assert.equal(await page.locator('[data-campaign-session-state="not-connected"]').count(),1);
-  if(mode==='roster'){
-   await page.locator('[data-original-roster-state="ready"]').waitFor();
-   assert.equal(await page.locator('[data-original-roster-state="ready"]').getByText('GM Aruba').count(),1);
+  if(['roster','roster-error','roster-switch'].includes(mode)){
+   if(mode==='roster-error'){
+    await page.locator('[data-original-roster-state="error"]').waitFor();
+   }else{
+    await page.locator('[data-original-roster-state="ready"]').waitFor();
+    assert.equal(await page.locator('[data-original-roster-state="ready"]').getByText('GM Aruba').count(),1);
+   }
    assert.equal(requests.filter(r=>r.path==='/vtt/roster').length,1);
+   if(mode==='roster-switch'){
+    await page.getByRole('button',{name:'Seconda campagna Aruba'}).click();
+    await page.locator('[data-original-roster-state="ready"]').waitFor();
+    assert.equal(await page.locator('[data-original-roster-state="ready"]').getByText('GM seconda campagna').count(),1);
+    assert.equal(await page.locator('[data-original-roster-state="ready"]').getByText('GM Aruba').count(),0);
+    assert.equal(requests.filter(r=>r.path==='/vtt/roster').length,2);
+   }
   }else{
    assert.equal(await page.locator('[data-original-roster-state="unavailable"]').count(),1);
    assert.equal(requests.some(r=>r.path==='/vtt/roster'),false);
@@ -145,6 +159,8 @@ try{
  await run('character-error');
  await run('switch-campaign');
  await run('roster');
+ await run('roster-error');
+ await run('roster-switch');
  await run('expired-campaign-session');
  assert.deepEqual(errors,[]);
  console.log('Original AppShell with authenticated Aruba campaign API: scope, capability and 401 cases PASS.');
