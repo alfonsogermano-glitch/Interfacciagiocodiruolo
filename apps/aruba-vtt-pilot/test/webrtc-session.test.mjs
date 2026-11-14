@@ -224,3 +224,16 @@ test('late connection-state event from a retired peer cannot disconnect its repl
  assert.equal(active.channel.sent.length,1);
  session.close();
 });
+
+test('ICE candidate serialization failure disconnects only the affected peer without uncaught callback error',async()=>{
+ const statuses=[];
+ const session=createWebRtcSession({origin:'https://staging.hollowgate.quest/',campaignId,role:'host',WebSocketImpl:Socket,PeerConnectionImpl:Peer,onStatus:e=>statuses.push(e)});
+ Socket.last.message({type:'ready',role:'host',peerId});
+ Socket.last.message({type:'peer-joined',peerId,campaignId});
+ await waitForSignal('offer');
+ const peer=Peer.last;
+ assert.doesNotThrow(()=>peer.onicecandidate({candidate:{toJSON(){throw new Error('invalid ICE candidate');}}}));
+ assert.equal(statuses.some(e=>e.state==='negotiation-failed'),true);
+ assert.equal(session.send({scene:1},peerId),false);
+ session.close();
+});
