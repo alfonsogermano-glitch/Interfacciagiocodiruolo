@@ -26,7 +26,10 @@ export default {
   transform(code,id){
    if(!id.endsWith(topbarSource))return null;
    const original='const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;';
-   if(!code.includes(original))throw Error('Original TopBar server contract changed');
+   if(!code.includes(original)){
+        if(code.includes("const SERVER_BASE = '/vtt';"))return null;
+        throw Error('Original TopBar server contract changed');
+      }
    return code.replace(original,"const SERVER_BASE = '/vtt';");
   },
  },...base.plugins],
