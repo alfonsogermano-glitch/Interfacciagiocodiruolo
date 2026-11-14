@@ -21,3 +21,9 @@ test('session Dadi opens existing original dice engine rather than a duplicate o
  assert.match(dice,/setPaletteOpen\(true\)/);
  assert.doesNotMatch(rail,/rollDiceFormula|localStorage|sessionStorage/);
 });
+
+test('unnamed quick rolls do not invent a saved formula name',()=>{
+ const dice=read('../src/ArubaQuickDice.tsx');
+ assert.match(dice,/formulaName:''/);
+ assert.doesNotMatch(dice,/formulaName:'Tiro rapido'/);
+});

@@ -42,7 +42,7 @@ export function ArubaQuickDice({campaignId,userId,rollerName}:{
   try{
    const result=rollDiceFormula({
     identity:{campaignId,rollerId:userId,rollerName},
-    request:{items:buildQuickRollItems(entries,[]),formulaName:'Tiro rapido',visibility:'public'},
+    request:{items:buildQuickRollItems(entries,[]),formulaName:'',visibility:'public'},
    });
    setHistory(current=>[result,...current].slice(0,20));
    if(!historyOpen)setUnread(true);
