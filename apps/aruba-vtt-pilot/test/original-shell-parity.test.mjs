@@ -163,3 +163,17 @@ test('shipping original Noir navigation has generated utilities, scoped tokens a
  assert.match(main,/<LeftSidebar/);
  assert.match(main,/<GmSectionSidebar/);
 });
+
+test('shipping original TopBar is isolated from Supabase and uses real Aruba identity',()=>{
+ const main=read('../src/main.tsx');
+ const vite=read('../vite.config.mjs');
+ assert.match(main,/import \{TopBar\} from '\.\.\/\.\.\/\.\.\/src\/app\/layout\/TopBar'/);
+ assert.match(main,/<ArubaTopBarQaIdentity user=\{\{id:user.id/);
+ assert.match(main,/<TopBar activeSection=\{section\}/);
+ assert.match(main,/onLogout=\{\(\)=>\{if\(!closing\)void logout\(\);\}\}/);
+ assert.match(main,/onOpenSettings=\{\(\)=>setTopbarNotice/);
+ assert.match(vite,/aruba-original-topbar-production-isolation/);
+ for(const dependency of ['AuthContext','NotificationsContext','CampaignContext','charactersService'])
+  assert.ok(vite.includes(dependency));
+ assert.doesNotMatch(main,/<header className="topbar">/);
+});
