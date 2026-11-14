@@ -1,4 +1,4 @@
-import {useEffect,useMemo,useState} from 'react';
+import {useEffect,useMemo,useRef,useState} from 'react';
 import {ArubaPortraitEntityCard} from './ArubaPortraitEntityCard';
 import {listOwnedCampaignRoster,listCharacterDrafts,listCharacterAvailability,setCharacterAvailability,
  listCharacterAssignments,setCharacterAssignment} from './client.mjs';
@@ -24,6 +24,10 @@ export function ArubaCampaignPlayerRows({campaignId,ownerId,revision,availabilit
  const [retryRevision,setRetryRevision]=useState(0);
  const [snapshotKey,setSnapshotKey]=useState('');
  const currentKey=campaignId+':'+ownerId+':'+revision+':'+retryRevision;
+ const requestGeneration=useRef(0);
+ // Invalidate stale async writes immediately during render, before effects run.
+ const currentKeyRef=useRef(currentKey);
+ if(currentKeyRef.current!==currentKey){currentKeyRef.current=currentKey;requestGeneration.current++;}
  const rows=useMemo<Row[]>(()=> {
   if(busy||error||snapshotKey!==currentKey)return [];
   try{return composeOwnedCampaignPlayerRows(members,characters,ownerId,assignments);}
@@ -32,27 +36,29 @@ export function ArubaCampaignPlayerRows({campaignId,ownerId,revision,availabilit
  const groupingError=!busy&&!error&&snapshotKey===currentKey&&rows.length===0?'Assegnazioni o partecipanti non verificati':null;
  async function changeAvailable(id:string,now:boolean){
   if(!availabilityEnabled||pending||busy||error||snapshotKey!==currentKey||assignments.has(id))return;
+  const generation=requestGeneration.current;
   setPending(id);setSaveError(null);
   try{
    await setCharacterAvailability(fetch,campaignId,id,!now);
-   setAvailability(prev=>new Map(prev).set(id,!now));
-  }catch(e){setSaveError(e instanceof Error?e.message:'Impossibile aggiornare la disponibilità');}
-  finally{setPending(null);}
+   if(generation===requestGeneration.current)setAvailability(prev=>new Map(prev).set(id,!now));
+  }catch(e){if(generation===requestGeneration.current)setSaveError(e instanceof Error?e.message:'Impossibile aggiornare la disponibilità');}
+  finally{if(generation===requestGeneration.current)setPending(null);}
  }
  async function changeAssignment(id:string,playerId:string){
   if(!assignmentsEnabled||!availabilityEnabled||pending||busy||error||snapshotKey!==currentKey||!availability.get(id))return;
   const verifiedPlayer=members.some(m=>m.userId===playerId&&m.role==='player');
   if(playerId!==''&&!verifiedPlayer)return;
+  const generation=requestGeneration.current;
   setPending(id);setSaveError(null);
   try{
    await setCharacterAssignment(fetch,campaignId,id,playerId||null);
-   setAssignments(prev=>{
+   if(generation===requestGeneration.current)setAssignments(prev=>{
     const next=new Map(prev);
     if(playerId)next.set(id,playerId);else next.delete(id);
     return next;
    });
-  }catch(e){setSaveError(e instanceof Error?e.message:'Impossibile aggiornare l’assegnazione');}
-  finally{setPending(null);}
+  }catch(e){if(generation===requestGeneration.current)setSaveError(e instanceof Error?e.message:'Impossibile aggiornare l’assegnazione');}
+  finally{if(generation===requestGeneration.current)setPending(null);}
  }
  useEffect(()=>{
   let active=true;
