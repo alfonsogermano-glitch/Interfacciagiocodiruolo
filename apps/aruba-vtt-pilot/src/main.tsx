@@ -268,7 +268,7 @@ function App(){
     onChanged={()=>setCharacterCatalogRevision(n=>n+1)}
     onArchived={()=>{setCharacterCatalogRevision(n=>n+1);setEntityDetail(null);}}
    />}
-  {activeCampaign&&<ArubaQuickDice campaignId={activeCampaign.id} userId={user.id} rollerName={user.displayName}/>}
+  {activeCampaign&&<ArubaQuickDice key={activeCampaign.id+':'+user.id} campaignId={activeCampaign.id} userId={user.id} rollerName={user.displayName}/>}
   {showEdit&&activeCampaign&&user.campaignsEnabled&&<div className="modal-backdrop" role="presentation" onClick={()=>setShowEdit(false)}>
     <form onSubmit={event=>void editCampaign(event)} className="modal" aria-label="Modifica campagna" onClick={event=>event.stopPropagation()} key={activeCampaign.id}>
       <div className="overline">MODIFICA CAMPAGNA</div><h2>Modifica {activeCampaign.name}</h2>

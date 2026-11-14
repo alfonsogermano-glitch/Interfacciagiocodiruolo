@@ -37,3 +37,8 @@ test('dice rail events are scoped to the currently active Aruba campaign',()=>{
  assert.match(dice,/event\.detail\?\.campaignId!==campaignId/);
  assert.match(dice,/\},\[campaignId\]\);/);
 });
+
+test('dice engine remounts when authenticated player or active campaign changes',()=>{
+ const main=read('../src/main.tsx');
+ assert.match(main,/<ArubaQuickDice key=\{activeCampaign\.id\+':'\+user\.id\}/);
+});
