@@ -29,3 +29,12 @@ test('hidden GM tokens remain invisible to player coordinator until explicitly r
  assert.equal(player.receiveSnapshot({revision:2,state:sent[1]}),true);
  assert.equal(player.getScene().tokens[0].id,tokenId);
 });
+
+test('player scene coordinator rejects snapshots belonging to another scene even with newer revisions',()=>{
+ const player=createLiveSceneCoordinator({role:'player',sceneId,liveSession:{}});
+ const other='42345678-1234-4123-8123-123456789abc';
+ assert.equal(player.receiveSnapshot({revision:100,state:{sceneId:other,tokens:[]}}),false);
+ assert.equal(player.receiveSnapshot({revision:1,state:{sceneId,tokens:[]}}),true);
+ assert.equal(player.getScene().sceneId,sceneId);
+ assert.throws(()=>createLiveSceneCoordinator({role:'player',sceneId:'bad',liveSession:{}}),/Invalid/);
+});
