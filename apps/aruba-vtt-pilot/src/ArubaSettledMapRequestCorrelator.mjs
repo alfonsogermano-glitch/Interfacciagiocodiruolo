@@ -6,6 +6,8 @@
  * attribute every pending command to a revision. The trusted GM caller
  * must supply a per-request predicate proving that the requested effect
  * exists in the settled state; ambiguous requests stay unconfirmed.
+ * Register each request with canonical GM-owned effectKeys to block
+ * attribution when multiple requests touched overlapping fields.
  *
  * This module does not invoke the original handlers or replace their
  * publication. It is opt-in, not mounted in SessionWorkspace.
@@ -17,6 +19,11 @@ const safeRevision=n=>Number.isSafeInteger(n)&&n>=0;
 const MAX_PENDING=128;
 const isObject=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
 const copy=x=>structuredClone(x);
+// The trusted GM assigns canonical object+field keys. A key MUST identify
+// the same logical field across different players and repeated commands.
+const validEffectKeys=keys=>Array.isArray(keys)&&keys.length>0&&keys.length<=64&&
+ keys.every(k=>typeof k==='string'&&k.length>0&&k.length<=256)&&
+ new Set(keys).size===keys.length;
 
 export function createArubaSettledMapRequestCorrelator({
  campaignId,gmUserId,source,tracker,getVerifiedPeer,isVerifiedMember,
@@ -50,11 +57,12 @@ export function createArubaSettledMapRequestCorrelator({
   try{return isVerifiedMember({campaignId,userId})===true;}
   catch(e){error(e);return false;}
  };
- function register({userId,peerId,requestId,chapterId,acceptedAfter}={}){
+ function register({userId,peerId,requestId,chapterId,acceptedAfter,effectKeys}={}){
   if(closed||suspended||processing||!UUID.test(userId)||
    userId===gmUserId||!UUID.test(peerId)||!UUID.test(requestId)||
    typeof chapterId!=='string'||!chapterId||
    typeof acceptedAfter!=='string'||!acceptedAfter||
+   !validEffectKeys(effectKeys)||
    !member(userId)||pending.size>=MAX_PENDING||
    pending.has(key(userId,requestId)))return false;
   let peer;
@@ -64,7 +72,7 @@ export function createArubaSettledMapRequestCorrelator({
   // The original hook generates strictly monotonic publishedAt; the request
   // must be tied to an authoritative baseline supplied by the GM.
   pending.set(key(userId,requestId),{
-   userId,peerId,requestId,chapterId,acceptedAfter,
+   userId,peerId,requestId,chapterId,acceptedAfter,effectKeys:[...effectKeys],
   });
   return true;
  }
@@ -101,10 +109,27 @@ export function createArubaSettledMapRequestCorrelator({
     }catch(e){error(e);}
     if(proven)matched.push({id,entry,priorRevision:peer.revision});
    }
+   // When multiple pending commands target the SAME field during one
+   // debounce window, the final state cannot prove which command caused it.
+   // Reject attribution for ALL overlapping candidates, even if a generic
+   // predicate would match both. Keep the requests pending but unconfirmed.
+   const contested=new Set();
+   const claimed=new Map();
+   for(const item of matched){
+    for(const field of item.entry.effectKeys){
+     const other=claimed.get(field);
+     if(other){contested.add(other.id);contested.add(item.id);}
+     else claimed.set(field,item);
+    }
+   }
+   // Contested command results can never be proven retroactively by a
+   // later unrelated publication. Discard their pending attribution.
+   for(const id of contested)pending.delete(id);
+   const unambiguous=matched.filter(item=>!contested.has(item.id));
    // Register receipts before source publication: synchronous WebRTC
    // callbacks may acknowledge during the publish itself.
    const registered=[];
-   for(const item of matched){
+   for(const item of unambiguous){
     if(!safeRevision(item.priorRevision+1)||
      !tracker.expect({
       userId:item.entry.userId,peerId:item.entry.peerId,

@@ -48,8 +48,9 @@ function setup({fail=false,prove=(data)=>data.state.mapTokens[0].x>=10}={}){
   proveRequestedEffect:args=>{calls.push(args);return prove(args);},
   onResyncRequired:e=>notices.push(e),
  });
- const register=(requestId,acceptedAfter=t0)=>correlator.register({
+ const register=(requestId,acceptedAfter=t0,effectKeys)=>correlator.register({
   userId:user,peerId:peer,requestId,chapterId:'chapter',acceptedAfter,
+  effectKeys:effectKeys??[requestId===req2?'token:token:y':'token:token:x'],
  });
  const notify=(publishedAt,x,y=0)=>notifyCommittedMapPublication(state(publishedAt,x,y));
  const close=()=>{correlator.close();tracker.close();source.close();};
@@ -126,6 +127,7 @@ test('membership revocation and stale peer prevent expectation creation',()=>{
  assert.equal(x.correlator.pendingCount,0);
  assert.equal(x.correlator.register({
   userId:user,peerId:other,requestId:req2,chapterId:'chapter',acceptedAfter:t1,
+  effectKeys:['token:token:y'],
  }),false);
  x.close();
 });
@@ -150,5 +152,52 @@ test('closing listener prevents further source publications and clears queued re
  assert.equal(x.correlator.pendingCount,0);
  assert.equal(x.correlator.register({
   userId:user,peerId:peer,requestId:req2,chapterId:'chapter',acceptedAfter:t0,
+  effectKeys:['token:token:y'],
  }),false);
+});
+
+test('overlapping edits to the same token coordinate remain unconfirmed even if predicates both match',()=>{
+ const x=setup({prove:({state})=>state.mapTokens[0].x===20});
+ assert.equal(x.register(req1,t0,['token:token:x']),true);
+ assert.equal(x.register(req2,t0,['token:token:x']),true);
+ x.notify(t1,20);
+ assert.equal(x.handle.revision,1);
+ assert.equal(x.tracker.pendingCount,0);
+ assert.equal(x.correlator.pendingCount,0);
+ assert.equal(x.tracker.acknowledge({
+  authenticatedUserId:user,verifiedCampaignId:campaign,peerId:peer,revision:1,
+ }),false);
+ assert.deepEqual(x.sent,[]);
+ x.notify(t2,20);
+ assert.equal(x.tracker.pendingCount,0);
+ x.close();
+});
+test('conflicted commands do not prevent independent non-overlapping effects from being confirmed',()=>{
+ const x=setup({prove:({requestId,state})=>requestId===req3
+  ?state.mapTokens[0].y===30:state.mapTokens[0].x===20});
+ x.register(req1,t0,['token:token:x']);
+ x.register(req2,t0,['token:token:x']);
+ x.register(req3,t0,['token:token:y']);
+ x.notify(t1,20,30);
+ assert.equal(x.handle.revision,1);
+ assert.equal(x.tracker.pendingCount,1);
+ assert.equal(x.correlator.pendingCount,0);
+ assert.equal(x.tracker.acknowledge({
+  authenticatedUserId:user,verifiedCampaignId:campaign,peerId:peer,revision:1,
+ }),true);
+ assert.deepEqual(x.sent.map(z=>z.result.requestId),[req3]);
+ x.close();
+});
+test('requests without canonical field provenance fail closed',()=>{
+ const x=setup();
+ for(const effectKeys of [undefined,[],[''],['token:x','token:x'],
+  [1],['x'.repeat(300)] ]){
+  assert.equal(x.correlator.register({
+   userId:user,peerId:peer,requestId:req1,chapterId:'chapter',
+   acceptedAfter:t0,effectKeys,
+  }),false);
+ }
+ assert.equal(x.correlator.pendingCount,0);
+ assert.equal(x.register(req1,t0,['token:token:x']),true);
+ x.close();
 });

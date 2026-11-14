@@ -328,3 +328,28 @@ SessionWorkspace handlers, does not prove rendering or durable
 remote delivery, and does not implement an acknowledgment timeout.
 Never treat proof of matching state alone as proof of user intent
 or enable this feature without an authenticated end-to-end review.
+
+## Same-object concurrent player commands (conservative correlation)
+
+The isolated settled map correlator now requires canonical GM-owned
+`effectKeys` per accepted request, such as `token:<id>:position-x`
+or `drawing:<id>:rotation`. These are scoped to the original logical
+object and field, independent of player identity, and MUST be generated
+by trusted GM-side request interpretation, never from a player claim.
+
+If two **matched pending requests** overlap on any effect key during
+a single debounced publication, both become unconfirmable. They are
+removed from pending correlation rather than retained for a later
+unrelated publication. A third request for a disjoint field may still
+receive a correlated visible revision. The original map publication
+continues to all connected players regardless of whether any command
+is attributable.
+
+This is intentionally conservative: the final state cannot demonstrate
+which of two concurrent writes caused it, even when both requested the
+same value. It does not prove authorship against unrelated GM edits
+outside the registered request set. A future integrated pathway must
+attach these canonical keys at the original handler boundary and
+include genuine per-command disposition; the prototype MUST NOT
+represent this as complete concurrent-edit correctness or graphical
+parity.
