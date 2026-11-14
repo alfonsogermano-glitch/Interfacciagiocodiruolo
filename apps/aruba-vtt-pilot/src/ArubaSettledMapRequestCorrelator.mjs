@@ -92,6 +92,7 @@ export function createArubaSettledMapRequestCorrelator({
    // All per-request effects must be checked on the SAME settled state.
    // Do not allow an arbitrary callback to mutate the observer's original.
    const matched=[];
+   const eligible=[];
    for(const [id,entry] of pending){
     if(entry.chapterId!==chapterId)continue;
     if(!member(entry.userId)){pending.delete(id);continue;}
@@ -100,6 +101,7 @@ export function createArubaSettledMapRequestCorrelator({
     if(!peer||peer.peerId!==entry.peerId||!safeRevision(peer.revision)){
      pending.delete(id);continue;
     }
+    eligible.push({id,entry});
     let proven=false;
     try{
      proven=proveRequestedEffect({
@@ -109,13 +111,14 @@ export function createArubaSettledMapRequestCorrelator({
     }catch(e){error(e);}
     if(proven)matched.push({id,entry,priorRevision:peer.revision});
    }
-   // When multiple pending commands target the SAME field during one
+   // When multiple eligible pending commands target the SAME field during one
    // debounce window, the final state cannot prove which command caused it.
+   // This applies even when only ONE predicate matches the final state.
    // Reject attribution for ALL overlapping candidates, even if a generic
    // predicate would match both. Keep the requests pending but unconfirmed.
    const contested=new Set();
    const claimed=new Map();
-   for(const item of matched){
+   for(const item of eligible){
     for(const field of item.entry.effectKeys){
      const other=claimed.get(field);
      if(other){contested.add(other.id);contested.add(item.id);}

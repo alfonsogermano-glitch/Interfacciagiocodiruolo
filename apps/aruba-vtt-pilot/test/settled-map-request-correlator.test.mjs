@@ -201,3 +201,18 @@ test('requests without canonical field provenance fail closed',()=>{
  assert.equal(x.register(req1,t0,['token:token:x']),true);
  x.close();
 });
+
+test('a losing overlapping command blocks the winner from receiving unprovable attribution',()=>{
+ const x=setup({prove:({requestId,state})=>requestId===req1&&state.mapTokens[0].x===20});
+ x.register(req1,t0,['token:token:x']);
+ x.register(req2,t0,['token:token:x']);
+ x.notify(t1,20);
+ assert.equal(x.handle.revision,1);
+ assert.equal(x.tracker.pendingCount,0);
+ assert.equal(x.correlator.pendingCount,0);
+ assert.equal(x.tracker.acknowledge({
+  authenticatedUserId:user,verifiedCampaignId:campaign,peerId:peer,revision:1,
+ }),false);
+ assert.deepEqual(x.sent,[]);
+ x.close();
+});
