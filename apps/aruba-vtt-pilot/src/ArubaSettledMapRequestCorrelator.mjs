@@ -113,7 +113,14 @@ export function createArubaSettledMapRequestCorrelator({
       campaignId,userId:entry.userId,requestId:entry.requestId,
       chapterId,publishedAt,state:copy(state),
      })===true;
-    }catch(e){error(e);}
+    }catch(e){
+     // A failed proof cannot be retried against a later unrelated batch:
+     // doing so could falsely attribute that later state to this request.
+     error(e);
+     pending.delete(id);
+     eligible.pop();
+     continue;
+    }
     if(proven)matched.push({id,entry,priorRevision:peer.revision});
    }
    // When multiple eligible pending commands target the SAME field during one

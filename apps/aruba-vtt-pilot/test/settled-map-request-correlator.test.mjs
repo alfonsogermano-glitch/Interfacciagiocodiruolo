@@ -243,3 +243,21 @@ test('noncanonical settled publication cannot consume pending correlation',()=>{
  assert.equal(x.tracker.pendingCount,1);
  x.close();
 });
+
+test('a throwing effect proof is discarded rather than confirmed by a later batch',()=>{
+ let attempts=0;
+ const x=setup({prove:()=>{
+  attempts++;
+  if(attempts===1)throw Error('projection unavailable');
+  return true;
+ }});
+ assert.equal(x.register(req1),true);
+ x.notify(t1,10);
+ assert.equal(x.correlator.pendingCount,0);
+ assert.equal(x.tracker.pendingCount,0);
+ x.notify(t2,20);
+ assert.equal(attempts,1);
+ assert.equal(x.tracker.pendingCount,0);
+ assert.equal(x.handle.revision,2);
+ x.close();
+});
