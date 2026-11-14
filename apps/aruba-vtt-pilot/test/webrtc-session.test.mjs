@@ -119,3 +119,17 @@ test('host ignores unsolicited answers and ICE from peers not announced by serve
  assert.equal(Socket.last.sent.length,0);
  session.close();
 });
+
+test('player ignores unsolicited ICE without allocating a peer connection',async()=>{
+ let allocations=0;
+ class CountedPeer extends Peer{constructor(...args){super(...args);allocations++;}}
+ const session=createWebRtcSession({origin:'https://staging.hollowgate.quest/',campaignId,role:'player',WebSocketImpl:Socket,PeerConnectionImpl:CountedPeer});
+ Socket.last.message({type:'ready',role:'player',peerId});
+ Socket.last.message({type:'signal',kind:'ice',payload:{candidate:{candidate:'unsolicited'}}});
+ await tick();await tick();
+ assert.equal(allocations,0);
+ Socket.last.message({type:'signal',kind:'offer',payload:{sdp:'gm-offer'}});
+ await waitForSignal('answer');
+ assert.equal(allocations,1);
+ session.close();
+});
