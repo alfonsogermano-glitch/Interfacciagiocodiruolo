@@ -252,8 +252,8 @@ function App(){
     <ArubaSessionRightRail campaignId={activeCampaign.id} notesEnabled={notesPanelReady}
      charactersEnabled={!!user.charactersEnabled}
      activePanel={sessionPanel}
-     onToggleNotes={()=>{closeSessionCharacter();setSessionPanel(value=>value==='notes'?null:'notes');}}
-     onToggleCharacters={()=>{closeSessionCharacter();setSessionPanel(value=>value==='characters'?null:'characters');}}/>:
+     onToggleNotes={()=>{setSessionCharacterRequest(null);setSessionPanel(value=>value==='notes'?null:'notes');}}
+     onToggleCharacters={()=>{setSessionCharacterRequest(null);setSessionPanel(value=>value==='characters'?null:'characters');}}/>:
    section!=='characters'&&<GmSectionSidebar
     activeTab={section==='preparation'?'scene-encounter':section==='sheets'?'players':section==='equipment'?'equipment-catalog':section==='assets'?'visual-assets':section}
     onChangeTab={id=>{

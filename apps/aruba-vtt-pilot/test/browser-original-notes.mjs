@@ -441,11 +441,7 @@ try{
   await page.locator('[data-entity-context="characters-detail"]')
    .getByRole('button',{name:/Torna ai personaggi/}).click();
   await page.locator('[data-entity-context="characters-detail"]').waitFor({state:'detached'});
-  // Detail close deselects Schede; exercise explicit open and close.
-  await page.locator('.aruba-session-characters-host').waitFor({state:'detached'});
-  await sessionRail.getByRole('button',{name:'Schede',exact:true}).click();
-  await page.locator('.aruba-session-characters-host').waitFor({state:'visible'});
-  // Detail close deselects Schede; exercise explicit open and close.
+  // Closing detail restores roster; explicitly open then close Schede.
   await page.locator('.aruba-session-characters-host').waitFor({state:'detached'});
   await sessionRail.getByRole('button',{name:'Schede',exact:true}).click();
   await page.locator('.aruba-session-characters-host').waitFor({state:'visible'});
@@ -461,6 +457,9 @@ try{
   await page.locator('[data-entity-context="characters-detail"]')
    .getByRole('button',{name:/Torna ai personaggi/}).click();
   await page.locator('[data-entity-context="characters-detail"]').waitFor({state:'detached'});
+  await page.locator('.aruba-session-characters-host').waitFor({state:'detached'});
+  await sessionRail.getByRole('button',{name:'Schede',exact:true}).click();
+  await page.locator('.aruba-session-characters-host').waitFor({state:'visible'});
   await sessionRail.getByRole('button',{name:'Schede',exact:true}).click();
   await page.locator('.aruba-session-characters-host').waitFor({state:'detached'});
 
