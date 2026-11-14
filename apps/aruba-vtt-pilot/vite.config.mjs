@@ -5,11 +5,33 @@ import {fileURLToPath} from 'node:url';
 import {resolve,dirname} from 'node:path';
 import {maskArubaTrashRow,maskArubaSessionNotesTrashHeader,maskArubaTrashItemPreview} from './src/ArubaSafeNotesTransforms.mjs';
 const root=dirname(fileURLToPath(import.meta.url));
+// Isolate the original TopBar's legacy services in the actual Aruba pilot.
+// The visual component is unchanged; unsupported actions remain fail-closed.
+const originalTopbarSource='/src/app/layout/TopBar.tsx';
+const originalTopbarAdapter=resolve(root,'src/ArubaOriginalTopBarAdapter.tsx');
+const legacyTopbarImports=new Set([
+ '../auth/AuthContext','../notifications/NotificationsContext',
+ '../campaigns/CampaignContext','../../services/supabase/charactersService',
+ '/utils/supabase/info',
+]);
 export default defineConfig({
   root,
   // Keep the ORIGINAL 8-step HSC wizard source unmodified; only replace its
   // Supabase-dependent image picker until Aruba image storage is available.
   plugins:[{
+    name:'aruba-original-topbar-production-isolation',
+    enforce:'pre',
+    resolveId(id,importer){
+      if(importer?.endsWith(originalTopbarSource)&&legacyTopbarImports.has(id))return originalTopbarAdapter;
+      return null;
+    },
+    transform(code,id){
+      if(!id.endsWith(originalTopbarSource))return null;
+      const original='const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;';
+      if(!code.includes(original))throw Error('Original TopBar server contract changed');
+      return code.replace(original,\"const SERVER_BASE = '/vtt';\");
+    },
+  },{
     name:'aruba-legacy-image-safety',
     enforce:'pre',
     async resolveId(id,importer){

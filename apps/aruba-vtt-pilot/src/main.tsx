@@ -15,6 +15,8 @@ import {ArubaCampaignPlayerRows} from './ArubaCampaignPlayerRows';
 import {ArubaAssignedCharacterPanel} from './ArubaAssignedCharacterPanel';
 import {GmSectionSidebar} from '../../../src/app/layout/GmSectionSidebar';
 import {LeftSidebar} from '../../../src/app/layout/LeftSidebar';
+import {TopBar} from '../../../src/app/layout/TopBar';
+import {ArubaTopBarQaIdentity} from './ArubaOriginalTopBarAdapter';
 import type {Campaign as OriginalCampaign} from '../../../src/app/campaigns/campaignTypes';
 import {HouseIcon,UsersThreeIcon,ScrollIcon,GitBranchIcon,PlayIcon,FileTextIcon,IdentificationBadgeIcon,GhostIcon,LightbulbIcon,BookmarkSimpleIcon,MapTrifoldIcon,ImageIcon,SwordIcon} from '@phosphor-icons/react';
 
@@ -46,6 +48,7 @@ const gmMenu=[
 const menu=[...leftMenu,...gmMenu];
 function App(){
  const [status,setStatus]=useState<Status>({state:'loading'});
+ const [topbarNotice,setTopbarNotice]=useState<string|null>(null);
  const [section,setSection]=useState<Section>('home');
  const [sessionPanel,setSessionPanel]=useState<'notes'|'characters'|null>(null);
  const [sessionCharacterRequest,setSessionCharacterRequest]=useState<SessionEntityOpenRequest|null>(null);
@@ -153,12 +156,16 @@ function App(){
    onGoToCampaigns={()=>{setSection('campaigns');setSessionPanel(null);closeSessionCharacter();setEntityDetail(null);}}
    onSelectCampaign={campaign=>openCampaign(campaign.id)}/>
   <div className="main-area">
-   <header className="topbar">
-    <div><span className="crumb">HOLLOWGATE / </span>{menu.find(m=>m.id===section)?.label}{activeCampaign&&section!=='home'&&<span className="campaign-context"> / {activeCampaign.name}</span>}</div>
-    <div className="profile"><span className="avatar">{user.displayName.slice(0,1).toUpperCase()}</span>
-     <span className="profile-name">{user.displayName}</span>
-     <button type="button" className="logout" onClick={()=>void logout()} disabled={closing}>Esci</button></div>
-   </header>
+   <ArubaTopBarQaIdentity user={{id:user.id,email:user.email,displayName:user.displayName,role:user.role}}>
+    <TopBar activeSection={section} sessionWorkspaceActive={false}
+     onLogout={()=>{if(!closing)void logout();}}
+     onOpenSettings={()=>setTopbarNotice('Le impostazioni complete saranno disponibili dopo la migrazione dei servizi Aruba.')}
+     onReportBug={()=>setTopbarNotice('La segnalazione bug non è ancora collegata al servizio Aruba.')}/>
+   </ArubaTopBarQaIdentity>
+   {topbarNotice&&<div role="alert" className="aruba-topbar-notice">
+    <span>{topbarNotice}</span>
+    <button type="button" onClick={()=>setTopbarNotice(null)}>Chiudi</button>
+   </div>}
    <div className="main-workspace-row">
    <main className="content">
     {section==='home'&&<>

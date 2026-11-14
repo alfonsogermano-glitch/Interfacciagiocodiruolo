@@ -319,3 +319,13 @@
 .workspace[data-dashboard-palette="noir"] .main-workspace-row>.content{
  max-width:none;margin:0;background:var(--dash-bg);
 }
+
+/* Original TopBar is mounted in the real Aruba workspace, above both rails. */
+.workspace[data-dashboard-palette="noir"] .main-area>header{
+ flex-shrink:0;z-index:20;position:relative;min-height:56px;
+ background:var(--dash-panel);border-bottom:1px solid var(--dash-border-soft);
+}
+.aruba-topbar-notice{display:flex;justify-content:space-between;align-items:center;
+ gap:16px;padding:9px 18px;background:var(--dash-surface);color:var(--dash-text);
+ border-bottom:1px solid var(--dash-border);font-size:13px}
+.aruba-topbar-notice button{color:var(--dash-accent-2);background:transparent;border:0}
