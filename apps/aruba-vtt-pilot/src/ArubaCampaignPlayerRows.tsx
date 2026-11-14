@@ -61,14 +61,13 @@ export function ArubaCampaignPlayerRows({campaignId,ownerId,revision,availabilit
    availabilityEnabled?listCharacterAvailability(fetch,campaignId):Promise.resolve(new Map()),
    assignmentsEnabled?listCharacterAssignments(fetch,campaignId):Promise.resolve(new Map()),
   ]).then(([roster,pgs,flags,links])=>{
-   if(active){
-    setMembers(roster);setCharacters(pgs);setAvailability(flags);setAssignments(links);
-    // Malformed assignment lists must fail closed instead of showing cards
-    // under an invented player or silently reverting to GM.
-    composeOwnedCampaignPlayerRows(roster,pgs,ownerId,links);
-    for(const charId of links.keys())
-     if(flags.get(charId)!==true)throw Error('Assegnazione a personaggio non disponibile');
-   }
+   if(!active)return;
+   // Validate the complete server snapshot BEFORE publishing any portion of it
+   // to React. A rejected assignment must not leave a partially trusted roster.
+   composeOwnedCampaignPlayerRows(roster,pgs,ownerId,links);
+   for(const charId of links.keys())
+    if(flags.get(charId)!==true)throw Error('Assegnazione a personaggio non disponibile');
+   setMembers(roster);setCharacters(pgs);setAvailability(flags);setAssignments(links);
   }).catch(reason=>{
    if(active)setError(reason instanceof Error?reason.message:'Partecipanti non disponibili');
   }).finally(()=>{if(active)setBusy(false);});
