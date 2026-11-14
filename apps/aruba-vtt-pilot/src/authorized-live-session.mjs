@@ -5,7 +5,9 @@ const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function createAuthorizedLiveSession({bootstrap,campaign,origin,WebSocketImpl,PeerConnectionImpl,iceServers,onStatus,onSnapshot}){
  if(!bootstrap||bootstrap.gameSessionEnabled!==true||!UUID.test(bootstrap.id??'')||
     !campaign||!UUID.test(campaign.id??'')||!UUID.test(campaign.ownerId??'')||
-    !Array.isArray(bootstrap.campaigns)||!bootstrap.campaigns.some(item=>item.id===campaign.id))
+    !Array.isArray(bootstrap.campaignMemberships)||
+    !bootstrap.campaignMemberships.some(item=>item.campaignId===campaign.id&&
+      item.userId===bootstrap.id&&item.role===(campaign.ownerId===bootstrap.id?'gm':'player')))
   throw new Error('Aruba live session not authorized');
  // The GM is the sole authoritative host. Players require a verified membership
  // in the authenticated bootstrap; the signaling gateway rechecks membership.
