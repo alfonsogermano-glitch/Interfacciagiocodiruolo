@@ -216,3 +216,30 @@ test('a losing overlapping command blocks the winner from receiving unprovable a
  assert.deepEqual(x.sent,[]);
  x.close();
 });
+
+test('rejects malformed or noncanonical baselines before recording a request',()=>{
+ const x=setup();
+ for(const acceptedAfter of ['not-a-date','2026-11-13T21:00:00Z',
+  '2026-11-13T22:00:00.000+01:00','2026-02-30T21:00:00.000Z',
+  '2026-11-13T21:00:00.000Zsuffix']){
+  assert.equal(x.register(req1,acceptedAfter),false,acceptedAfter);
+ }
+ assert.equal(x.correlator.pendingCount,0);
+ assert.equal(x.register(req1,t0),true);
+ x.close();
+});
+test('noncanonical settled publication cannot consume pending correlation',()=>{
+ const x=setup({prove:()=>true});
+ assert.equal(x.register(req1),true);
+ for(const publishedAt of ['invalid','2026-11-13T21:00:00Z',
+  '2026-11-13T22:00:00.000+01:00','2026-02-30T21:00:00.000Z']){
+  assert.equal(x.correlator.settled({campaignId:campaign,chapterId:'chapter',
+   publishedAt,state:state(publishedAt,10)}),false);
+ }
+ assert.equal(x.handle.revision,0);
+ assert.equal(x.correlator.pendingCount,1);
+ x.notify(t1,10);
+ assert.equal(x.handle.revision,1);
+ assert.equal(x.tracker.pendingCount,1);
+ x.close();
+});

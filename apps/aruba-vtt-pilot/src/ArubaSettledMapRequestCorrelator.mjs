@@ -16,6 +16,11 @@ import {subscribeCommittedMapPublication} from '../../../src/app/components/sess
 
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const safeRevision=n=>Number.isSafeInteger(n)&&n>=0;
+// Lexical ordering is chronological only for canonical UTC ISO timestamps.
+const canonicalTimestamp=value=>typeof value==='string'&&
+ /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)&&
+ Number.isFinite(Date.parse(value))&&
+ new Date(value).toISOString()===value;
 const MAX_PENDING=128;
 const isObject=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
 const copy=x=>structuredClone(x);
@@ -61,7 +66,7 @@ export function createArubaSettledMapRequestCorrelator({
   if(closed||suspended||processing||!UUID.test(userId)||
    userId===gmUserId||!UUID.test(peerId)||!UUID.test(requestId)||
    typeof chapterId!=='string'||!chapterId||
-   typeof acceptedAfter!=='string'||!acceptedAfter||
+   !canonicalTimestamp(acceptedAfter)||
    !validEffectKeys(effectKeys)||
    !member(userId)||pending.size>=MAX_PENDING||
    pending.has(key(userId,requestId)))return false;
@@ -78,7 +83,7 @@ export function createArubaSettledMapRequestCorrelator({
  }
  function settled({campaignId:scope,chapterId,publishedAt,state}={}){
   if(closed||suspended||processing||scope!==campaignId||
-   typeof chapterId!=='string'||typeof publishedAt!=='string'||
+   typeof chapterId!=='string'||!canonicalTimestamp(publishedAt)||
    !isObject(state)||state.campaignId!==campaignId||
    state.chapterId!==chapterId||state.publishedAt!==publishedAt)return false;
   if(latest!==null&&publishedAt<=latest)return false;
