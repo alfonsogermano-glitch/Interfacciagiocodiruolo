@@ -14,7 +14,7 @@ test('GM publishes revisioned snapshots, players accept newer revisions only',()
  assert.equal(player.publish({tokens:[]}),false);
  assert.equal(received.length,1);assert.equal(received[0].revision,1);
  assert.equal(gm.publish({tokens:[{id:'t1',x:5}]}),true);
- assert.equal(player.receive({payload:sent[1].data}),true);
+ assert.equal(player.receive({peerId:campaignId,payload:sent[1].data}),true);
  assert.equal(player.getSnapshot().state.tokens[0].x,5);
 });
 test('GM responds to refresh requests only from valid peers and players cannot inject snapshots',()=>{
@@ -27,10 +27,17 @@ test('GM responds to refresh requests only from valid peers and players cannot i
 });
 test('cross-campaign and malformed state are rejected without changing player state',()=>{
  const player=createGameStateReplicator({campaignId,role:'player',send:()=>true});
- assert.equal(player.receive({payload:{kind:'snapshot',campaignId:'different',revision:1,state:{}}}),false);
- assert.equal(player.receive({payload:{kind:'snapshot',campaignId,revision:1,state:[]}}),false);
- assert.equal(player.receive({payload:{kind:'snapshot',campaignId,revision:1,state:{valid:true}}}),true);
- assert.equal(player.receive({payload:{kind:'snapshot',campaignId,revision:0,state:{valid:false}}}),false);
+ assert.equal(player.receive({peerId:campaignId,payload:{kind:'snapshot',campaignId:'different',revision:1,state:{}}}),false);
+ assert.equal(player.receive({peerId:campaignId,payload:{kind:'snapshot',campaignId,revision:1,state:[]}}),false);
+ assert.equal(player.receive({peerId:campaignId,payload:{kind:'snapshot',campaignId,revision:1,state:{valid:true}}}),true);
+ assert.equal(player.receive({peerId:campaignId,payload:{kind:'snapshot',campaignId,revision:0,state:{valid:false}}}),false);
  assert.equal(player.getSnapshot().state.valid,true);
  player.close();assert.equal(player.requestSnapshot(),false);assert.equal(player.getSnapshot(),null);
+});
+
+test('player rejects snapshot from another peer even with a matching campaign envelope',()=>{
+ const player=createGameStateReplicator({campaignId,role:'player',send:()=>true});
+ assert.equal(player.receive({peerId,payload:{kind:'snapshot',campaignId,revision:1,state:{scene:'spoofed'}}}),false);
+ assert.equal(player.getSnapshot(),null);
+ assert.equal(player.receive({peerId:campaignId,payload:{kind:'snapshot',campaignId,revision:1,state:{scene:'real'}}}),true);
 });

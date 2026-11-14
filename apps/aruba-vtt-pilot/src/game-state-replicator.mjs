@@ -28,7 +28,8 @@ export function createGameStateReplicator({campaignId,role,send,onSnapshot=()=>{
    if(payload.kind!=='request-snapshot'||!UUID.test(peerId??'')||!state)return false;
    return send({kind:'snapshot',campaignId,revision,state:copy(state)},peerId)!==false;
   }
-  if(payload.kind!=='snapshot'||!Number.isSafeInteger(payload.revision)||payload.revision<=revision||payload.revision<1)return false;
+  // Player transport identifies its single GM channel by campaignId, never by a player UUID.
+  if(peerId!==campaignId||payload.kind!=='snapshot'||!Number.isSafeInteger(payload.revision)||payload.revision<=revision||payload.revision<1)return false;
   let next;try{next=copy(payload.state);}catch{return false;}
   revision=payload.revision;state=next;onSnapshot({revision,state:copy(state)});return true;
  }
