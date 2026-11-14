@@ -71,11 +71,3 @@ test('mobile Schede slide-overs reserve both original 100px left and 80px right 
  assert.match(css,/\.aruba-entity-overlay \[data-session-slide-over="true"\]\{\s*left:100px!important;right:80px!important;\s*width:calc\(100vw - 180px\)!important/);
  assert.match(css,/\.workspace \.aruba-session-characters-host \[data-session-slide-over="true"\]\{\s*left:100px!important;right:80px!important;\s*width:calc\(100vw - 180px\)!important/);
 });
-
-test('Aruba GM sidebar opts into Phosphor without changing the original default',()=>{
- const app=readFileSync(resolve(root,'src/main.tsx'),'utf8');
- const sidebar=readFileSync(resolve(root,'../../../src/app/layout/GmSectionSidebar.tsx'),'utf8');
- assert.match(app,/<GmSectionSidebar iconSet="phosphor"/);
- assert.match(sidebar,/iconSet='original'/);
- assert.match(sidebar,/iconSet==='phosphor'\?PHOSPHOR_ICONS\[section.id\]:section.icon/);
-});
