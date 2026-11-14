@@ -339,6 +339,9 @@ try{
   await page.locator('[data-entity-context="characters-detail"]').waitFor({state:'detached'});
   // Diagnose ambiguous assignment controls without masking a duplicated card.
   const release=player.locator(assignedCard).getByRole('combobox',{name:'Assegna Mara di prova a un giocatore'});
+  // The roster is intentionally unmounted while the original detail is open;
+  // wait for its authoritative server snapshot after closing the overlay.
+  await player.locator(assignedCard).waitFor({state:'visible'});
   const cardCount=await page.locator(assignedCard).count();
   if(cardCount!==1){
    const origins=await page.locator(assignedCard).evaluateAll(nodes=>nodes.map(node=>({
