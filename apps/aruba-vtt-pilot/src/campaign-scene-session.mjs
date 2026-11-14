@@ -18,7 +18,7 @@ export function createCampaignSceneSession({origin,campaignId,sceneId,role,WebSo
  coordinator=createLiveSceneCoordinator({role,sceneId,liveSession:live,onScene});
  return {
   dispatch(action){return !closed&&coordinator.dispatch(action);},
-  loadOriginal(publication,sourceCampaignId){return !closed&&coordinator.loadOriginal(publication,sourceCampaignId);},
+  loadOriginal(publication){return !closed&&coordinator.loadOriginal(publication,campaignId);},
   publishInitial(){return !closed&&coordinator.publishInitial();},
   getScene(){return closed?null:coordinator.getScene();},
   requestSnapshot(){return !closed&&live.requestSnapshot();},

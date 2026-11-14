@@ -99,10 +99,19 @@ test('closed scene session ignores late transport status and snapshots',async()=
 test('scene session exposes original publication only through GM role and refuses closed sessions',()=>{
  const host=createCampaignSceneSession({origin:'https://staging.hollowgate.quest',campaignId,sceneId,role:'host',WebSocketImpl:Socket,PeerConnectionImpl:Peer});
  const publication={campaignId,sceneId,mapTokens:[{id:tokenId,name:'Scout',x:1,y:2,hiddenFromPlayers:true}]};
- assert.equal(host.loadOriginal(publication,campaignId),true);
+ assert.equal(host.loadOriginal(publication),true);
  assert.equal(host.getScene().tokens[0].name,'Scout');
- host.close();assert.equal(host.loadOriginal(publication,campaignId),false);
+ host.close();assert.equal(host.loadOriginal(publication),false);
  const player=createCampaignSceneSession({origin:'https://staging.hollowgate.quest',campaignId,sceneId,role:'player',WebSocketImpl:Socket,PeerConnectionImpl:Peer});
- assert.equal(player.loadOriginal(publication,campaignId),false);
+ assert.equal(player.loadOriginal(publication),false);
  player.close();
+});
+
+test('GM transport binds original publication to its authorized campaign, not caller input',()=>{
+ const host=createCampaignSceneSession({origin:'https://staging.hollowgate.quest',campaignId,sceneId,role:'host',WebSocketImpl:Socket,PeerConnectionImpl:Peer});
+ const other='42345678-1234-4123-8123-123456789abc';
+ const publication={campaignId:other,sceneId,mapTokens:[]};
+ assert.throws(()=>host.loadOriginal(publication,other),/unavailable/);
+ assert.deepEqual(host.getScene().tokens,[]);
+ host.close();
 });
