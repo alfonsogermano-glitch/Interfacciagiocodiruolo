@@ -25,5 +25,14 @@ export function createChapterService({pool}){
   if(result.rows.length!==1)throw new Error('Chapter write failed');
   return {chapter};
  }
- return {list,save};
+ async function remove(ownerId,campaignId,chapterId){
+  requireId(chapterId,'Capitolo');
+  await assertOwner(ownerId,campaignId);
+  const result=await pool.query(
+   'DELETE FROM hollowgate_vtt.chapter_documents WHERE id=$1 AND campaign_id=$2 RETURNING id',
+   [chapterId,campaignId]);
+  if(result.rows.length!==1)throw new ChapterRejected('Capitolo non trovato',404);
+  return {deleted:true};
+ }
+ return {list,save,remove};
 }
