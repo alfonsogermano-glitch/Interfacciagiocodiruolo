@@ -31,13 +31,16 @@ export function subscribeCommittedMapPublication(
     group = new Set();
     listeners.set(campaignId, group);
   }
-  group.add(listener);
+  // Each registration owns a distinct wrapper: unsubscribing one of two
+  // identical callbacks must not revoke the other subscription.
+  const registered: Listener = value => listener(value);
+  group.add(registered);
   let subscribed = true;
   return () => {
     if (!subscribed) return;
     subscribed = false;
     const current = listeners.get(campaignId);
-    current?.delete(listener);
+    current?.delete(registered);
     if (current?.size === 0) listeners.delete(campaignId);
   };
 }
@@ -72,9 +75,13 @@ export function subscribeFailedMapPublication(campaignId: string, listener: Fail
   if (!campaignId || typeof listener !== 'function') throw new TypeError('Campaign and listener required');
   const group = failureListeners.get(campaignId) ?? new Set<FailureListener>();
   failureListeners.set(campaignId, group);
-  group.add(listener);
+  const registered: FailureListener = value => listener(value);
+  group.add(registered);
+  let subscribed = true;
   return () => {
-    group.delete(listener);
+    if (!subscribed) return;
+    subscribed = false;
+    group.delete(registered);
     if (group.size === 0) failureListeners.delete(campaignId);
   };
 }
