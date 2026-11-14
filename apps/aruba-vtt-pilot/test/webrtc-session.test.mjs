@@ -297,3 +297,21 @@ test('late data channel from retired player peer is closed without replacing act
  assert.equal(active.sent.length,1);
  session.close();
 });
+
+test('late asynchronous negotiation rejection after signaling disconnect does not emit spurious failure',async()=>{
+ let rejectOffer;
+ class DeferredFailingPeer extends Peer{createOffer(){return new Promise((resolve,reject)=>{rejectOffer=reject;});}}
+ const statuses=[];
+ const session=createWebRtcSession({origin:'https://staging.hollowgate.quest/',campaignId,role:'host',WebSocketImpl:Socket,PeerConnectionImpl:DeferredFailingPeer,onStatus:e=>statuses.push(e)});
+ Socket.last.message({type:'ready',role:'host',peerId});
+ Socket.last.message({type:'peer-joined',peerId,campaignId});
+ await tick();
+ assert.equal(typeof rejectOffer,'function');
+ Socket.last.close();
+ rejectOffer(new Error('negotiation rejected after socket closed'));
+ await tick();await tick();
+ assert.equal(statuses.some(e=>e.state==='signaling-disconnected'),true);
+ assert.equal(statuses.some(e=>e.state==='negotiation-failed'),false);
+ assert.equal(session.send({scene:1},peerId),false);
+ session.close();
+});

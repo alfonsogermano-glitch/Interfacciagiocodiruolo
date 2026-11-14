@@ -83,6 +83,7 @@ export function createWebRtcSession({origin,campaignId,role,WebSocketImpl,PeerCo
  const signal=createSignalingClient({origin,campaignId,role,WebSocketImpl,
   onEvent:data=>{if(data.type==='ready')notify('ready',data.peerId);
    else pending=pending.then(()=>onSignal(data)).catch(()=>{
+    if(stopped||signalingDisconnected)return;
     notify('negotiation-failed',data.peerId);
     const id=role==='host'?data.peerId:campaignId;
     if(UUID.test(id??''))drop(id);
