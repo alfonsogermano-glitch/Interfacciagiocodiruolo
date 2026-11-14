@@ -4,7 +4,9 @@ import pg from 'pg';
 const {Pool}=pg;
 const pool=new Pool({connectionString:process.env.DATABASE_URL,connectionTimeoutMillis:5000,max:1});
 const checks=[
- ['runtime role identity',`SELECT current_user='hollowgate_api_runtime' AS ready`],
+ ['staging database identity',`SELECT current_database()='hollowgate_auth_test' AS ready`],
+ ['runtime login identity',`SELECT current_user='hollowgate_auth_app' AS ready`],
+ ['runtime role membership',`SELECT pg_has_role(current_user,'hollowgate_api_runtime','MEMBER') AS ready`],
  ['campaigns table',`SELECT to_regclass('hollowgate_vtt.campaigns') IS NOT NULL AS ready`],
  ['chapter documents table',`SELECT to_regclass('hollowgate_vtt.chapter_documents') IS NOT NULL AS ready`],
  ['chapter table SELECT revoked',`SELECT NOT has_table_privilege(current_user,'hollowgate_vtt.chapter_documents','SELECT') AS ready`],
