@@ -463,9 +463,11 @@ try{
   await sessionRail.getByRole('button',{name:'Schede',exact:true}).click();
   await page.locator('.aruba-session-characters-host').waitFor({state:'detached'});
 
-  for(const label of ['Chat','Incontri','Combatti'])
-   assert.equal(await sessionRail.getByRole('button',{name:label,exact:true}).isDisabled(),true,
-    label+' must not pretend to be migrated');
+  assert.equal(await sessionRail.getByRole('button',{name:'Chat',exact:true}).isDisabled(),true,
+   'Chat must not pretend to be migrated');
+  for(const label of ['Incontri','Combatti'])
+   assert.equal(await sessionRail.getByRole('button',{name:label,exact:true}).count(),0,
+    label+' must be hidden without a server-authorized GM membership');
   assert.equal(await sessionRail.getByRole('button',{name:'Dadi',exact:true}).isEnabled(),true);
   await sessionRail.getByRole('button',{name:'Dadi',exact:true}).click();
   await page.getByRole('button',{name:'Aggiungi d20'}).waitFor();
