@@ -412,6 +412,10 @@ try{
   for(const label of ['Chat','Incontri','Combatti'])
    assert.equal(await sessionRail.getByRole('button',{name:label,exact:true}).isDisabled(),true,
     label+' must not pretend to be migrated');
+  assert.equal(await sessionRail.getByRole('button',{name:'Dadi',exact:true}).isEnabled(),true);
+  await sessionRail.getByRole('button',{name:'Dadi',exact:true}).click();
+  await page.getByRole('button',{name:'Aggiungi d20'}).waitFor();
+  await page.getByRole('button',{name:'Chiudi selezione dadi'}).click();
   assert.equal(await sessionRail.getByRole('button',{name:'Schede',exact:true}).isEnabled(),true);
   await sessionRail.getByRole('button',{name:'Schede',exact:true}).click();
   await page.getByRole('button',{name:'Apri scheda di Mara di prova'}).waitFor();
