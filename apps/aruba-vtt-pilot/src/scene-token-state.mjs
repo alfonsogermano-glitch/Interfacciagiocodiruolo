@@ -1,3 +1,4 @@
+import {projectSceneForPlayer} from './player-scene-projection.mjs';
 /** Pure scene/token state operations for the GM-owned WebRTC snapshot stream.
  * No legacy persistence, browser globals or player-authored state mutations. */
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -46,8 +47,8 @@ export function createGmSceneController({liveSession,sceneId}){
   throw new TypeError('Invalid GM live session');
  let state=createEmptyScene(sceneId);
  return {
-  dispatch(action){const next=applySceneTokenAction(state,action);if(liveSession.publish(next)!==true)return false;state=next;return true;},
+  dispatch(action){const next=applySceneTokenAction(state,action);if(liveSession.publish(projectSceneForPlayer(next))!==true)return false;state=next;return true;},
   getState(){return structuredClone(state);},
-  publishInitial(){return liveSession.publish(state)===true;},
+  publishInitial(){return liveSession.publish(projectSceneForPlayer(state))===true;},
  };
 }

@@ -32,3 +32,14 @@ test('GM scene controller commits state only when the live transport accepts pub
  assert.equal(gm.dispatch({type:'add',token}),true);
  assert.equal(gm.getState().tokens.length,1);assert.equal(published[1].tokens[0].name,'Explorer');
 });
+
+test('default GM controller never publishes invisible tokens to players',()=>{
+ const published=[];const liveSession={publish:state=>{published.push(state);return true;},getSnapshot:()=>null};
+ const gm=createGmSceneController({liveSession,sceneId});
+ const secret={...token,id:tokenId,visible:false};
+ assert.equal(gm.dispatch({type:'add',token:secret}),true);
+ assert.equal(gm.getState().tokens.length,1);
+ assert.deepEqual(published[0].tokens,[]);
+ assert.equal(gm.dispatch({type:'visibility',tokenId,visible:true}),true);
+ assert.equal(published[1].tokens[0].id,tokenId);
+});
