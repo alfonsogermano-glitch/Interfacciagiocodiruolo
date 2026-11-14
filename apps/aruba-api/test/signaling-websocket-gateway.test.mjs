@@ -170,7 +170,7 @@ test('idle revoked player is disconnected and GM informed without any signaling 
   peer.once('close',value=>{code=value;});
   s.revoked.add(playerToken);
   const result=await left;
-  assert.deepEqual(result,{type:'peer-left',peerId:membership.peerId});
+  assert.deepEqual(result,{type:'peer-left',peerId:membership.peerId,campaignId:campaign});
   await waitFor(()=>code!==null);
   assert.equal(code,1008);
  }finally{await s.close();}

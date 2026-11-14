@@ -76,7 +76,7 @@ export function createSignalingWebSocketGateway({server,origin,identity,revalida
    room.players.clear();
   }else if(room.players.get(client.peerId)===client){
    room.players.delete(client.peerId);
-   send(room.host.ws,{type:'peer-left',peerId:client.peerId});
+   send(room.host.ws,{type:'peer-left',peerId:client.peerId,campaignId:client.campaignId});
   }
  }
  async function message(client,raw,binary){
