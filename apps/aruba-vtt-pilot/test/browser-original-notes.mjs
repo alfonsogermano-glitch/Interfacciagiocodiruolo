@@ -441,6 +441,14 @@ try{
   await page.locator('[data-entity-context="characters-detail"]')
    .getByRole('button',{name:/Torna ai personaggi/}).click();
   await page.locator('[data-entity-context="characters-detail"]').waitFor({state:'detached'});
+  // Detail close deselects Schede; exercise explicit open and close.
+  await page.locator('.aruba-session-characters-host').waitFor({state:'detached'});
+  await sessionRail.getByRole('button',{name:'Schede',exact:true}).click();
+  await page.locator('.aruba-session-characters-host').waitFor({state:'visible'});
+  // Detail close deselects Schede; exercise explicit open and close.
+  await page.locator('.aruba-session-characters-host').waitFor({state:'detached'});
+  await sessionRail.getByRole('button',{name:'Schede',exact:true}).click();
+  await page.locator('.aruba-session-characters-host').waitFor({state:'visible'});
   await sessionRail.getByRole('button',{name:'Schede',exact:true}).click();
   await page.locator('.aruba-session-characters-host').waitFor({state:'detached'});
   // Closing the detail remounts the server-backed roster. Ensure that its
