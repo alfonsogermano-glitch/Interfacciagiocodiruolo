@@ -141,6 +141,30 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{http_code}' -u tester:hiccup http://127.0.0.1:18080/)" = 200
           test "$(curl -s -o /dev/null -w '%{http_code}' -u tester:wrong http://127.0.0.1:18080/)" = 401
 
+  chapter-postgres-test:
+    # Executes real chapter SQL with disposable PostgreSQL; never touches Aruba.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start disposable PostgreSQL 17
+        run: |
+          docker run -d --name hg-chapter-real-pg -e POSTGRES_PASSWORD=ci-only-password -e POSTGRES_DB=hollowgate_test postgres:17
+          for i in $(seq 1 30); do
+            if docker exec hg-chapter-real-pg psql -U postgres -d hollowgate_test -Atqc 'SELECT 1' 2>/dev/null | grep -qx 1; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - name: Apply existing Aruba schema and chapter migration
+        run: |
+          set -euo pipefail
+          for f in deploy/aruba/sql/[0-9][0-9][0-9]_*.sql; do
+            docker exec -i hg-chapter-real-pg psql -X -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < "$f" > /dev/null
+          done
+          docker exec -i hg-chapter-real-pg psql -X -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/chapters/001_chapter_documents.sql
+      - name: Verify real SQL authorization, cross-campaign isolation and rollback
+        run: |
+          docker exec -i hg-chapter-real-pg psql -X -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/chapters/test_chapter_documents.sql
+
   notes-db-http-test:
     # Real PostgreSQL + real API handlers, on a disposable isolated runner.
     # No network calls to production; session identity alone uses CI cookies.
