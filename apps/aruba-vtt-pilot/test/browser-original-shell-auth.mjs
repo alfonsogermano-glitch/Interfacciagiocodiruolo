@@ -78,10 +78,7 @@ async function run(mode){
   assert.equal(await page.locator('[data-campaign-overview-state="selected"]').getAttribute('data-campaign-id'),campaigns[0].id);
   assert.equal(await page.locator('[data-campaign-session-state="not-connected"]').count(),1);
   if(mode==='characters'){
-   await page.getByRole('button',{name:'Personaggi',exact:true}).click();
-   await page.locator('[data-original-characters-state="no-campaign"]').waitFor();
-   assert.equal(requests.some(r=>r.path==='/vtt/characters'),false);
-   await page.getByRole('button',{name:'Campagna Aruba del GM'}).first().click();
+   // Campaign remains selected while navigating the original sidebar.
    await page.getByRole('button',{name:'Personaggi',exact:true}).click();
    await page.locator('[data-original-characters-state="ready"]').waitFor();
    assert.equal(await page.getByText('Investigatore Aruba').count(),1);
