@@ -144,3 +144,26 @@ test('wrong-scene high revision cannot block the next valid GM scene snapshot',a
  assert.equal(session.getScene()?.tokens[0].name,'Current scene');
  session.close();
 });
+
+test('new player connection receives latest GM scene without exposing hidden tokens',async()=>{
+ const host=createCampaignSceneSession({origin:'https://staging.hollowgate.quest',campaignId,sceneId,role:'host',WebSocketImpl:Socket,PeerConnectionImpl:Peer});
+ const secret={id:tokenId,name:'Hidden',x:1,y:1,size:1,visible:false};
+ const visibleId='42345678-1234-4123-8123-123456789abc';
+ assert.equal(host.dispatch({type:'add',token:secret}),true);
+ assert.equal(host.dispatch({type:'add',token:{...secret,id:visibleId,name:'Visible',visible:true}}),true);
+ Socket.last.message({type:'ready',role:'host',peerId:tokenId});
+ Socket.last.message({type:'peer-joined',peerId:tokenId,campaignId});
+ for(let i=0;i<30&&!Socket.last.sent.some(x=>x.kind==='offer');i++)await tick();
+ const channel=Peer.last.channel;channel.onopen();
+ assert.equal(channel.sent.length,1);
+ assert.deepEqual(channel.sent[0].payload.state.tokens.map(t=>t.name),['Visible']);
+ channel.readyState='closed';channel.onclose();
+ assert.equal(host.getScene().tokens.length,2);
+ Socket.last.message({type:'peer-joined',peerId:tokenId,campaignId});
+ for(let i=0;i<30&&Socket.last.sent.filter(x=>x.kind==='offer').length<2;i++)await tick();
+ assert.equal(Socket.last.sent.filter(x=>x.kind==='offer').length,2);
+ const replacement=Peer.last.channel;replacement.onopen();
+ assert.deepEqual(replacement.sent[0].payload.state.tokens.map(t=>t.name),['Visible']);
+ assert.equal(host.getScene().tokens.find(t=>t.id===tokenId).visible,false);
+ host.close();
+});
