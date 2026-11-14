@@ -16,7 +16,9 @@ export function projectOriginalSceneTokens(publication,campaignId){
   state=applySceneTokenAction(state,{type:'add',token:{
    id:source.id,name:source.name,x:source.x,y:source.y,
    size:source.size??1,
-   visible:source.visible!==false&&source.hiddenFromPlayers!==true,
+   // Match original sessionMapVisibility.publicMapTokens: catalog-level
+   // hiddenFromPlayers does not hide an already placed map token.
+   visible:source.visible!==false,
   }});
  }
  return state;

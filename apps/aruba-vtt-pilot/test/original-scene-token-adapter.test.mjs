@@ -12,7 +12,7 @@ test('original active scene projects visible and GM-hidden tokens without mutati
  const before=structuredClone(publication);
  const projected=projectOriginalSceneTokens(publication,campaign);
  assert.equal(projected.sceneId,scene);
- assert.deepEqual(projected.tokens.map(x=>x.visible),[true,false]);
+ assert.deepEqual(projected.tokens.map(x=>x.visible),[true,true]);
  assert.deepEqual(publication,before);
 });
 test('adapter fails closed for missing scene, wrong campaign, invalid token and duplicates',()=>{
@@ -45,4 +45,13 @@ test('original publication token projection strips private visual metadata befor
  }]};
  const result=projectOriginalSceneTokens(original,campaign);
  assert.deepEqual(result.tokens,[{id:token,name:'Guardiano',x:10,y:12,size:2,visible:true}]);
+});
+
+test('original SessionWorkspace visibility uses placed-token visible, not catalog hiddenFromPlayers',()=>{
+ const publication={campaignId:campaign,sceneId:scene,mapTokens:[
+  {id:token,name:'Visible on map',x:1,y:2,visible:true,hiddenFromPlayers:true},
+  {id:campaign,name:'Hidden on map',x:3,y:4,visible:false,hiddenFromPlayers:false},
+ ]};
+ const result=projectOriginalSceneTokens(publication,campaign);
+ assert.deepEqual(result.tokens.map(t=>t.visible),[true,false]);
 });
