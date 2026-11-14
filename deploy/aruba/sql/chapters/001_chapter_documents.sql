@@ -1,5 +1,5 @@
 -- Aruba-only chapter documents. Apply only after the campaign migration.
--- This migration is additive and does not touch Supabase or Vercel.
+-- This migration is additive and does not modify external services.
 BEGIN;
 CREATE TABLE IF NOT EXISTS hollowgate_vtt.chapter_documents (
  id uuid NOT NULL,
