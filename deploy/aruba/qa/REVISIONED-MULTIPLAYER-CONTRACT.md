@@ -363,3 +363,12 @@ same-batch conflict detection: another request touching the same field must
 not inherit an unprovable attribution. These checks are isolated regression
 coverage, **not** evidence that SessionWorkspace is already wired to the
 revisioned GM stream or that end-to-end multiplayer is complete.
+
+## Request replay ledger lifetime
+
+The opt-in GM request-result adapter retains up to 4096 request IDs per
+instance, and refuses new IDs when full rather than evicting old IDs. An
+evicted ID could otherwise be replayed and execute its original GM handler
+again. The authenticated connection owner must close and recreate this
+adapter on a new verified connection generation; this is a conservative
+capacity barrier, not an automatic reconnect implementation.

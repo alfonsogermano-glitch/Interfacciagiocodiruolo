@@ -143,3 +143,43 @@ test('synchronous dispatch exceptions give rejected outcomes; transport failure 
  assert.deepEqual(errors,['GM handler failure','peer disconnected']);
  results.close();
 });
+
+test('request IDs remain replay-protected after hundreds of later commands',()=>{
+ const calls=[],sent=[];
+ const results=createArubaVerifiedMapRequestResults({
+  campaignId:campaign,gmUserId:gm,isVerifiedMember:()=>true,
+  dispatch:{receiveFromPlayer:({requestId})=>{calls.push(requestId);return true;}},
+  sendVerifiedResult:frame=>sent.push(frame),
+ });
+ const frame=id=>({campaignId:campaign,fromUserId:user,event:'map_token_action',
+  payload:{requestId:id,chapterId:'chapter-a'}});
+ assert.equal(results.receiveFromPlayer(frame(req)),true);
+ for(let i=0;i<256;i++){
+  const id=`20000000-0000-4000-8000-${String(i).padStart(12,'0')}`;
+  assert.equal(results.receiveFromPlayer(frame(id)),true);
+ }
+ assert.equal(results.receiveFromPlayer(frame(req)),true);
+ assert.equal(calls.length,257);
+ assert.equal(sent.length,258);
+ results.close();
+});
+test('full replay ledger refuses new commands without evicting accepted IDs',()=>{
+ let calls=0;
+ const results=createArubaVerifiedMapRequestResults({
+  campaignId:campaign,gmUserId:gm,isVerifiedMember:()=>true,
+  dispatch:{receiveFromPlayer:()=>{calls++;return true;}},
+  sendVerifiedResult:()=>{},
+ });
+ const frame=id=>({campaignId:campaign,fromUserId:user,event:'map_token_action',
+  payload:{requestId:id,chapterId:'chapter-a'}});
+ const first='30000000-0000-4000-8000-000000000000';
+ for(let i=0;i<4096;i++){
+  const id=`30000000-0000-4000-8000-${String(i).padStart(12,'0')}`;
+  assert.equal(results.receiveFromPlayer(frame(id)),true);
+ }
+ assert.equal(results.recentRequests,4096);
+ assert.equal(results.receiveFromPlayer(frame('30000000-0000-4000-8000-000000004096')),false);
+ assert.equal(results.receiveFromPlayer(frame(first)),true);
+ assert.equal(calls,4096);
+ results.close();
+});

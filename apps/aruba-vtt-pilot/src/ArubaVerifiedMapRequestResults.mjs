@@ -12,7 +12,9 @@
  * This is NOT mounted on the legacy SessionWorkspace or public VTT.
  */
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const MAX_RECENT=128;
+// Keep a bounded, connection-lifetime replay ledger. Never evict an ID while
+// its channel is alive: eviction would allow an old command to execute twice.
+const MAX_RECENT=4096;
 const MAX_PAYLOAD_BYTES=60000;
 const utf8=new TextEncoder();
 function bounded(value){
@@ -61,6 +63,9 @@ export function createArubaVerifiedMapRequestResults({
    if(stored.fingerprint!==fingerprint)return false;
    result=stored.result;
   }else{
+   // Once the ledger is full, fail closed until the connection owner rotates
+   // this instance. Silently evicting old IDs would re-enable replay.
+   if(recent.size>=MAX_RECENT)return false;
    handling=true;
    let accepted=false;
    try{
@@ -76,7 +81,6 @@ export function createArubaVerifiedMapRequestResults({
     outcome:accepted?'dispatched':'rejected',
    });
    recent.set(key,{fingerprint,result});
-   if(recent.size>MAX_RECENT)recent.delete(recent.keys().next().value);
   }
   // Revocation or member change during GM callback cancels the response.
   try{
