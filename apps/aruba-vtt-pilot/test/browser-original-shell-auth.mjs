@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 const base='http://127.0.0.1:4175/vtt/original-shell-auth.html';
 const owner='00000000-0000-4000-8000-000000000002';
 const outsider='00000000-0000-4000-8000-000000000009';
+const secondCampaign={id:'00000000-0000-4000-8000-000000000004',ownerId:owner,name:'Seconda campagna Aruba',description:'',ruleset:'hsc',createdAt:'2026-11-13T00:00:00Z'};
 const characters=[{id:'00000000-0000-4000-8000-000000000010',campaignId:'00000000-0000-4000-8000-000000000001',ownerId:owner,name:'Investigatore Aruba',status:'draft',sheetData:{}}];
 const campaigns=[
  {id:'00000000-0000-4000-8000-000000000001',ownerId:owner,name:'Campagna Aruba del GM',description:'',ruleset:'hsc',createdAt:'2026-11-13T00:00:00Z'},
@@ -22,7 +23,7 @@ async function run(mode){
    backend:'aruba-staging',
    user:{id:owner,email:'qa@example.org',displayName:'GM Aruba',role:'standard'},
    capabilities:{
-    campaigns:{read:allowed,write:allowed},characters:{read:mode==='characters',write:mode==='characters'},
+    campaigns:{read:allowed,write:allowed},characters:{read:['characters','character-error','switch-campaign'].includes(mode),write:['characters','character-error','switch-campaign'].includes(mode)},
     gameSession:false,
    },
   }});
@@ -30,10 +31,13 @@ async function run(mode){
  await page.route('**/vtt/campaigns',async route=>{
   requests.push({path:'/vtt/campaigns',method:route.request().method()});
   if(mode==='expired-campaign-session')return route.fulfill({status:401,json:{error:'Session expired'}});
-  await route.fulfill({json:{campaigns:mode==='empty'?[]:campaigns}});
+  await route.fulfill({json:{campaigns:mode==='empty'?[]:mode==='switch-campaign'?[campaigns[0],secondCampaign]:campaigns}});
  });
  await page.route('**/vtt/characters?*',async route=>{
   requests.push({path:'/vtt/characters',method:route.request().method()});
+  if(mode==='character-error')return route.fulfill({status:503,json:{error:'Unavailable'}});
+  if(mode==='switch-campaign'&&route.request().url().includes(secondCampaign.id))
+   return route.fulfill({json:{characters:[{...characters[0],id:'00000000-0000-4000-8000-000000000011',campaignId:secondCampaign.id,name:'Personaggio seconda campagna'}]}});
   await route.fulfill({json:{characters}});
  });
  await page.goto(base,{waitUntil:'domcontentloaded'});
@@ -67,7 +71,7 @@ async function run(mode){
    assert.equal(await page.locator('[data-campaign-overview-state="list"]').getByRole('button').count(),0);
   }else{
   await page.getByRole('button',{name:'Campagna Aruba del GM'}).waitFor();
-  if(mode==='characters'){
+  if(['characters','character-error','switch-campaign'].includes(mode)){
    await page.getByRole('button',{name:'Personaggi',exact:true}).click();
    await page.locator('[data-original-characters-state="no-campaign"]').waitFor();
    assert.equal(requests.some(r=>r.path==='/vtt/characters'),false);
@@ -82,12 +86,24 @@ async function run(mode){
   assert.equal(await page.locator('[data-active-section]').getAttribute('data-active-section'),'campaign-home');
   assert.equal(await page.locator('[data-campaign-overview-state="selected"]').getAttribute('data-campaign-id'),campaigns[0].id);
   assert.equal(await page.locator('[data-campaign-session-state="not-connected"]').count(),1);
-  if(mode==='characters'){
-   // Campaign remains selected while navigating the original sidebar.
+  if(['characters','character-error','switch-campaign'].includes(mode)){
    await page.getByRole('button',{name:'Personaggi',exact:true}).click();
-   await page.locator('[data-original-characters-state="ready"]').waitFor();
-   assert.equal(await page.getByText('Investigatore Aruba').count(),1);
+   if(mode==='character-error'){
+    await page.locator('[data-original-characters-state="error"]').waitFor();
+    assert.equal(await page.getByText('Investigatore Aruba').count(),0);
+   }else{
+    await page.locator('[data-original-characters-state="ready"]').waitFor();
+    assert.equal(await page.getByText('Investigatore Aruba').count(),1);
+   }
    assert.equal(requests.filter(r=>r.path==='/vtt/characters').length,1);
+   if(mode==='switch-campaign'){
+    await page.getByRole('button',{name:'Seconda campagna Aruba'}).click();
+    await page.getByRole('button',{name:'Personaggi',exact:true}).click();
+    await page.locator('[data-original-characters-state="ready"]').waitFor();
+    assert.equal(await page.getByText('Personaggio seconda campagna').count(),1);
+    assert.equal(await page.getByText('Investigatore Aruba').count(),0);
+    assert.equal(requests.filter(r=>r.path==='/vtt/characters').length,2);
+   }
   }
   await page.getByRole('button',{name:'Panoramica',exact:true}).click();
   assert.equal(await page.locator('[data-active-section]').getAttribute('data-active-section'),'home');
@@ -114,6 +130,8 @@ try{
  await run('ready');
  await run('empty');
  await run('characters');
+ await run('character-error');
+ await run('switch-campaign');
  await run('expired-campaign-session');
  assert.deepEqual(errors,[]);
  console.log('Original AppShell with authenticated Aruba campaign API: scope, capability and 401 cases PASS.');
