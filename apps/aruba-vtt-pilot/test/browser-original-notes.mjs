@@ -344,6 +344,16 @@ try{
   assert.equal(await release.count(),1,
    'The assigned character must expose exactly one assignment selector');
   await release.selectOption('');
+  // A server-confirmed release must update both the authoritative fixture and
+  // the React grouping; report the exact mismatch rather than timing out.
+  await page.waitForFunction(id=>{
+   const card=document.querySelector('[data-campaign-member-id="'+id+'"] [data-campaign-character-id]');
+   return card!==null;
+  },user,{timeout:5000}).catch(async()=>{
+   const snapshot=await page.locator('.aruba-campaign-player-rows').innerText();
+   throw new Error('Released character did not return to GM; serverAssignment='+
+    String(store.characterAssignments.get(characterId)??'none')+'; UI='+snapshot);
+  });
   await gm.locator(assignedCard).waitFor();
   assert.equal(await player.locator(assignedCard).count(),0);
   assert.equal(await page.locator(assignedCard).count(),1);
