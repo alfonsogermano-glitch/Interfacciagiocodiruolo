@@ -232,7 +232,7 @@ function App(){
        <ArubaNotesRoute key={activeCampaign.id} campaignId={activeCampaign.id}
         userId={user.id} ownerId={activeCampaign.ownerId}
         onClose={()=>setSessionPanel(null)}/>}
-      {sessionPanel==='characters'&&user.charactersEnabled&&
+      {sessionPanel==='characters'&&!sessionCharacterRequest&&user.charactersEnabled&&
        <ArubaSessionCharactersPanel key={activeCampaign.id} campaignId={activeCampaign.id}
         ownerId={user.id} initialSelection={sessionCharacterRequest}
         onClose={()=>{setSessionPanel(null);closeSessionCharacter();}}

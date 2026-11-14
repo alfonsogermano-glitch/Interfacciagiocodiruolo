@@ -49,3 +49,10 @@ test('Aruba character detail uses the Phosphor icon set without changing origina
  assert.match(detail,/<EntityDetailView/);
  assert.match(detail,/<EntityDetailRail/);
 });
+
+test('session character selection unmounts the list while original detail owns the right panel',()=>{
+ const app=readFileSync(resolve(root,'src/main.tsx'),'utf8');
+ assert.match(app,/sessionPanel==='characters'&&!sessionCharacterRequest&&user\.charactersEnabled&&\s*<ArubaSessionCharactersPanel/);
+ assert.match(app,/section==='session'&&activeCampaign&&sessionCharacterRequest&&user\.charactersEnabled&&\s*<ArubaCharacterDetailPanel/);
+ assert.match(app,/onClose=\{\(\)=>closeSessionCharacter\(\)\}/);
+});
