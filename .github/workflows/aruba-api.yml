@@ -16,6 +16,8 @@ on:
       - 'apps/aruba-api/**'
       - 'apps/aruba-auth-web/**'
       - 'apps/aruba-vtt-pilot/**'
+      - 'src/app/components/session/**'
+      - 'src/types/activeScene.ts'
       - 'deploy/aruba/**'
       - '.github/workflows/aruba-api.yml'
 
