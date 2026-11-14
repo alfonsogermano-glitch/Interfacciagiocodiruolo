@@ -9,6 +9,7 @@ import { createPasswordResetService } from './password-reset-service.mjs';
 import { createTransactionalMailer } from './transactional-mail.mjs';
 import {createSignupService} from './signup-service.mjs';
 import {createCampaignService} from './campaign-service.mjs';
+import {createChapterService} from './chapter-service.mjs';
 import {createCampaignRosterService} from './campaign-roster-service.mjs';
 import {createCharacterService} from './character-service.mjs';
 import {createCharacterAvailabilityService} from './character-availability-service.mjs';
@@ -89,6 +90,13 @@ async function main() {
     if (campaignsFlag && campaignsFlag !== 'false' && campaignsFlag !== 'true')
       throw new Error('Unsupported AUTH_VTT_CAMPAIGNS_ENABLED value');
     const campaigns=campaignsFlag==='true'?createCampaignService({pool}):null;
+    const chaptersFlag=process.env.AUTH_VTT_CHAPTERS_ENABLED;
+    if(chaptersFlag&&!['true','false'].includes(chaptersFlag))
+      throw new Error('Unsupported AUTH_VTT_CHAPTERS_ENABLED value');
+    if(chaptersFlag==='true'&&!campaigns)
+      throw new Error('Chapters require staging campaigns');
+    // Requires chapter_documents SQL and an explicit staging opt-in.
+    const chapters=chaptersFlag==='true'?createChapterService({pool}):null;
     const rosterFlag=process.env.AUTH_VTT_CAMPAIGN_ROSTER_ENABLED;
     if(rosterFlag&&!['true','false'].includes(rosterFlag))
       throw new Error('Unsupported AUTH_VTT_CAMPAIGN_ROSTER_ENABLED value');
@@ -198,7 +206,9 @@ async function main() {
         identity:signalingIdentity,sharedSecret:secret,urls,
       });
     }
-    authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession, passwordReset,signupService,campaigns,characters,entityNotes,campaignNotes,campaignFolders,notesPanelEnabled,campaignRoster,characterAvailability,characterAssignments,playerCharacters,characterPortraits,turnCredentials,gameSessionBootstrap});
+    authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession, passwordReset,signupService,campaigns,chapters,characters,entityNotes,campaignNotes,campaignFolders,notesPanelEnabled,campaignRoster,characterAvailability,characterAssignments,playerCharacters,characterPortraits,turnCredentials,gameSessionBootstrap});
+  } else if (process.env.AUTH_VTT_CHAPTERS_ENABLED === 'true') {
+    throw new Error('Chapters require dedicated auth staging');
   } else if (process.env.AUTH_VTT_TURN_ENABLED === 'true') {
     throw new Error('TURN requires dedicated auth staging');
   } else if (process.env.AUTH_VTT_SIGNALING_ENABLED === 'true') {

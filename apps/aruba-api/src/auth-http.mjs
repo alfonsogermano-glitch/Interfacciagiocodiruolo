@@ -6,6 +6,7 @@ import { LoginRejected } from './login-service.mjs';
 import { PasswordActionRejected } from './password-reset-service.mjs';
 import { SignupRejected } from './signup-service.mjs';
 import { CampaignRejected } from './campaign-service.mjs';
+import { ChapterRejected } from './chapter-contract.mjs';
 
 const COOKIE = '__Host-hg_session';
 const COOKIE_PATTERN = /^[A-Za-z0-9_-]{43}$/;
@@ -64,7 +65,7 @@ class HttpProblem extends Error {
   }
 }
 
-export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, passwordReset = null, signupService = null, campaigns = null,characters = null,entityNotes = null,campaignNotes = null,campaignFolders = null,notesPanelEnabled = false,campaignRoster = null,characterAvailability = null,characterAssignments = null,playerCharacters = null,characterPortraits = null, turnCredentials = null, gameSessionBootstrap = null }) {
+export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, passwordReset = null, signupService = null, campaigns = null,chapters = null,characters = null,entityNotes = null,campaignNotes = null,campaignFolders = null,notesPanelEnabled = false,campaignRoster = null,characterAvailability = null,characterAssignments = null,playerCharacters = null,characterPortraits = null, turnCredentials = null, gameSessionBootstrap = null }) {
   if(typeof notesPanelEnabled!=='boolean'||(notesPanelEnabled&&(!campaignNotes||!campaignFolders)))
     throw new TypeError('Original Notes panel requires both authenticated Notes and folders');
   const allowedOrigin = new URL(origin);
@@ -83,6 +84,8 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
   }
   if (campaigns !== null && (typeof campaigns.list !== 'function' || typeof campaigns.create !== 'function' || typeof campaigns.update !== 'function'))
     throw new TypeError('Invalid campaign service');
+  if(chapters!==null&&(!campaigns||['list','save','remove'].some(k=>typeof chapters[k]!=='function')))
+    throw new TypeError('Chapter endpoints require campaigns and a valid chapter service');
   if(characterPortraits!==null&&(!characters||typeof characterPortraits.save!=='function'||typeof characterPortraits.read!=='function'||typeof characterPortraits.readSource!=='function'||typeof characterPortraits.saveSource!=='function'))
     throw new TypeError('Portrait service requires characters');
   if(characterAvailability!==null&&(!characters||
@@ -170,6 +173,23 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         if (req.headers.origin !== origin) throw new HttpProblem(403,'Origine non consentita');
         const body=await readJson(req);
         return response(res,201,await campaigns.create(user.id,body));
+      }
+      // GM-owned chapter documents; disabled unless explicitly enabled in staging.
+      if(chapters&&/^\/vtt\/campaigns\/[^/]+\/chapters(?:\/[^/]+)?$/.test(req.url??'')){
+        const match=/^\/vtt\/campaigns\/([0-9a-f-]{36})\/chapters(?:\/([0-9a-f-]{36}))?$/i.exec(req.url);
+        if(!match)throw new HttpProblem(400,'Percorso capitoli non valido');
+        if(!['GET','PUT','DELETE'].includes(req.method))throw new HttpProblem(405,'Metodo non consentito');
+        if(req.method==='GET'&&match[2])throw new HttpProblem(405,'Metodo non consentito');
+        if(req.method==='DELETE'&&!match[2])throw new HttpProblem(405,'Metodo non consentito');
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.method==='GET')return response(res,200,await chapters.list(user.id,match[1]));
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        if(req.method==='DELETE')return response(res,200,await chapters.remove(user.id,match[1],match[2]));
+        if(match[2])throw new HttpProblem(405,'Metodo non consentito');
+        return response(res,200,await chapters.save(user.id,match[1],await readJson(req,100000)));
       }
       // Read-only roster. No membership changes or email addresses in the response.
       if(campaignRoster && req.method==='GET' &&
@@ -617,6 +637,7 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
       }
       return response(res, 404, { error: 'Not found' });
     } catch (error) {
+      if (error instanceof ChapterRejected) return response(res,error.status,{error:error.message});
       if (error instanceof CampaignRejected) {
         return response(res,error.status,{error:error.message});
       }
