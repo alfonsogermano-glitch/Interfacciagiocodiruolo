@@ -51,3 +51,11 @@ test('signaling forwards only the first valid ready handshake',()=>{
  assert.deepEqual(events,[{type:'ready',role:'host',peerId}]);
  client.close();
 });
+
+test('signaling send failure is contained and returns false without crashing the session',()=>{
+ const client=createSignalingClient({origin:'https://staging.hollowgate.quest/',campaignId,role:'host',WebSocketImpl:FakeSocket,onEvent:()=>{},onDisconnect:()=>{}});
+ FakeSocket.last.emit('message',{data:JSON.stringify({type:'ready',role:'host',peerId})});
+ FakeSocket.last.send=()=>{throw new Error('WebSocket transport failed');};
+ assert.equal(client.send('offer',{sdp:'offer'},peerId),false);
+ client.close();
+});

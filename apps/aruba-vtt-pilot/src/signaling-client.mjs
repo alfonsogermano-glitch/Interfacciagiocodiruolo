@@ -42,7 +42,7 @@ export function createSignalingClient({origin,campaignId,role,WebSocketImpl,onEv
    if(role==='player'&&targetPeerId!==undefined)return false;
    const data={type:'signal',kind,payload};
    if(role==='host')data.targetPeerId=targetPeerId;
-   ws.send(JSON.stringify(data));return true;
+   try{ws.send(JSON.stringify(data));return true;}catch{return false;}
   },
   close(){if(!closed){closed=true;ready=false;ws.close();}},
  };
