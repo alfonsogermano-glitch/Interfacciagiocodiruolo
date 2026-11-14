@@ -1,0 +1,522 @@
+name: Aruba API staging
+on:
+  push:
+    branches:
+      - feature/aruba-api-foundation
+    paths:
+      - 'apps/aruba-api/**'
+      - 'apps/aruba-auth-web/**'
+      - 'apps/aruba-vtt-pilot/**'
+      - 'src/app/components/session/**'
+      - 'src/types/activeScene.ts'
+      - 'deploy/aruba/**'
+      - '.github/workflows/aruba-api.yml'
+  pull_request:
+    paths:
+      - 'apps/aruba-api/**'
+      - 'apps/aruba-auth-web/**'
+      - 'apps/aruba-vtt-pilot/**'
+      - 'src/app/components/session/**'
+      - 'src/types/activeScene.ts'
+      - 'deploy/aruba/**'
+      - '.github/workflows/aruba-api.yml'
+
+jobs:
+  auth-web-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Check browser JavaScript syntax
+        run: |
+          node --check apps/aruba-auth-web/flow.mjs
+          node --check apps/aruba-auth-web/app.mjs
+      - name: Verify full-site migration audit inventory against original source
+        run: node deploy/aruba/qa/verify-full-parity-audit.mjs
+      - name: Verify incomplete original parity cannot pass release certification
+        run: |
+          # This check MUST keep failing until the source-driven contract has
+          # actual signed-off visual, behavioral and network evidence.
+          if node deploy/aruba/qa/verify-full-parity-audit.mjs --release > /tmp/hg-release-gate.log 2>&1; then
+            cat /tmp/hg-release-gate.log
+            echo "Unsafe: unfinished Hollowgate was marked release-ready" >&2
+            exit 1
+          fi
+          grep -q 'RELEASE EVIDENCE MISSING' /tmp/hg-release-gate.log
+          grep -q 'UNVERIFIED:' /tmp/hg-release-gate.log
+      - name: Verify original campaign/session rail and contextual navigation
+        run: node deploy/aruba/qa/verify-session-navigation-contract.mjs
+      - name: Test isolated auth browser flows
+        run: node --test apps/aruba-auth-web/test/*.test.mjs
+      - name: Test and build isolated Aruba React VTT lobby
+        working-directory: apps/aruba-vtt-pilot
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          npm test
+          npm run build
+          npm run test:original-folders
+          npm run test:original-campaign-notes
+          npm run test:original-session-notes
+          npm run test:notes-navigation
+          npm run test:original-shell
+          test -f ../../deploy/aruba/dist/vtt-original-shell-qa/original-shell.html
+          test -f ../../deploy/aruba/dist/vtt-original-shell-qa/original-shell-auth.html
+          test -f ../../deploy/aruba/dist/vtt-original-shell-qa/original-shell-map.html
+          if grep -R -i -l 'supabase\\.co' ../../deploy/aruba/dist/vtt-original-shell-qa; then
+            echo "Supabase backend detected in original AppShell QA build" >&2
+            exit 1
+          fi
+          test -f ../../deploy/aruba/dist/vtt-notes-navigation-preview/index.html
+          if grep -R -i -l 'supabase\\.co' ../../deploy/aruba/dist/vtt-notes-navigation-preview; then
+            echo "Legacy Supabase backend found in mounted original Notes preview" >&2
+            exit 1
+          fi
+          test -d ../../deploy/aruba/dist/vtt-original-session-notes-contract
+          if grep -R -i -l 'supabase\\.co' ../../deploy/aruba/dist/vtt-original-session-notes-contract; then
+            echo "Old Supabase endpoint found in original SessionNotesPanel bundle" >&2
+            exit 1
+          fi
+          test -d ../../deploy/aruba/dist/vtt-original-campaign-notes-contract
+          if grep -R -i -l 'supabase\\.co' ../../deploy/aruba/dist/vtt-original-campaign-notes-contract; then
+            echo "Legacy Supabase backend in original Campaign Notes contract" >&2
+            exit 1
+          fi
+          # Verify that the original 5-level folder hook compiles with Aruba
+          # transport but does not import the old Supabase endpoint.
+          test -d ../../deploy/aruba/dist/vtt-original-folder-contract
+          if grep -R -i -l 'supabase\\.co' ../../deploy/aruba/dist/vtt-original-folder-contract; then
+            echo "Legacy Supabase endpoint found in original folder hook adapter" >&2
+            exit 1
+          fi
+          # The regular pilot must not bundle the original Notes panel until
+          # the separately verified capability is enabled for real staging.
+          if grep -R --include='*.js' -l 'data-note-split-panel' ../../deploy/aruba/dist/vtt-pilot; then
+            echo "Original Notes panel unexpectedly present in default Aruba pilot" >&2
+            exit 1
+          fi
+          test -f ../../deploy/aruba/dist/vtt-pilot/index.html
+          # Ensure theme spacing variables survive Vite/Tailwind production build.
+          css_file="$(find ../../deploy/aruba/dist/vtt-pilot/assets -name '*.css' -print -quit)"
+          test -n "$css_file"
+          grep -Fq -- '--spacing:' "$css_file"
+          grep -Fq -- '.gap-4' "$css_file"
+          grep -Fq -- '.p-4' "$css_file"
+          if grep -R -i -l 'supabase\.co' ../../deploy/aruba/dist/vtt-pilot; then
+            echo "Unexpected legacy backend inside Aruba pilot bundle" >&2
+            exit 1
+          fi
+      - name: Validate Caddy staging configuration syntax
+        run: |
+          docker run --rm -v "$PWD/deploy/aruba/Caddyfile.staging:/etc/caddy/Caddyfile:ro" caddy:2.10.2-alpine \
+            caddy validate --config /etc/caddy/Caddyfile
+      - name: Validate password-gated Caddy trial syntax
+        run: |
+          mkdir -p "$RUNNER_TEMP/trial"
+          printf 'tester %s\n' '$2a$14$Zkx19XLiW6VYouLHR5NmfOFU0z2GTNmpkT/5qqR7hx4IjWJPDhjvG' > "$RUNNER_TEMP/trial/hash"
+          docker run --rm \
+            -v "$PWD/deploy/aruba/Caddyfile.auth-trial:/etc/caddy/Caddyfile:ro" \
+            -v "$RUNNER_TEMP/trial/hash:/run/secrets/auth_trial_hash:ro" \
+            caddy:2.10.2-alpine caddy validate --config /etc/caddy/Caddyfile
+      - name: Verify Caddy accepts the expected secret and rejects wrong credentials
+        run: |
+          cat > "$RUNNER_TEMP/trial/Caddyfile" <<'EOF'
+          :8080 {
+            basic_auth bcrypt {
+              import /run/secrets/auth_trial_hash
+            }
+            respond "private" 200
+          }
+          EOF
+          docker run -d --name hollowgate-basic-auth-ci -p 127.0.0.1:18080:8080 \
+            -v "$RUNNER_TEMP/trial/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            -v "$RUNNER_TEMP/trial/hash:/run/secrets/auth_trial_hash:ro" \
+            caddy:2.10.2-alpine
+          for i in $(seq 1 20); do
+            if [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18080/)" = 401 ]; then break; fi
+            sleep 1
+          done
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18080/)" = 401
+          test "$(curl -s -o /dev/null -w '%{http_code}' -u tester:hiccup http://127.0.0.1:18080/)" = 200
+          test "$(curl -s -o /dev/null -w '%{http_code}' -u tester:wrong http://127.0.0.1:18080/)" = 401
+
+  notes-db-http-test:
+    # Real PostgreSQL + real API handlers, on a disposable isolated runner.
+    # No network calls to production; session identity alone uses CI cookies.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Start disposable PostgreSQL 17
+        run: |
+          docker run -d --name hg-notes-real-pg -p 127.0.0.1:15432:5432 \
+            -e POSTGRES_PASSWORD=ci-only-password -e POSTGRES_DB=hollowgate_test postgres:17
+          for i in $(seq 1 30); do
+            if docker exec hg-notes-real-pg psql -U postgres -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='hollowgate_test'" 2>/dev/null | grep -qx 1; then
+              if docker exec hg-notes-real-pg psql -U postgres -d hollowgate_test -tAc "SELECT 1" 2>/dev/null | grep -qx 1; then exit 0; fi
+            fi
+            sleep 1
+          done
+          exit 1
+      - name: Apply actual Aruba migrations 001-025 (no test fixtures)
+        run: |
+          set -euo pipefail
+          for f in deploy/aruba/sql/[0-9][0-9][0-9]_*.sql; do
+            echo "Applying $f"
+            docker exec -i hg-notes-real-pg psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < "$f" > /dev/null
+          done
+      - name: Install API's PostgreSQL driver
+        working-directory: apps/aruba-api
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Exercise real SQL-backed API with owner/player cookie identities
+        working-directory: apps/aruba-api
+        run: node qa/notes-db-http.mjs
+
+  notes-browser-test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install isolated browser QA dependencies
+        working-directory: apps/aruba-vtt-pilot
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Install isolated signaling gateway dependency
+        working-directory: apps/aruba-api
+        run: npm install --ignore-scripts --no-audit --no-fund
+      - name: Verify two real browser WebRTC peers through local TLS signaling
+        working-directory: apps/aruba-vtt-pilot
+        run: node test/browser-webrtc-signaling.mjs
+      - name: Verify real WebRTC game DataChannel authorization and membership revocation
+        working-directory: apps/aruba-vtt-pilot
+        run: node test/browser-webrtc-game-router.mjs
+      - name: Verify revisioned source and player receiver over real Chromium WebRTC
+        working-directory: apps/aruba-vtt-pilot
+        run: node test/browser-revisioned-events.mjs
+      - name: Verify original map visibility with revisioned GM state over real Chromium WebRTC
+        working-directory: apps/aruba-vtt-pilot
+        run: node test/browser-original-map-revision.mjs
+      - name: Verify isolated relay-only Chromium WebRTC through real coturn
+        working-directory: apps/aruba-vtt-pilot
+        run: bash ../../deploy/aruba/turn/qa/verify-browser-relay.sh
+      - name: Compile real original Notes navigation for disposable browser
+        working-directory: apps/aruba-vtt-pilot
+        run: npm run test:notes-navigation
+      - name: Browser QA for original AppShell, left/right rails and topbar slot
+        working-directory: apps/aruba-vtt-pilot
+        run: |
+          npm run test:original-shell
+          npx vite preview --config vite.original-shell.config.mjs --host 127.0.0.1 --port 4175 --strictPort > /tmp/hg-shell-preview.log 2>&1 &
+          echo $! > /tmp/hg-shell-preview.pid
+          trap 'kill $(cat /tmp/hg-shell-preview.pid) 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:4175/vtt/original-shell.html >/dev/null; then break; fi
+            sleep 1
+          done
+          curl --silent --fail http://127.0.0.1:4175/vtt/original-shell.html >/dev/null
+          node test/browser-original-shell.mjs
+          node test/browser-original-shell-auth.mjs
+          node test/browser-original-shell-map.mjs
+      - name: Check real original Note panel in Chromium against in-memory API
+        working-directory: apps/aruba-vtt-pilot
+        run: |
+          npx vite preview --config vite.notes-navigation.config.mjs --host 127.0.0.1 --port 4173 --strictPort > /tmp/hollowgate-notes-preview.log 2>&1 &
+          echo $! > /tmp/hollowgate-notes-preview.pid
+          trap 'kill $(cat /tmp/hollowgate-notes-preview.pid) 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do
+            if curl --silent --fail http://127.0.0.1:4173/ >/dev/null; then break; fi
+            sleep 1
+          done
+          curl --silent --fail http://127.0.0.1:4173/ >/dev/null
+          node test/browser-original-notes.mjs
+          node test/browser-player-characters.mjs
+
+
+  api-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/aruba-api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm install --ignore-scripts --no-audit --no-fund
+      - run: npm test
+      - run: bash -n ../../deploy/aruba/scripts/test-auth-e2e.sh
+      - run: bash -n ../../deploy/aruba/scripts/test-password-reset-e2e.sh
+      - run: bash -n ../../deploy/aruba/scripts/test-signup-e2e.sh
+      - run: bash -n ../../deploy/aruba/scripts/prepare-auth-trial.sh
+      - run: sh -n ../../deploy/aruba/turn/start-turn.sh
+      - run: bash -n ../../deploy/aruba/turn/qa/verify-coturn-runtime.sh
+      - run: bash -n ../../deploy/aruba/turn/qa/verify-browser-relay.sh
+      - name: Test external TURN UDP and TLS probes against disposable local endpoints
+        run: node --test ../../deploy/aruba/turn/qa/test-external-turn-probe.mjs
+      - name: Verify isolated TURN Compose configuration (no deployment)
+        run: |
+          TURN_HOSTNAME=turn.example.org TURN_PUBLIC_IPV4=203.0.113.10 \
+            docker compose -f ../../deploy/aruba/turn/compose.turn.staging.yaml --profile manual-turn config --quiet
+      - run: python3 -m unittest discover -s ../../deploy/aruba/scripts/tests -p "test_*.py"
+      - name: Real isolated coturn runtime smoke test
+        run: bash ../../deploy/aruba/turn/qa/verify-coturn-runtime.sh
+      - run: docker build -t hollowgate-aruba-api:test .
+      - name: Runtime smoke test with a rootless UID and a 0600 database secret
+        run: |
+          mkdir -p "$RUNNER_TEMP/hg-secret"
+          printf '%s' 'example-not-a-real-secret' > "$RUNNER_TEMP/hg-secret/password"
+          chmod 600 "$RUNNER_TEMP/hg-secret/password"
+          sudo chown 1001:1001 "$RUNNER_TEMP/hg-secret/password"
+          docker run -d --name hollowgate-aruba-smoke \
+            --user 1001:1001 \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            -e PGHOST=127.0.0.1 -e PGUSER=hollowgate \
+            -e PGDATABASE=hollowgate \
+            -e POSTGRES_PASSWORD_FILE=/run/secrets/postgres_password \
+            -v "$RUNNER_TEMP/hg-secret/password:/run/secrets/postgres_password:ro" \
+            -p 127.0.0.1:13002:3000 hollowgate-aruba-api:test
+          for i in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:13002/health; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs hollowgate-aruba-smoke
+          exit 1
+
+  auth-schema-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start isolated PostgreSQL 17
+        run: |
+          docker run -d --name hg-auth-test -e POSTGRES_PASSWORD=ci-only-password -e POSTGRES_DB=hollowgate_test postgres:17
+          for i in $(seq 1 30); do
+            if docker exec hg-auth-test psql -U postgres -d hollowgate_test -Atqc 'SELECT 1' 2>/dev/null | grep -qx 1; then
+              sleep 3
+              if docker exec hg-auth-test psql -U postgres -d hollowgate_test -Atqc 'SELECT 1' 2>/dev/null | grep -qx 1; then exit 0; fi
+            fi
+            sleep 1
+          done
+          exit 1
+      - name: Apply schema to disposable database
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/001_auth_foundation.sql
+      - name: Verify auth schema isolation and migration-safe identity constraints
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_auth_foundation.sql
+      - name: Install session schema
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/002_auth_sessions.sql
+      - name: Verify session constraints and revocation
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_auth_sessions.sql
+      - name: Install password-action schema
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/003_password_actions.sql
+      - name: Verify reset tokens are expiring, single-use, and private
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_password_actions.sql
+      - name: Install abuse-control counters
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/004_auth_rate_limits.sql
+      - name: Verify rate-limit table is private and increments atomically
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_auth_rate_limits.sql
+      - name: Verify PostgreSQL session lookup and revocation
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_session_repository.sql
+      - name: Install restricted API role
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/005_auth_runtime_role.sql
+      - name: Verify restricted role permits login and denies privilege escalation
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_auth_runtime_role.sql
+      - name: Install staging-only password-reset grants
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/006_password_reset_runtime.sql
+      - name: Verify reset permissions cannot change users or roles
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_password_reset_runtime.sql
+
+      - name: Install local signup verification functions
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/007_signup_verification.sql
+      - name: Verify restricted signup and one-time email confirmation
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_signup_verification.sql
+      - name: Apply staging-native VTT campaign schema
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/008_vtt_campaigns.sql
+      - name: Apply campaign update migration
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/009_vtt_campaign_updates.sql
+      - name: Install character draft storage
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/010_vtt_character_drafts.sql
+      - name: Install full original character sheet storage
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/011_vtt_character_sheets.sql
+      - name: Install owner-only character archive
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/012_vtt_character_archive.sql
+      - name: Install isolated original entity notes storage
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/013_vtt_entity_notes.sql
+      - name: Verify entity notes ownership and archive
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_entity_notes.sql
+      - name: Install note subtabs schema 014 in disposable PostgreSQL
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/014_vtt_note_subtabs.sql
+      - name: Verify note parent/child isolation and ordering
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_note_subtabs.sql
+      - name: Install isolated campaign notes schema 015 (CI only)
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/015_vtt_campaign_notes.sql
+      - name: Verify campaign notes isolation, two levels, TipTap and archive
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_campaign_notes.sql
+      - name: Install campaign membership and privacy-scoped note readers (CI only)
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/016_vtt_campaign_members.sql
+      - name: Verify per-campaign GM/player access and private note isolation
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_campaign_members.sql
+      - name: Install campaign Note folders 017 (disposable CI only)
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/017_vtt_campaign_note_folders.sql
+      - name: Verify folder depth, GM/shared scope and isolated ownership
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_campaign_note_folders.sql
+      - name: Install campaign Note assignment and GM scope 018 (CI only)
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/018_vtt_campaign_note_folders_link.sql
+      - name: Verify Note folder isolation and GM notes invisible to players
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_campaign_note_folders_link.sql
+      - name: Install safe folder presentation and archive 019 (disposable CI only)
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/019_vtt_campaign_note_folder_actions.sql
+      - name: Verify folder icons, ordering, cascade/noncascade and preserved TipTap documents
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_campaign_note_folder_actions.sql
+      - name: Install original Campaign Notes UI-author metadata 020 (CI only)
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/020_vtt_campaign_note_ui_read.sql
+      - name: Verify GM private Note access, owner metadata and revocation
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_campaign_note_ui_read.sql
+      - name: Install role- and author-scoped Campaign Note writes 021 (CI only)
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/021_vtt_campaign_note_member_writes.sql
+      - name: Verify owner, GM, author, rival, cross-campaign and revoked write isolation
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_campaign_note_member_writes.sql
+      - name: Install inherited NoteSubTabs reader rights 022 (disposable CI only)
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/022_vtt_campaign_note_subtab_permissions.sql
+      - name: Verify parent-author visibility for GM-added subtabs and privacy
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_campaign_note_subtab_permissions.sql
+      - name: Install original Note title icons and persisted subtab order 023 (CI only)
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/023_vtt_campaign_note_title_order.sql
+      - name: Verify per-note title icons and original NoteSubTabs ordering authorization
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_campaign_note_title_order.sql
+      - name: Install atomic campaign Note GM/shared section transition 024 (CI only)
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/024_vtt_campaign_note_scope_transitions.sql
+      - name: Verify GM-only section moves and no accidental private Note disclosure
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_campaign_note_scope_transitions.sql
+      - name: Install conservative Campaign Notes trash restoration 025 (CI only)
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/025_vtt_campaign_note_trash_restore.sql
+      - name: Verify owner-only trash recovery and private TipTap restoration
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_campaign_note_trash_restore.sql
+      - name: Install owner-scoped roster, availability and player assignment schemas (CI only)
+        run: |
+          for f in deploy/aruba/sql/026_vtt_campaign_roster.sql deploy/aruba/sql/027_vtt_character_availability.sql deploy/aruba/sql/028_vtt_character_player_assignments.sql; do
+            docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < "$f"
+          done
+      - name: Verify owner-scoped player assignments and revocation
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_character_player_assignments.sql
+      - name: Install player-only, read-only assigned character sheets 029
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/029_vtt_player_character_read.sql
+      - name: Verify player-only sheet access and revocation
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_player_character_read.sql
+      - name: Install restricted joined-player campaign list 030
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/030_vtt_joined_player_campaigns.sql
+      - name: Verify joined-player campaign scope and revocation
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_joined_player_campaigns.sql
+      - name: Install isolated portrait binary storage 031
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/031_vtt_character_portraits.sql
+      - name: Verify portrait owner/player permissions and revocation
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_character_portraits.sql
+      - name: Install owner-only original portrait source 032
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/032_vtt_character_portrait_sources.sql
+      - name: Verify GM-only original source isolation
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_character_portrait_sources.sql
+      - name: Verify character draft isolation
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_character_drafts.sql
+      - name: Verify owner isolation and restricted campaign privileges
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_campaigns.sql
+
+  backup-restore-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start disposable PostgreSQL 17
+        run: |
+          docker run -d --name hg-postgres-backup-ci \
+            -e POSTGRES_USER=hollowgate \
+            -e POSTGRES_PASSWORD=ci-only-password \
+            -e POSTGRES_DB=hollowgate postgres:17
+          for i in $(seq 1 30); do
+            if docker exec hg-postgres-backup-ci psql -U hollowgate -d hollowgate -Atqc 'SELECT 1' 2>/dev/null | grep -qx 1; then
+              sleep 3
+              if docker exec hg-postgres-backup-ci psql -U hollowgate -d hollowgate -Atqc 'SELECT 1' 2>/dev/null | grep -qx 1; then exit 0; fi
+            fi
+            sleep 1
+          done
+          exit 1
+      - name: Seed disposable data
+        run: |
+          docker exec hg-postgres-backup-ci psql -v ON_ERROR_STOP=1 -U hollowgate -d hollowgate -c \
+            "CREATE TABLE backup_canary(id int primary key, label text not null); INSERT INTO backup_canary VALUES (1,'restored');"
+      - name: Run backup and test-restore script
+        env:
+          HG_POSTGRES_CONTAINER: hg-postgres-backup-ci
+          HG_BACKUP_DIR: ${{ runner.temp }}/verified-backup
+        run: |
+          bash deploy/aruba/scripts/backup-and-verify.sh
+          test "$(find "$HG_BACKUP_DIR" -maxdepth 1 -name '*.dump' | wc -l)" -eq 1
+      - name: Verify the original database remains untouched
+        run: |
+          docker exec hg-postgres-backup-ci psql -v ON_ERROR_STOP=1 -U hollowgate -d hollowgate -Atqc \
+            "SELECT label FROM backup_canary WHERE id=1" | grep -Fx restored
+          test "$(docker exec hg-postgres-backup-ci psql -U hollowgate -d hollowgate -Atqc \
+            "SELECT count(*) FROM pg_database WHERE datname LIKE 'hg_restore_check_%'")" -eq 0

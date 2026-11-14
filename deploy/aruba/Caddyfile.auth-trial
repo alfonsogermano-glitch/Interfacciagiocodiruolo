@@ -1,0 +1,76 @@
+{
+  email admin@hollowgate.quest
+}
+
+staging.hollowgate.quest {
+  encode zstd gzip
+
+  # Public diagnostics are unchanged. Only selected trial routes are enabled.
+  @diagnostics path /health /ready
+  handle @diagnostics {
+    reverse_proxy aruba-auth-staging:3000
+  }
+
+  # Every sensitive page and /auth/* API request is protected with HTTP Basic
+  # Auth over HTTPS, using a bcrypt hash mounted as a Docker secret.
+  @trialProtected path /login /signup /forgot-password /account/password /account/verify-email /auth-ui/* /auth/* /vtt/* /vtt
+  basic_auth @trialProtected bcrypt "Hollowgate Aruba - Private Trial" {
+    import /run/secrets/auth_trial_hash
+  }
+
+  @trialPages path /login /signup /forgot-password /account/password /account/verify-email
+  handle @trialPages {
+    root * /srv/auth-preview
+    rewrite * /index.trial.html
+    file_server
+  }
+
+  @trialAssets path /auth-ui/app.mjs /auth-ui/flow.mjs /auth-ui/styles.css
+  handle @trialAssets {
+    root * /srv/auth-preview
+    uri strip_prefix /auth-ui
+    file_server
+  }
+
+  # API paths MUST take precedence over the SPA fallback. Caddy's path
+  # matcher ignores the query string, so GET /vtt/characters?campaignId=...
+  # also matches /vtt/characters. The /vtt/characters/* route covers
+  # PUT/DELETE for individual sheets. Auth/ownership remain enforced by API.
+  @vttDataAPI path /vtt/bootstrap /vtt/campaigns /vtt/campaigns/* /vtt/characters /vtt/characters/*
+  handle @vttDataAPI {
+    reverse_proxy aruba-auth-staging:3000
+  }
+
+  handle /vtt {
+    redir /vtt/ 308
+  }
+  handle_path /vtt/* {
+    root * /srv/vtt-pilot
+    try_files {path} /index.html
+    file_server
+  }
+
+  # Exact method/path allowlist; no generic proxy for the rest of the API.
+  @trialAPI {
+    method GET POST
+    path /auth/login /auth/logout /auth/me /auth/signup /auth/verify-email /auth/password/request /auth/password/redeem
+  }
+  handle @trialAPI {
+    reverse_proxy aruba-auth-staging:3000
+  }
+
+  handle {
+    respond "Not Found" 404
+  }
+
+  header {
+    X-Content-Type-Options nosniff
+    Referrer-Policy no-referrer
+    X-Frame-Options DENY
+    X-Robots-Tag "noindex, nofollow, noarchive"
+    Cache-Control "no-store"
+    Content-Security-Policy "default-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; font-src 'self'; upgrade-insecure-requests"
+    Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    -Server
+  }
+}

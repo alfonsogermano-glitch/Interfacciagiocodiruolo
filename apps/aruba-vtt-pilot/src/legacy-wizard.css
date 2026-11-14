@@ -1,0 +1,66 @@
+/* Original widgets require Tailwind theme variables, especially --spacing.
+   Without theme their padding, height, width and gaps collapse. Do not
+   import preflight: the pilot has its own site-wide CSS reset. */
+@import "tailwindcss/theme";
+@import "tailwindcss/utilities" source(none);
+@source "../../../src/app/components/gm/CharacterCreationWizard.tsx";
+/* Specific palette variables of the already-approved black/gold Hollowgate. */
+.aruba-original-wizard{
+ --dash-bg:#0e1214;--dash-panel:#181c1c;--dash-surface:#30291d;
+ --dash-surface-2:#24251f;--dash-input:#111716;--dash-border:#6e5839;
+ --dash-border-soft:#473b29;--dash-text:#dbd0ba;--dash-text-strong:#f5e8d1;
+ --dash-muted:#aaa398;--dash-accent:#b99863;--dash-accent-2:#e0bc7e;
+ position:fixed;inset:0;z-index:90;
+}
+.aruba-image-pending{position:fixed;inset:0;z-index:150;display:grid;place-items:center;background:#000b;padding:24px}
+.aruba-image-pending section{width:min(100%,460px);padding:28px;border:1px solid #94724b;border-radius:12px;background:#191c18;color:#e5d3b1}
+.aruba-image-pending p{line-height:1.6}.aruba-image-pending button{border:1px solid #ad8b56;border-radius:7px;background:#b4955c;color:#13140f;padding:10px 15px}
+.aruba-wizard-error{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:180;width:min(90vw,590px);background:#48282d;color:#ffe6e3;border:1px solid #ce8a85;border-radius:9px;padding:12px 20px}
+
+@source "../../../src/app/components/CompleteCharacterSheet.tsx";
+@source "../../../src/app/components/FrischezzaTracker.tsx";
+@source "../../../src/app/components/FoliaSpiral.tsx";
+@source "../../../src/app/components/ConditionsPanel.tsx";
+@source "../../../src/app/components/TurbePanel.tsx";
+@source "../../../src/app/components/EquipmentPanel.tsx";
+.aruba-character-sheet{
+ --dash-bg:#0e1214;--dash-panel:#181c1c;--dash-surface:#30291d;--dash-surface-2:#24251f;
+ --dash-border:#6e5839;--dash-border-soft:#473b29;--dash-text:#dbd0ba;
+ --dash-text-strong:#f5e8d1;--dash-accent:#b99863;--dash-accent-2:#e0bc7e;
+ --dash-danger-border:#805452;--dash-danger-bg:#34201f;
+}
+.aruba-character-sheet [class*="bg-[#1a1a1a]"],.aruba-character-sheet [class*="bg-[#1a0a0a]"],
+.aruba-character-sheet [class*="bg-[#2a0a0a]"],.aruba-character-sheet [class*="bg-[#2a1a1a]"]{background:#1b1d19!important}
+.aruba-character-sheet [class*="border-[#4a0e0e]"],.aruba-character-sheet [class*="border-[#6b1515]"]{border-color:#826b45!important}
+.aruba-character-sheet [class*="text-[#8b1e1e]"],.aruba-character-sheet [class*="text-[#8b7355]"]{color:#bda67f!important}
+.aruba-character-sheet [class*="text-[#e8d4b8]"]{color:#f1dfbf!important}
+.aruba-tooltip-root{position:relative;display:inline-flex;align-items:center}
+.aruba-tooltip-bubble{position:absolute;left:50%;bottom:calc(100% + 10px);transform:translateX(-50%);z-index:70;white-space:nowrap;padding:5px 8px;background:#26251e;border:1px solid #8d7045;border-radius:5px;color:#f1e2c1;font-size:11px}
+.aruba-character-sheet-status{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:8px 0;color:#bbaa88;font-size:12px}
+.aruba-character-sheet-status .unsaved{color:#f2b6a7}
+.aruba-character-sheet .character-panel-return{padding:8px 12px;border:1px solid #947b56;border-radius:7px;color:#e5cca4;background:#24231c}
+
+@source "../../../src/app/components/session/shared/EntityFilterToolbar.tsx";
+@source "../../../src/app/components/session/shared/EntityPagination.tsx";
+@source "../../../src/app/components/session/shared/EntityCard.tsx";
+.aruba-portrait-pending{display:grid;place-items:center;background:#161513;color:#ae8851;border-right:1px solid #624a2c}
+.aruba-character-ruleset{display:inline-flex;align-self:flex-start;color:#d5b982;font-size:11px;border:1px solid #604a2c;border-radius:999px;padding:3px 8px}
+.aruba-character-library .aruba-character-cards>.group{min-height:115px}
+.aruba-character-library .aruba-character-cards.list>.group{min-height:64px}
+.aruba-character-library .aruba-character-cards>.group .aruba-character-edit{border-radius:50%;padding:5px}
+@source "../../../src/app/components/session/shared/EntityDetailRail.tsx";
+@source "../../../src/app/components/session/SlideOverPanel.tsx";
+@source "../../../apps/aruba-vtt-pilot/src/ArubaCharacterDetailPanel.tsx";
+
+@source "../../../src/app/components/shared/TokenStyleEditor.tsx";
+@source "../../../src/app/components/shared/TokenShapePreview.tsx";
+@source "../../../src/app/components/session/shared/EntityDetailView.tsx";
+@source "../../../src/app/components/session/shared/EntityTabBar.tsx";
+@source "../../../src/app/components/shared/RulesetTag.tsx";
+
+@source "../../../src/app/components/session/shared/RichTextEditor.tsx";
+@source "../../../src/app/components/session/shared/NoteSlashMenu.tsx";
+@source "../../../src/app/components/session/shared/NoteSelectionToolbar.tsx";
+@source "../../../src/app/components/session/shared/NoteTableToolbar.tsx";
+@source "../../../src/app/components/session/shared/NoteModifierMenu.tsx";
+@source "../../../src/app/components/session/shared/NoteSubTabs.tsx";

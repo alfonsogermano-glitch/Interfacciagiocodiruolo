@@ -1,0 +1,638 @@
+// HTTP boundary for future Aruba authentication; NOT enabled by index.mjs.
+// Production activation requires a trusted reverse proxy, separate restricted
+// DB role, and a rehearsal with disposable accounts. No server-side logging
+// of credentials or raw bearer/session tokens is permitted.
+import { LoginRejected } from './login-service.mjs';
+import { PasswordActionRejected } from './password-reset-service.mjs';
+import { SignupRejected } from './signup-service.mjs';
+import { CampaignRejected } from './campaign-service.mjs';
+
+const COOKIE = '__Host-hg_session';
+const COOKIE_PATTERN = /^[A-Za-z0-9_-]{43}$/;
+const LOGOUT_COOKIE = `${COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0`;
+const MAX_BODY = 4096;
+
+function response(res, status, data, cookie) {
+  const headers = {
+    'content-type': 'application/json; charset=utf-8',
+    'cache-control': 'no-store',
+    'x-content-type-options': 'nosniff',
+    'referrer-policy': 'no-referrer',
+  };
+  if (cookie) headers['set-cookie'] = cookie;
+  res.writeHead(status, headers);
+  res.end(JSON.stringify(data));
+}
+
+function extractSession(req) {
+  const cookies = req.headers.cookie;
+  if (typeof cookies !== 'string') return null;
+  const matches = cookies.split(';').map(s => s.trim()).filter(s => s.startsWith(COOKIE + '='));
+  if (matches.length !== 1) return null;
+  const value = matches[0].slice(COOKIE.length + 1);
+  return COOKIE_PATTERN.test(value) ? value : null;
+}
+
+async function readJson(req,maxBody=MAX_BODY) {
+  if (!req.headers['content-type']?.toLowerCase().startsWith('application/json')) {
+    throw new HttpProblem(415, 'Content-Type non supportato');
+  }
+  const length = Number(req.headers['content-length'] ?? 0);
+  if (!Number.isSafeInteger(length) || length > maxBody) {
+    throw new HttpProblem(413, 'Richiesta troppo grande');
+  }
+  let total = 0;
+  const chunks = [];
+  for await (const chunk of req) {
+    total += chunk.length;
+    if (total > maxBody) throw new HttpProblem(413, 'Richiesta troppo grande');
+    chunks.push(chunk);
+  }
+  try {
+    const value = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    if (!value || Array.isArray(value) || typeof value !== 'object') throw new Error();
+    return value;
+  } catch {
+    throw new HttpProblem(400, 'JSON non valido');
+  }
+}
+
+class HttpProblem extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+}
+
+export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, passwordReset = null, signupService = null, campaigns = null,characters = null,entityNotes = null,campaignNotes = null,campaignFolders = null,notesPanelEnabled = false,campaignRoster = null,characterAvailability = null,characterAssignments = null,playerCharacters = null,characterPortraits = null, turnCredentials = null, gameSessionBootstrap = null }) {
+  if(typeof notesPanelEnabled!=='boolean'||(notesPanelEnabled&&(!campaignNotes||!campaignFolders)))
+    throw new TypeError('Original Notes panel requires both authenticated Notes and folders');
+  const allowedOrigin = new URL(origin);
+  if (allowedOrigin.protocol !== 'https:' || allowedOrigin.origin !== origin ||
+      !allowedOrigin.hostname) throw new TypeError('HTTPS origin required');
+  for (const [name, fn] of Object.entries({ login, getSessionUser, revokeSession })) {
+    if (typeof fn !== 'function') throw new TypeError(name + ' required');
+  }
+  if(turnCredentials!==null&&typeof turnCredentials.issue!=='function')
+    throw new TypeError('Invalid TURN credential service');
+  if (passwordReset !== null && (typeof passwordReset.request !== 'function' || typeof passwordReset.redeem !== 'function')) {
+    throw new TypeError('Invalid passwordReset service');
+  }
+  if (signupService !== null && (typeof signupService.signup !== 'function' || typeof signupService.verify !== 'function')) {
+    throw new TypeError('Invalid signupService');
+  }
+  if (campaigns !== null && (typeof campaigns.list !== 'function' || typeof campaigns.create !== 'function' || typeof campaigns.update !== 'function'))
+    throw new TypeError('Invalid campaign service');
+  if(characterPortraits!==null&&(!characters||typeof characterPortraits.save!=='function'||typeof characterPortraits.read!=='function'||typeof characterPortraits.readSource!=='function'||typeof characterPortraits.saveSource!=='function'))
+    throw new TypeError('Portrait service requires characters');
+  if(characterAvailability!==null&&(!characters||
+      typeof characterAvailability.list!=='function'||typeof characterAvailability.set!=='function'))
+    throw new TypeError('Invalid character availability service');
+  if(playerCharacters!==null&&(!characterAssignments||(typeof playerCharacters.list!=='function'||typeof playerCharacters.listCampaigns!=='function')))
+    throw new TypeError('Player character reads require assignments');
+  if(characterAssignments!==null&&(!characters||!campaignRoster||!characterAvailability||
+      typeof characterAssignments.list!=='function'||typeof characterAssignments.set!=='function'))
+    throw new TypeError('Character assignments require characters, roster and availability');
+  if(campaignRoster!==null&&(!campaigns||typeof campaignRoster.list!=='function'))
+    throw new TypeError('Invalid campaign roster service');
+  if(characters!==null && (typeof characters.list!=='function'||typeof characters.create!=='function'||typeof characters.save!=='function'||typeof characters.archive!=='function'||!campaigns))
+    throw new TypeError('Invalid character service');
+  if(entityNotes!==null && (!characters ||
+   ['list','create','save','archive'].some(k=>typeof entityNotes[k]!=='function')))
+    throw new TypeError('Invalid entity notes service');
+  if(campaignNotes!==null && (!campaigns ||
+   ['listForMember','create','save','archive'].some(key=>typeof campaignNotes[key]!=='function')))
+    throw new TypeError('Invalid campaign notes service');
+  if(campaignFolders!==null && (!campaignNotes ||
+   ['list','create','update','presentation','archive'].some(key=>typeof campaignFolders[key]!=='function')))
+    throw new TypeError('Invalid campaign folders service');
+  return async (req, res) => {
+    try {
+      // Staging-only, authenticated and same-origin. No persistent TURN secret
+      // or browser-supplied identity is accepted. Do not cache credentials.
+      if(turnCredentials&&req.url==='/vtt/ice-credentials'&&req.method==='POST'){
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        const sessionToken=extractSession(req);
+        if(!sessionToken)return response(res,401,{error:'Non autenticato'});
+        const body=await readJson(req);
+        if(Object.keys(body).sort().join(',')!=='campaignId,role')
+          throw new HttpProblem(400,'Richiesta TURN non valida');
+        return response(res,200,await turnCredentials.issue({
+          sessionToken,campaignId:body.campaignId,connectionRole:body.role,
+        }));
+      }
+      if (req.url === '/auth/login' && req.method === 'POST') {
+        if (req.headers.origin !== origin) throw new HttpProblem(403, 'Origine non consentita');
+        const { email, password } = await readJson(req);
+        // This is only safe when the reverse proxy has been deliberately
+        // configured to provide a verified client address to the service.
+        // Never read X-Forwarded-For directly from an untrusted request.
+        const result = await login({ email, password, networkSubject: req.socket.remoteAddress });
+        return response(res, 200, { status: 'ok', expiresAt: result.expiresAt },
+          `${COOKIE}=${result.token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=43200`);
+      }
+      // Entire recovery feature is absent until deliberately enabled at boot.
+      // Require exact Origin for both mutations, regardless of cookie state.
+      if (passwordReset && req.url === '/auth/password/request' && req.method === 'POST') {
+        if (req.headers.origin !== origin) throw new HttpProblem(403, 'Origine non consentita');
+        const { email } = await readJson(req);
+        const result = await passwordReset.request({email,networkSubject:req.socket.remoteAddress});
+        return response(res, 202, result);
+      }
+      if (passwordReset && req.url === '/auth/password/redeem' && req.method === 'POST') {
+        if (req.headers.origin !== origin) throw new HttpProblem(403, 'Origine non consentita');
+        const { token, newPassword } = await readJson(req);
+        const result = await passwordReset.redeem({token,newPassword});
+        return response(res, 200, result);
+      }
+      if (signupService && req.url === '/auth/signup' && req.method === 'POST') {
+        if (req.headers.origin !== origin) throw new HttpProblem(403, 'Origine non consentita');
+        const {email,displayName,password} = await readJson(req);
+        const result = await signupService.signup({
+          email,displayName,password,networkSubject:req.socket.remoteAddress,
+        });
+        return response(res,202,result);
+      }
+      if (signupService && req.url === '/auth/verify-email' && req.method === 'POST') {
+        if (req.headers.origin !== origin) throw new HttpProblem(403, 'Origine non consentita');
+        const {token} = await readJson(req);
+        const result = await signupService.verify({token});
+        return response(res,200,result);
+      }
+      // Campaign authorization uses ONLY the active cookie session.
+      // No owner ID, role, or Supabase token from the request body is trusted.
+      if (campaigns && req.url === '/vtt/campaigns' && (req.method === 'GET' || req.method === 'POST')) {
+        const token=extractSession(req);
+        if (!token) return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if (!user) return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if (req.method === 'GET') return response(res,200,await campaigns.list(user.id));
+        if (req.headers.origin !== origin) throw new HttpProblem(403,'Origine non consentita');
+        const body=await readJson(req);
+        return response(res,201,await campaigns.create(user.id,body));
+      }
+      // Read-only roster. No membership changes or email addresses in the response.
+      if(campaignRoster && req.method==='GET' &&
+         req.url?.startsWith('/vtt/campaigns/') &&
+         req.url.endsWith('/roster')){
+        const match=/^\/vtt\/campaigns\/([0-9a-f-]{36})\/roster$/i.exec(req.url);
+        if(!match)throw new HttpProblem(400,'Campagna non valida');
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        return response(res,200,await campaignRoster.list(user.id,match[1]));
+      }
+      if(campaigns && req.url?.startsWith('/vtt/campaigns/') && req.url.length === '/vtt/campaigns/'.length + 36 && req.method==='PATCH'){
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        const campaignId=req.url.slice('/vtt/campaigns/'.length);
+        const body=await readJson(req);
+        return response(res,200,await campaigns.update(user.id,campaignId,body));
+      }
+      // Current player memberships are queried independently from GM-owned campaigns.
+      if(playerCharacters&&req.method==='GET'&&req.url==='/vtt/player-campaigns'){
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        return response(res,200,await playerCharacters.listCampaigns(user.id));
+      }
+      // Read-only player access to CURRENTLY assigned sheets; no owner write API.
+      // The SQL function checks the logged-in player, membership and campaign.
+      if(playerCharacters&&req.method==='GET'&&
+         req.url?.startsWith('/vtt/player-characters?')){
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        const url=new URL(req.url,origin);
+        if(url.pathname!=='/vtt/player-characters'||
+           [...url.searchParams.keys()].join(',')!=='campaignId'||
+           url.searchParams.getAll('campaignId').length!==1)
+          throw new HttpProblem(400,'Query non valida');
+        return response(res,200,await playerCharacters.list(user.id,url.searchParams.get('campaignId')));
+      }
+      // Original portrait source: restricted to active GM owner, never players.
+      // Feature flag is the same as cropped portrait, but schema 032 must be applied.
+      if(characterPortraits&&req.url?.startsWith('/vtt/character-portrait-source/')){
+        const match=/^\/vtt\/character-portrait-source\/([0-9a-f-]{36})\?campaignId=([0-9a-f-]{36})$/i.exec(req.url);
+        if(!match||!['GET','PUT'].includes(req.method))
+         throw new HttpProblem(400,'Richiesta sorgente non valida');
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.method==='GET')return response(res,200,
+         await characterPortraits.readSource(user.id,match[2],match[1]));
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        const body=await readJson(req,2900000);
+        return response(res,200,await characterPortraits.saveSource(user.id,match[2],match[1],body));
+      }
+      // Isolated owner-managed portrait binary. Exact query and same-origin
+      // checks apply even to authenticated sessions. Player reads are SQL gated.
+      if(characterPortraits&&req.url?.startsWith('/vtt/character-portrait/')){
+        const match=/^\/vtt\/character-portrait\/([0-9a-f-]{36})\?campaignId=([0-9a-f-]{36})$/i.exec(req.url);
+        if(!match||!['GET','PUT'].includes(req.method))
+         throw new HttpProblem(400,'Richiesta ritratto non valida');
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.method==='GET')
+         return response(res,200,await characterPortraits.read(user.id,match[2],match[1]));
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        const body=await readJson(req,700000);
+        return response(res,200,await characterPortraits.save(user.id,match[2],match[1],body));
+      }
+      // Owner-authorized character assignments; SQL verifies campaign and active membership.
+      // This capability is disabled unless the CI-only 028 schema is explicitly enabled.
+      if(characterAssignments&&req.method==='GET'&&
+         req.url?.startsWith('/vtt/character-assignments?')){
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        const url=new URL(req.url,origin);
+        if(url.pathname!=='/vtt/character-assignments'||
+           [...url.searchParams.keys()].join(',')!=='campaignId'||
+           url.searchParams.getAll('campaignId').length!==1)
+          throw new HttpProblem(400,'Query non valida');
+        return response(res,200,await characterAssignments.list(user.id,url.searchParams.get('campaignId')));
+      }
+      if(characterAssignments&&req.method==='PATCH'&&
+         req.url?.startsWith('/vtt/character-assignments/')){
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        const charId=req.url.slice('/vtt/character-assignments/'.length);
+        const body=await readJson(req);
+        if(Object.keys(body).sort().join(',')!=='campaignId,playerId')
+          throw new HttpProblem(400,'Assegnazione non valida');
+        return response(res,200,await characterAssignments.set(user.id,
+          body.campaignId,charId,body.playerId));
+      }
+      // Availability is a GM-only preparatory flag; it never assigns a PG.
+      if(characterAvailability&&req.method==='GET'&&
+         req.url?.startsWith('/vtt/character-availability?')){
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        const url=new URL(req.url,origin);
+        if(url.pathname!=='/vtt/character-availability'||
+           [...url.searchParams.keys()].join(',')!=='campaignId'||
+           url.searchParams.getAll('campaignId').length!==1)
+          throw new HttpProblem(400,'Query non valida');
+        return response(res,200,await characterAvailability.list(user.id,url.searchParams.get('campaignId')));
+      }
+      if(characterAvailability&&req.method==='PATCH'&&
+         req.url?.startsWith('/vtt/character-availability/')){
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        const charId=req.url.slice('/vtt/character-availability/'.length);
+        const body=await readJson(req);
+        if(Object.keys(body).sort().join(',')!=='availableForPlayers,campaignId')
+          throw new HttpProblem(400,'Dati disponibilità non validi');
+        return response(res,200,await characterAvailability.set(user.id,
+          body.campaignId,charId,body.availableForPlayers));
+      }
+      if(characters && req.url?.startsWith('/vtt/characters?') && req.method==='GET'){
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        const url=new URL(req.url,origin);
+        if([...url.searchParams.keys()].some(key=>key!=='campaignId')||url.searchParams.getAll('campaignId').length!==1)
+          throw new HttpProblem(400,'Query non valida');
+        return response(res,200,await characters.list(user.id,url.searchParams.get('campaignId')));
+      }
+      if(characters && req.url==='/vtt/characters' && req.method==='POST'){
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        const body=await readJson(req);
+        if(typeof body.campaignId!=='string'||Object.keys(body).sort().join(',')!=='campaignId,name')
+          throw new HttpProblem(400,'Dati personaggio non validi');
+        return response(res,201,await characters.create(user.id,body.campaignId,{name:body.name}));
+      }
+      if(characters && req.url?.startsWith('/vtt/characters/') && req.method==='PUT'){
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        const characterId=req.url.slice('/vtt/characters/'.length);
+        if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(characterId))
+          throw new HttpProblem(400,'Personaggio non valido');
+        const body=await readJson(req,65536);
+        return response(res,200,await characters.save(user.id,body.campaignId,characterId,body));
+      }
+      if(characters && req.url?.startsWith('/vtt/characters/') && req.method==='DELETE'){
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        const characterId=req.url.slice('/vtt/characters/'.length);
+        if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(characterId))
+          throw new HttpProblem(400,'Personaggio non valido');
+        const body=await readJson(req);
+        if(typeof body.campaignId!=='string'||Object.keys(body).length!==1)
+          throw new HttpProblem(400,'Dati cancellazione non validi');
+        return response(res,200,await characters.archive(user.id,body.campaignId,characterId));
+      }
+      // Original character custom tabs: isolated staging-only notes.
+      // Exact URL patterns; query cannot smuggle owner or role.
+      if(entityNotes && req.url?.startsWith('/vtt/entity-notes') &&
+       ['GET','POST','PATCH','DELETE'].includes(req.method)){
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.method!=='GET' && req.headers.origin!==origin)
+          throw new HttpProblem(403,'Origine non consentita');
+        if(req.method==='GET'){
+          const url=new URL(req.url,origin);
+          if(url.pathname!=='/vtt/entity-notes'||
+            !['campaignId,characterId','campaignId,characterId,parentId'].includes([...url.searchParams.keys()].sort().join(','))||
+            url.searchParams.getAll('campaignId').length!==1||
+            url.searchParams.getAll('characterId').length!==1||
+            url.searchParams.getAll('parentId').length>1)
+            throw new HttpProblem(400,'Query note non valida');
+          const campaignId=url.searchParams.get('campaignId');
+          const characterId=url.searchParams.get('characterId');
+          const parentId=url.searchParams.get('parentId');
+          return response(res,200,parentId===null?
+            await entityNotes.list(user.id,campaignId,characterId):
+            await entityNotes.list(user.id,campaignId,characterId,parentId));
+        }
+        const body=await readJson(req,65536);
+        if(typeof body.campaignId!=='string'||typeof body.characterId!=='string')
+          throw new HttpProblem(400,'Identità nota non valida');
+        if(req.method==='POST'){
+          if(req.url!=='/vtt/entity-notes'||
+             !['campaignId,characterId,tabName','campaignId,characterId,parentId,tabName']
+              .includes(Object.keys(body).sort().join(',')))
+            throw new HttpProblem(400,'Dati creazione nota non validi');
+          return response(res,201,await entityNotes.create(user.id,
+            body.campaignId,body.characterId,
+            body.parentId===undefined?{tabName:body.tabName}:{tabName:body.tabName,parentId:body.parentId}));
+        }
+        if(req.method==='PATCH' && req.url?.startsWith('/vtt/entity-notes/order/')){
+          const parentId=req.url.slice('/vtt/entity-notes/order/'.length);
+          if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(parentId))
+            throw new HttpProblem(400,'Nota padre non valida');
+          if(Object.keys(body).sort().join(',')!=='campaignId,characterId,tabOrder')
+            throw new HttpProblem(400,'Ordine sottoschede non valido');
+          if(typeof entityNotes.setSubtabOrder!=='function')throw new HttpProblem(503,'Sottoschede non disponibili');
+          return response(res,200,await entityNotes.setSubtabOrder(user.id,
+            body.campaignId,body.characterId,parentId,body.tabOrder));
+        }
+        const noteId=req.url?.startsWith('/vtt/entity-notes/')?
+          req.url.slice('/vtt/entity-notes/'.length):'';
+        if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(noteId))
+          throw new HttpProblem(400,'Nota non valida');
+        if(req.method==='PATCH'){
+          if(Object.keys(body).sort().join(',')!=='campaignId,characterId,content,contentRich,hidden,position,tabName,visibility')
+            throw new HttpProblem(400,'Dati aggiornamento nota non validi');
+          const {campaignId,characterId,...changes}=body;
+          return response(res,200,await entityNotes.save(user.id,campaignId,characterId,noteId,changes));
+        }
+        if(Object.keys(body).sort().join(',')!=='campaignId,characterId')
+          throw new HttpProblem(400,'Dati archivio nota non validi');
+        return response(res,200,await entityNotes.archive(user.id,body.campaignId,body.characterId,noteId));
+      }
+      // Campaign Notes are a distinct model from character custom tabs.
+      // Explicit staging-only opt-in. Ownership is derived only from the cookie.
+      if(campaignNotes && ['GET','POST','PATCH','DELETE'].includes(req.method) &&
+        (req.url?.startsWith('/vtt/campaign-notes?')||
+         req.url==='/vtt/campaign-notes'||req.url?.startsWith('/vtt/campaign-notes/'))){
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.method==='GET'){
+          const url=new URL(req.url,origin);
+          if(url.pathname==='/vtt/campaign-notes/trash'){
+            if([...url.searchParams.keys()].sort().join(',')!=='campaignId'||
+               url.searchParams.getAll('campaignId').length!==1||
+               typeof campaignNotes.listTrash!=='function')
+              throw new HttpProblem(400,'Query Cestino non valida');
+            return response(res,200,await campaignNotes.listTrash(
+              user.id,url.searchParams.get('campaignId')));
+          }
+          if(url.pathname!=='/vtt/campaign-notes'||
+             !['campaignId','campaignId,parentId'].includes([...url.searchParams.keys()].sort().join(','))||
+             url.searchParams.getAll('campaignId').length!==1||
+             url.searchParams.getAll('parentId').length>1)
+            throw new HttpProblem(400,'Query Note non valida');
+          return response(res,200,await campaignNotes.listForMember(user.id,
+            url.searchParams.get('campaignId'),url.searchParams.get('parentId')));
+        }
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        const body=await readJson(req,65536);
+        if(req.method==='POST'){
+          if(req.url==='/vtt/campaign-notes/trash/restore'){
+            if(Object.keys(body).sort().join(',')!=='campaignId,itemId,kind'||
+               !['note','folder'].includes(body.kind)||
+               typeof campaignNotes.restoreTrash!=='function')
+              throw new HttpProblem(400,'Ripristino Cestino non valido');
+            return response(res,200,await campaignNotes.restoreTrash(
+              user.id,body.campaignId,body.kind,body.itemId));
+          }
+          if(req.url!=='/vtt/campaign-notes'||
+             !['campaignId,parentId,title','campaignId,parentId,scope,title']
+             .includes(Object.keys(body).sort().join(',')))
+            throw new HttpProblem(400,'Creazione nota non valida');
+          return response(res,201,await campaignNotes.create(user.id,body.campaignId,
+            body.scope===undefined?
+              {title:body.title,parentId:body.parentId}:
+              {title:body.title,parentId:body.parentId,scope:body.scope}));
+        }
+        if(req.method==='PATCH' &&
+           req.url?.startsWith('/vtt/campaign-notes/scope/')){
+          const scopeId=req.url.slice('/vtt/campaign-notes/scope/'.length);
+          if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(scopeId)||
+             Object.keys(body).sort().join(',')!=='campaignId,scope'||
+             !['gm','shared'].includes(body.scope)||
+             typeof campaignNotes.changeScope!=='function')
+            throw new HttpProblem(400,'Cambio sezione Nota non valido');
+          return response(res,200,await campaignNotes.changeScope(
+            user.id,body.campaignId,scopeId,body.scope));
+        }
+        if(req.method==='PATCH' &&
+           req.url?.startsWith('/vtt/campaign-notes/folder/')){
+          const movingId=req.url.slice('/vtt/campaign-notes/folder/'.length);
+          if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(movingId))
+            throw new HttpProblem(400,'Nota non valida');
+          if(Object.keys(body).sort().join(',')!=='campaignId,folderId' ||
+             typeof campaignNotes.moveToFolder!=='function')
+            throw new HttpProblem(400,'Spostamento Nota non valido');
+          return response(res,200,await campaignNotes.moveToFolder(
+            user.id,body.campaignId,movingId,body.folderId));
+        }
+        if(req.method==='PATCH' &&
+           req.url?.startsWith('/vtt/campaign-notes/icon/')){
+          const iconNoteId=req.url.slice('/vtt/campaign-notes/icon/'.length);
+          if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(iconNoteId)||
+             Object.keys(body).sort().join(',')!=='campaignId,titleIcon'||
+             typeof campaignNotes.setTitleIcon!=='function')
+            throw new HttpProblem(400,'Icona Nota non valida');
+          return response(res,200,await campaignNotes.setTitleIcon(
+            user.id,body.campaignId,iconNoteId,body.titleIcon));
+        }
+        if(req.method==='PATCH' &&
+           req.url?.startsWith('/vtt/campaign-notes/order/')){
+          const parentNoteId=req.url.slice('/vtt/campaign-notes/order/'.length);
+          if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(parentNoteId)||
+             Object.keys(body).sort().join(',')!=='campaignId,tabOrder'||
+             typeof campaignNotes.setSubtabOrder!=='function')
+            throw new HttpProblem(400,'Ordine sottoschede non valido');
+          return response(res,200,await campaignNotes.setSubtabOrder(
+            user.id,body.campaignId,parentNoteId,body.tabOrder));
+        }
+        const noteId=req.url?.startsWith('/vtt/campaign-notes/')?
+          req.url.slice('/vtt/campaign-notes/'.length):'';
+        if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(noteId))
+          throw new HttpProblem(400,'Nota non valida');
+        if(req.method==='PATCH'){
+          if(Object.keys(body).sort().join(',')!=='campaignId,contentRich,position,title,visibility')
+            throw new HttpProblem(400,'Aggiornamento nota non valido');
+          return response(res,200,await campaignNotes.save(user.id,body.campaignId,noteId,
+            {title:body.title,contentRich:body.contentRich,
+             position:body.position,visibility:body.visibility}));
+        }
+        if(Object.keys(body).sort().join(',')!=='campaignId')
+          throw new HttpProblem(400,'Archiviazione nota non valida');
+        return response(res,200,await campaignNotes.archive(user.id,body.campaignId,noteId));
+      }
+      // Campaign folder operations: authenticated session, isolated from PG tabs.
+      // No client-provided role/owner/scope escalation. Explicit staging-only service.
+      if(campaignFolders && ['GET','POST','PATCH','DELETE'].includes(req.method) &&
+       (req.url==='/vtt/campaign-note-folders'||
+        req.url?.startsWith('/vtt/campaign-note-folders?')||
+        req.url?.startsWith('/vtt/campaign-note-folders/'))){
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.method==='GET'){
+          const url=new URL(req.url,origin);
+          if(url.pathname!=='/vtt/campaign-note-folders'||
+           [...url.searchParams.keys()].sort().join(',')!=='campaignId,scope'||
+           url.searchParams.getAll('campaignId').length!==1||
+           url.searchParams.getAll('scope').length!==1)
+            throw new HttpProblem(400,'Query cartelle non valida');
+          return response(res,200,await campaignFolders.list(user.id,
+           url.searchParams.get('campaignId'),url.searchParams.get('scope')));
+        }
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        const body=await readJson(req);
+        if(req.method==='POST'){
+          if(req.url!=='/vtt/campaign-note-folders'||
+           Object.keys(body).sort().join(',')!=='campaignId,name,parentId,scope')
+            throw new HttpProblem(400,'Creazione cartella non valida');
+          return response(res,201,await campaignFolders.create(user.id,body));
+        }
+        if(req.method==='PATCH' &&
+          req.url?.startsWith('/vtt/campaign-note-folders/presentation/')){
+          const presentationId=req.url.slice('/vtt/campaign-note-folders/presentation/'.length);
+          if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(presentationId))
+            throw new HttpProblem(400,'Cartella non valida');
+          if(Object.keys(body).sort().join(',')!=='campaignId,icon,position')
+            throw new HttpProblem(400,'Presentazione cartella non valida');
+          return response(res,200,await campaignFolders.presentation(user.id,presentationId,body));
+        }
+        const folderId=req.url?.startsWith('/vtt/campaign-note-folders/')?
+          req.url.slice('/vtt/campaign-note-folders/'.length):'';
+        if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(folderId))
+          throw new HttpProblem(400,'Cartella non valida');
+        if(req.method==='DELETE'){
+          if(Object.keys(body).sort().join(',')!=='campaignId,cascade'||typeof body.cascade!=='boolean')
+            throw new HttpProblem(400,'Archiviazione cartella non valida');
+          return response(res,200,await campaignFolders.archive(user.id,folderId,body));
+        }
+        if(Object.keys(body).sort().join(',')!=='campaignId,name,parentId')
+          throw new HttpProblem(400,'Aggiornamento cartella non valido');
+        return response(res,200,await campaignFolders.update(user.id,folderId,body));
+      }
+      // Isolated read-only React pilot. A session is NEVER interpreted as
+      // a Supabase token. Campaign data remains unavailable by design.
+      if (req.url === '/vtt/bootstrap' && req.method === 'GET') {
+        const token = extractSession(req);
+        if (!token) return response(res, 401, {error:'Non autenticato'});
+        const user = await getSessionUser(token);
+        if (!user) return response(res, 401, {error:'Non autenticato'}, LOGOUT_COOKIE);
+        const memberships=gameSessionBootstrap ? await gameSessionBootstrap(user) : null;
+        if(memberships!==null){
+          const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          if(!Array.isArray(memberships)||memberships.length>100||
+            !memberships.every(m=>m&&m.userId===user.id&&uuid.test(m.campaignId??'')&&m.role==='gm')||
+            new Set(memberships.map(m=>m.campaignId)).size!==memberships.length)
+            throw new Error('Invalid game session memberships');
+        }
+        return response(res, 200, {
+          user,
+          ...(memberships ? {campaignMemberships:memberships} : {}),
+          backend:'aruba-staging',
+          capabilities:{
+            campaigns:{read:!!campaigns,write:!!campaigns},
+            campaignRoster:{read:!!campaignRoster,write:false},
+            characters:{read:!!characters,write:!!characters},
+            characterAvailability:{read:!!characterAvailability,write:!!characterAvailability},
+            characterAssignments:{read:!!characterAssignments,write:!!characterAssignments},
+            playerCharacters:{read:!!playerCharacters,write:false},
+            characterPortraits:{read:!!characterPortraits,write:!!characterPortraits},
+            entityNotes:{read:!!entityNotes,write:!!entityNotes},
+            campaignNotes:{read:!!campaignNotes,write:!!campaignNotes},
+            campaignNoteFolders:{read:!!campaignFolders,write:!!campaignFolders},
+            originalNotesPanel:{read:notesPanelEnabled,write:notesPanelEnabled},
+            gameSession:memberships!==null,
+          },
+        });
+      }
+      if (req.url === '/auth/me' && req.method === 'GET') {
+        const token = extractSession(req);
+        if (!token) return response(res, 401, { error: 'Non autenticato' });
+        const user = await getSessionUser(token);
+        if (!user) return response(res, 401, { error: 'Non autenticato' }, LOGOUT_COOKIE);
+        return response(res, 200, { user });
+      }
+      if (req.url === '/auth/logout' && req.method === 'POST') {
+        if (req.headers.origin !== origin) throw new HttpProblem(403, 'Origine non consentita');
+        const token = extractSession(req);
+        if (token) await revokeSession(token);
+        return response(res, 200, { status: 'ok' }, LOGOUT_COOKIE);
+      }
+      return response(res, 404, { error: 'Not found' });
+    } catch (error) {
+      if (error instanceof CampaignRejected) {
+        return response(res,error.status,{error:error.message});
+      }
+      if (error instanceof SignupRejected) {
+        return response(res,error.status,{error:error.message});
+      }
+      if (error instanceof PasswordActionRejected) {
+        return response(res, error.status, { error: error.message });
+      }
+      if (error instanceof LoginRejected) {
+        return response(res, error.status, { error: error.message });
+      }
+      if (error instanceof HttpProblem) {
+        return response(res, error.status, { error: error.message });
+      }
+      return response(res, 500, { error: 'Errore interno' });
+    }
+  };
+}

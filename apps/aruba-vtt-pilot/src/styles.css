@@ -1,0 +1,365 @@
+/* The original Hollowgate controls rely on Tailwind Preflight to remove
+   platform-native Windows button/select defaults. Import BEFORE the Aruba
+   chrome rules so its custom layout, sidebar widths and header win. */
+@import "tailwindcss";
+/* Compile the utility classes of the reused ORIGINAL Hollowgate components,
+   not just Preflight. The pilot stylesheet remains responsible for legacy
+   Aruba-specific screens until the full AppShell migration is complete. */
+@source "../../../src/app/layout";
+@source "../../../src/app/components";
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:dark;color:#eee8db;background:#0c1117}*{box-sizing:border-box}body{margin:0}button,input,textarea,select{font:inherit}button{cursor:pointer}button:disabled{cursor:not-allowed;opacity:.45}.workspace{display:flex;min-height:100vh}.sidebar{width:255px;flex-shrink:0;display:flex;flex-direction:column;background:#111720;border-right:1px solid #393c3f;min-height:100vh;padding:29px 16px}.identity{display:flex;align-items:center;flex-direction:column;gap:8px;margin-bottom:54px}.mark{color:#c7aa77;font-size:42px;line-height:1}.wordmark{font:normal 24px Georgia,serif;letter-spacing:.16em;padding-left:.16em}.identity small{font-size:9px;letter-spacing:.2em;color:#ad976e}.nav-caption{font-size:10px;letter-spacing:.2em;color:#888f91;padding:0 14px 13px}.sidebar nav{display:flex;flex-direction:column;gap:6px}.nav-link{width:100%;display:flex;align-items:center;gap:15px;text-align:left;border:1px solid transparent;border-radius:8px;padding:12px 12px;color:#bcc1c3;background:transparent;font-size:14px}.nav-link>span{font:normal 24px Georgia,serif;color:#9b907c;min-width:23px;text-align:center}.nav-link small{font-size:9px;margin-left:auto;color:#7c8384}.nav-link.active,.nav-link:hover{background:#282a29;color:#f1dfb7;border-color:#796444}.sidebar-footer{margin-top:auto;color:#a8aaa8;border-top:1px solid #32373b;padding:19px 10px 0;font-size:11px;display:flex;gap:9px;align-items:center}.online-indicator{width:7px;height:7px;background:#79b7a1;border-radius:50%}.main-area{min-width:0;flex:1}.topbar{height:76px;border-bottom:1px solid #333b41;background:#151b22;display:flex;align-items:center;justify-content:space-between;gap:15px;padding:0 33px;font-size:13px}.crumb{color:#987f59;font-size:11px;letter-spacing:.13em}.profile{display:flex;align-items:center;gap:12px}.avatar{display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:#574c38;color:#f0d9ac;border:1px solid #927a54}.logout{border:1px solid #5b554b;border-radius:6px;background:transparent;color:#e4d2b1;padding:8px 12px}.content{padding:42px clamp(18px,4vw,64px);max-width:1450px;margin:0 auto}.overline{letter-spacing:.25em;color:#c7a878;font-size:11px;text-transform:uppercase}.content h1{font:normal clamp(28px,3vw,40px) Georgia,serif;margin:12px 0}.content h2,.modal h2{font:normal 25px Georgia,serif}.muted{color:#a7adb0;margin:7px 0 30px}.section-heading{display:flex;justify-content:space-between;align-items:center;margin:37px 0 17px;gap:15px}.section-heading h2{margin:0}.text-link{color:#d1b47f;background:none;border:0;padding:8px}.quick-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:19px}.quick-card{text-align:left;display:flex;flex-direction:column;gap:13px;min-height:207px;border:1px solid #6f5b3c;border-radius:12px;background:linear-gradient(145deg,#28292a,#161d24);color:#ecdfc7;padding:25px;transition:border-color .15s,transform .15s}.quick-card:hover{transform:translateY(-2px);border-color:#c5a36f}.quick-card strong{font:normal 22px Georgia,serif}.quick-card span:last-child{font-size:13px;line-height:1.5;color:#b5b9bb}.quick-symbol{font:normal 32px Georgia,serif;color:#d1b47f}.empty{border:1px dashed #645a4b;border-radius:12px;background:#171d24;color:#aab0b1;min-height:132px;display:grid;place-items:center;padding:30px;text-align:center}.section-title{display:flex;justify-content:space-between;align-items:center;gap:15px}.section-title button,.modal-actions button{background:#c6a779;border:0;color:#1b1c1c;border-radius:7px;font-weight:700;padding:13px 18px}.campaign-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:18px}.campaign-card{overflow:hidden;background:#192128;border:1px solid #4f504e;border-radius:12px}.campaign-image{height:115px;display:grid;place-items:center;background:radial-gradient(circle at center,#4b4134,#1b262c 70%);border-bottom:1px solid #48413a}.campaign-image span{font:normal 49px Georgia,serif;color:#cdb07c}.campaign-body{padding:20px}.campaign-type{color:#c4a773;font-size:10px;letter-spacing:.1em}.campaign-body h3{font:normal 21px Georgia,serif;margin:10px 0}.campaign-body p{font-size:13px;color:#b4b8b9;line-height:1.5;min-height:32px}.campaign-bottom{display:flex;justify-content:space-between;gap:10px;border-top:1px solid #3a4346;margin-top:21px;padding-top:15px;font-size:10px;color:#cdb28b}.campaign-bottom span+span{color:#90989a}.placeholder{background:#172028;border:1px solid #5f5748;border-radius:12px;padding:65px 28px;text-align:center;margin-top:30px}.placeholder-mark{font-size:46px;color:#c5a774}.placeholder p{max-width:570px;margin:auto;color:#b1b5b6;line-height:1.8}.footnote{color:#9da3a5;font-size:12px;margin-top:25px}.error{padding:12px;background:#38262b;border:1px solid #a86670;border-radius:6px;color:#ffe0dd}.modal-backdrop{position:fixed;inset:0;background:#000a;display:grid;place-items:center;padding:20px}.modal{width:min(100%,525px);max-height:92vh;overflow:auto;background:#1a232b;border:1px solid #947c52;border-radius:14px;padding:30px}.modal label{display:flex;flex-direction:column;gap:8px;color:#ddcfb6;font-size:13px;margin:17px 0}.modal input,.modal textarea,.modal select{width:100%;background:#101820;color:#f5ebda;border:1px solid #566066;border-radius:7px;padding:12px;outline:none}.modal input:focus,.modal textarea:focus,.modal select:focus{border-color:#d3b477}.modal-actions{display:flex;justify-content:flex-end;gap:12px}.modal-actions .secondary{background:#283139;color:#d0d3d2;border:1px solid #5a6061}.entrance{min-height:100vh;display:grid;place-content:center;text-align:center;gap:0;padding:24px}.entrance .identity{margin-bottom:14px}.login-state{max-width:460px;line-height:1.7;color:#e7dfd3}.login-state a{color:#c5a775}button:focus-visible,a:focus-visible{outline:3px solid #e3c58b;outline-offset:3px}@media(max-width:900px){.sidebar{width:76px;padding:18px 9px}.sidebar .wordmark,.sidebar .identity small,.nav-caption,.nav-link small,.sidebar-footer{display:none}.sidebar .identity{margin-bottom:20px}.nav-link{font-size:0;justify-content:center;padding:13px}.nav-link>span{font-size:24px}.quick-grid{grid-template-columns:1fr}.quick-card{min-height:150px}.topbar{padding:0 20px}}@media(max-width:560px){.sidebar{width:59px;padding:12px 5px}.topbar{height:65px}.profile-name{display:none}.content{padding:27px 15px}.section-title{align-items:flex-start;flex-direction:column}.section-title button{margin-bottom:20px}.modal{padding:22px}.section-heading{margin-top:24px}}
+/* Standalone visual-only comparison. Does not affect existing VTT layout. */
+.icon-study{min-height:100vh;background:#0c1117;color:#eae1d1;padding:34px max(18px,3vw)}
+.study-heading{display:flex;align-items:center;justify-content:space-between;gap:25px}.study-heading h1{font:normal 34px Georgia,serif}.study-heading p,.study-center p{color:#b5b7b7;line-height:1.7}.study-heading a{color:#e5ca99}.study-weights{display:flex;flex-wrap:wrap;gap:12px;margin:20px 0;padding:14px 18px;border:1px solid #62553f;border-radius:10px}.study-weights legend{color:#d1b583}.study-weights label{display:flex;align-items:center;gap:7px;text-transform:capitalize}.study-example{display:grid;grid-template-columns:115px minmax(0,1fr) 115px;min-height:550px;border:1px solid #6c5c43;border-radius:12px;overflow:hidden}.study-left,.study-right{background:#161c22;display:flex;flex-direction:column;gap:4px;padding:15px 8px}.study-left{border-right:1px solid #4d4437}.study-right{border-left:1px solid #4d4437}.study-region{font-size:9px;line-height:1.4;letter-spacing:.05em;color:#b9a27f;text-align:center;margin-bottom:15px}.study-item{display:flex;align-items:center;flex-direction:column;text-align:center;gap:5px;padding:10px 2px;color:#d1b583;font-size:10px}.study-item span{color:#ded5c6}.study-campaigns{border-top:1px solid #4d4437;padding-top:12px;text-align:center;color:#aaa;font-size:9px}.study-campaign{background:#2b2c2b;border:1px solid #8c754e;border-radius:7px;padding:12px 3px;margin-top:10px}.study-center{padding:35px 5vw}.study-center h2{font:normal 28px Georgia,serif}.study-center h3{font:normal 21px Georgia,serif;margin-top:32px}.study-icons{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.study-icons>div{display:flex;flex-direction:column;align-items:center;gap:6px;border:1px solid #4b4438;border-radius:8px;padding:17px;color:#d1b583}.study-icons span{color:#e2d7c4;font-size:12px}.study-warning{margin-top:25px;font-size:12px}@media(max-width:700px){.study-example{grid-template-columns:95px minmax(0,1fr) 95px}.study-center{padding:20px 12px}.study-icons{grid-template-columns:repeat(2,1fr)}.study-heading{flex-direction:column;align-items:flex-start}.study-item{font-size:9px}}
+
+/* Aruba migration: preserve original VTT 100px-left / 80px-right rail arrangement.
+   The existing login + campaigns remain functional; other GM sections fail closed. */
+.workspace{height:100vh;min-height:0;overflow:hidden}
+.primary-sidebar,.gm-sidebar{flex-shrink:0;height:100vh;overflow-y:auto;background:#11120f;color:#ddceaf}
+.primary-sidebar{width:100px;border-right:1px solid #57432b;display:flex;flex-direction:column;padding:12px 8px}
+.primary-identity{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:8px;letter-spacing:.04em;text-align:center;border-bottom:1px solid #594629;padding:0 0 12px;margin:0 0 12px}
+.primary-identity .mark{font-size:45px;line-height:1.3}
+.primary-nav{display:flex;flex-direction:column;gap:4px}
+.primary-link,.gm-link{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;background:transparent;border:0;border-radius:8px;color:#d9c5a0;text-align:center;gap:5px;line-height:1.15;min-height:57px;padding:7px 2px}
+.primary-link span,.gm-link span{font-size:10px}
+.primary-link.active,.gm-link.active,.primary-link:hover,.gm-link:hover{background:#544027;color:#ffe2a3}
+.primary-campaigns{margin-top:14px;border-top:1px solid #57432b;padding-top:10px;display:flex;flex-direction:column;gap:7px}
+.primary-campaigns button{background:#302719;color:#d8bf96;border:1px solid #6d5430;border-radius:8px;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px}
+.primary-campaigns small{font-size:9px;overflow-wrap:anywhere}
+.gm-sidebar{width:80px;border-left:1px solid #57432b;display:flex;flex-direction:column;gap:3px;padding:12px 5px}
+.gm-link span{font-size:10px}
+.gm-group-break{margin-top:12px;border-top:1px solid #57432b;padding-top:12px}
+/* Original AppShell contract: topbar spans content + GM rail; right rail
+   begins immediately BELOW topbar. Only main content and rail scroll. */
+.main-area{height:100vh;min-width:0;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+.main-workspace-row{display:flex;flex:1;min-width:0;min-height:0;overflow:hidden}
+.main-workspace-row>.content{flex:1;min-width:0;min-height:0;overflow-y:auto;width:100%}
+.main-workspace-row>.gm-sidebar{height:100%;min-height:0;overflow-y:auto}
+.topbar{flex-shrink:0}
+@media(max-width:900px){.primary-sidebar{width:100px;padding:12px 8px}.gm-sidebar{width:80px;padding:12px 5px}.primary-identity{margin-bottom:12px}.main-area{min-width:0}.topbar{padding:0 16px}}
+@media(max-width:560px){.primary-sidebar{width:100px}.gm-sidebar{width:80px}.primary-campaigns{display:none}.content{padding:20px 12px}.topbar{padding:0 10px}}
+
+/* Restore real campaign selection without local storage or synthetic membership. */
+.campaign-card.selected{border-color:#d8b477;box-shadow:0 0 0 1px #a48651}
+.campaign-bottom button,.selected-campaign button{background:#332819;color:#f2d49a;border:1px solid #977849;border-radius:6px;padding:7px 10px;font-size:11px}
+.selected-campaign{margin-top:25px;padding:23px;border:1px solid #93754b;border-radius:12px;background:#1a1916}
+.selected-campaign h2{margin:10px 0}.selected-campaign p{color:#c3b9a9;line-height:1.5}
+.primary-campaigns button[aria-pressed=true]{border-color:#e2bd80;background:#544027}
+.campaign-context{color:#e6c38d}
+
+/* The legacy quick roll lives near the lower left edge of the playable area, not in a sidebar.
+   Local-only result history is deliberately not presented as multiplayer chat. */
+.aruba-dice-floating{position:fixed;left:112px;bottom:18px;z-index:20;display:flex;align-items:flex-end;gap:7px}
+.aruba-dice-toggle,.aruba-dice-history-toggle{display:grid;place-items:center;background:#332718;color:#f0d29a;border:1px solid #9b7847;border-radius:100%;box-shadow:0 4px 20px #0008}
+.aruba-dice-toggle{width:46px;height:46px}.aruba-dice-history-toggle{position:relative;width:26px;height:26px;margin-bottom:9px}
+.aruba-dice-unread{position:absolute;right:-2px;top:-2px;width:8px;height:8px;background:#e0ad59;border-radius:50%}
+.aruba-dice-palette,.aruba-dice-history{border:1px solid #8b6b42;background:#181914f5;color:#ecdfc7;box-shadow:0 8px 30px #0009;border-radius:12px;padding:12px;min-width:250px;max-width:min(560px,calc(100vw - 210px))}
+.aruba-dice-palette{max-height:45vh;overflow:auto}
+.aruba-dice-types,.aruba-dice-actions,.aruba-dice-selected{display:flex;flex-wrap:wrap;gap:6px}
+.aruba-dice-types button,.aruba-dice-selected button{position:relative;background:#30291f;border:1px solid #715836;color:#e8d1aa;border-radius:7px;padding:10px;min-width:44px}
+.aruba-dice-types small{position:absolute;right:-3px;top:-7px;background:#ab8854;color:#16140d;border-radius:10px;font-size:10px;padding:1px 5px}
+.aruba-dice-actions{margin-top:10px;align-items:center}.aruba-dice-actions button,.aruba-dice-history-head button{padding:6px 11px;border:1px solid #aa8a53;border-radius:6px;background:#a78955;color:#191710}
+.aruba-dice-actions .secondary{background:transparent;color:#d0b98e}.aruba-dice-selected{margin-top:9px}
+.aruba-dice-history{position:absolute;bottom:60px;left:0;max-height:45vh;overflow-y:auto;min-width:290px}
+.aruba-dice-history-head{display:flex;justify-content:space-between;align-items:center}
+.aruba-dice-history p{font-size:11px;color:#bfb49f}.aruba-dice-history ol{padding:0;list-style:none}
+.aruba-dice-history li{display:flex;align-items:center;justify-content:space-between;gap:14px;border-top:1px solid #53452e;padding:7px 0;font-size:12px}
+.aruba-dice-history li strong{font-size:19px}.aruba-dice-error{position:absolute;bottom:65px;left:0;border:1px solid #b66d66;background:#402428;padding:9px;border-radius:6px;min-width:260px}
+@media(max-width:560px){.aruba-dice-floating{left:105px;bottom:10px}.aruba-dice-palette{position:absolute;bottom:55px;left:0;max-width:calc(100vw - 130px)}.aruba-dice-history{max-width:calc(100vw - 130px);min-width:230px}}
+
+/* Edit/create dialogs must stay above the local quick dice widget. */
+.modal-backdrop{z-index:50}
+
+.character-drafts{margin-top:20px}.character-draft-form{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:20px 0}
+.character-draft-form label{font-size:12px;color:#e8ce9f}.character-draft-form input{flex:1;min-width:160px;background:#111816;border:1px solid #816745;color:#f0d9ad;border-radius:7px;padding:10px}
+.character-draft-form button{background:#9f7e48;color:#14130e;border:1px solid #a98c57;padding:10px;border-radius:7px}
+.character-draft-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.character-draft-list article{display:flex;flex-direction:column;gap:9px;border:1px solid #715637;border-radius:10px;background:#201c16;padding:18px}
+.character-draft-list article span{font-size:11px;color:#bba88a}
+
+.character-edit-action{border:1px solid #a98c57;border-radius:6px;color:#17120c;background:#c6a779;padding:8px 10px}
+
+/* Character library migration: original tab/toolbar flow, theme tokens, no browser-default buttons. */
+.aruba-character-library{
+ --dash-bg:#0b0d0d;--dash-panel:#171613;--dash-surface:#231e17;--dash-surface-2:#292319;
+ --dash-sidebar-bg:#10100e;--dash-input:#191714;--dash-border:#745b37;--dash-border-soft:#4c3b28;
+ --dash-text:#eadfc9;--dash-text-strong:#f5e8cf;--dash-muted:#b0a18d;
+ --dash-accent:#a98850;--dash-accent-2:#d1ad71;--dash-danger-border:#8f614a;
+ color:var(--dash-text);min-height:100%;padding:0;max-width:none;margin:0;
+}
+/* Preserve original Tailwind control styles: do not override every
+   button with a higher-specificity background/border rule. */
+.aruba-character-library button,.aruba-character-library select,.aruba-character-sheet button,.aruba-original-wizard button,.aruba-original-wizard input,.aruba-original-wizard select{
+ font-family:inherit;color-scheme:dark;
+}
+.aruba-character-library button:focus-visible,.aruba-character-sheet button:focus-visible{outline:2px solid var(--dash-accent-2);outline-offset:2px}
+.aruba-character-library .aruba-character-tabs button:hover:not(:disabled),.aruba-character-library .aruba-character-edit:hover{color:var(--dash-text-strong);border-color:var(--dash-accent-2)}
+.aruba-character-library button:disabled{opacity:.4;cursor:not-allowed}
+.aruba-character-toolbar{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;margin-bottom:20px}
+.aruba-character-tabs{display:flex;align-items:center;gap:5px;padding:5px;border:1px solid var(--dash-border-soft);border-radius:16px;background:var(--dash-surface)}
+.aruba-character-tabs button{border:0;border-radius:12px;background:transparent;padding:10px 17px;font-weight:500;color:var(--dash-muted)}
+.aruba-character-tabs button.selected{background:var(--dash-accent);color:#17120b}
+.aruba-character-toolbar-actions{display:flex;gap:10px;flex-wrap:wrap}
+.aruba-character-library .aruba-new-character{display:inline-flex;align-items:center;gap:8px;background:var(--dash-accent);border-color:var(--dash-accent);color:#17120b;font-weight:600;border-radius:14px;padding:12px 17px}
+.aruba-character-library .aruba-new-character:hover:not(:disabled){background:var(--dash-accent-2);color:#17120b}
+.aruba-character-filter-pills{display:flex;gap:7px;flex-wrap:wrap}
+.aruba-character-filter-pills button{border-radius:999px;font-size:12px;padding:6px 12px}
+.aruba-character-filter-pills button[aria-pressed=true]{background:var(--dash-accent);color:#17120b}
+.aruba-character-filter-panel{display:flex;gap:20px;align-items:flex-end;flex-wrap:wrap;color:var(--dash-muted);font-size:12px;padding:10px}
+.aruba-character-filter-panel label{display:grid;gap:7px}.aruba-character-filter-panel select{background:var(--dash-input);color:var(--dash-text);border:1px solid var(--dash-border);padding:9px 12px;min-width:180px}
+.aruba-character-section-label{display:flex;align-items:center;gap:9px;font:600 13px inherit;letter-spacing:.06em;text-transform:uppercase;color:var(--dash-muted);margin:22px 0 12px}
+.aruba-character-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(max(300px,calc((100% - 32px)/3)),1fr));gap:16px}
+.aruba-character-cards.list{display:flex;flex-direction:column;gap:8px}
+.aruba-character-card{position:relative;min-width:0;display:flex;border:1px solid var(--dash-border-soft);border-radius:16px;background:var(--dash-surface);overflow:hidden;min-height:150px}
+.aruba-character-card:hover{border-color:var(--dash-accent)}
+.aruba-character-card .aruba-character-card-main{display:flex;flex:1;gap:12px;text-align:left;border:0;padding:0;background:transparent;min-width:0}
+.aruba-character-portrait{display:grid;place-items:center;width:140px;flex-shrink:0;background:#181713;color:var(--dash-accent);border-right:1px solid var(--dash-border-soft)}
+.aruba-character-summary{display:flex;flex-direction:column;gap:7px;padding:15px 20px 15px 0;min-width:0}
+.aruba-character-summary strong{font:600 19px Georgia,serif;color:var(--dash-text-strong);overflow-wrap:anywhere}
+.aruba-character-summary span,.aruba-character-summary small{color:var(--dash-muted);font-size:12px}
+.aruba-character-card .aruba-character-edit{position:absolute;right:8px;top:8px;border-radius:50%;padding:5px;background:#17140fbd;color:var(--dash-muted)}
+.aruba-character-cards.list .aruba-character-card{min-height:68px}
+.aruba-character-cards.list .aruba-character-portrait{width:65px}
+.aruba-character-cards.list .aruba-character-portrait svg{width:22px}
+.aruba-character-cards.list .aruba-character-summary{padding:10px}
+.aruba-library-unavailable{border:1px dashed var(--dash-border-soft);padding:36px;border-radius:16px;text-align:center;color:var(--dash-muted)}
+/* Global Characters has no GM sidebar: scrolling reaches the right screen edge. */
+.main-workspace-row>.content{max-width:none;margin:0}
+.main-workspace-row>.content:has(.aruba-character-library){padding:30px clamp(18px,3.5vw,56px);max-width:none;width:100%}
+.aruba-character-sheet{width:100%;max-width:none}
+@media(max-width:760px){.aruba-character-cards{grid-template-columns:1fr}.aruba-character-portrait{width:90px}.aruba-character-toolbar{align-items:flex-start}}
+
+/* One Noir black/gold token system for all staging chrome; do not fallback
+   to the original grey Noir, blue pilot, or legacy red HSC theme. */
+.workspace{
+ --dash-bg:#090a09;--dash-sidebar-bg:#11100d;--dash-panel:#171612;
+ --dash-surface:#211c15;--dash-surface-2:#292218;--dash-input:#161612;
+ --dash-border:#725834;--dash-border-soft:#4a3924;--dash-text:#e7dac2;
+ --dash-text-strong:#f8ead0;--dash-muted:#ad9d84;
+ --dash-accent:#b9975d;--dash-accent-2:#d8b77c;
+ background:var(--dash-bg);color:var(--dash-text);
+}
+.workspace .topbar{background:#11110f;border-color:var(--dash-border-soft)}
+.workspace .main-area{background:var(--dash-bg)}
+.workspace .main-workspace-row>.content{background:var(--dash-bg)}
+.workspace .primary-sidebar,.workspace .gm-sidebar{background:var(--dash-sidebar-bg);border-color:var(--dash-border-soft)}
+.workspace select,.workspace input,.workspace textarea{color-scheme:dark}
+.aruba-character-library select,.aruba-original-wizard select{background-color:var(--dash-input);color:var(--dash-text);border:1px solid var(--dash-border-soft)}
+.aruba-character-library .aruba-new-character{background:var(--dash-accent);color:#19130a}
+.aruba-character-library .aruba-character-tabs button.selected{background:var(--dash-accent);color:#19130a}
+.aruba-character-sheet{--dash-panel:#171612;--dash-surface:#211c15;--dash-border:#725834;--dash-border-soft:#4a3924;--dash-accent:#b9975d;--dash-accent-2:#d8b77c}
+.aruba-character-sheet button{font:inherit}
+.aruba-character-sheet .character-panel-return{background:var(--dash-surface);color:var(--dash-text);border:1px solid var(--dash-border);border-radius:8px;padding:8px 12px}
+
+/* Overlay contract from original MyCharactersPage: fixed rail at viewport
+   edge, slide-over between it and 100px left navigation, below the topbar. */
+.aruba-entity-overlay{
+ --dash-sidebar-bg:#11100d;--dash-panel:#171612;--dash-surface:#211c15;
+ --dash-input:#161612;--dash-border:#725834;--dash-border-soft:#4a3924;
+ --dash-text:#e7dac2;--dash-text-strong:#f8ead0;--dash-muted:#ad9d84;
+ --dash-accent:#b9975d;--dash-accent-2:#d8b77c;color:var(--dash-text)
+}
+.aruba-entity-overlay [data-session-slide-over="true"]{
+ top:76px!important;bottom:0!important;right:80px!important;
+ width:min(1100px,calc(100vw - 180px))!important;
+ background:#171612f5!important;border-left:1px solid var(--dash-border-soft)!important;
+ z-index:900;overscroll-behavior:contain
+}
+.aruba-entity-rail{position:fixed;top:76px;right:0;bottom:0;z-index:910;width:80px}
+.aruba-entity-slide-content{display:flex;height:100%;min-width:0;min-height:0}
+.aruba-entity-back-column{flex:0 0 128px;padding:17px 10px;border-right:1px solid var(--dash-border-soft)}
+.aruba-entity-back-column button{display:flex;align-items:center;gap:6px;background:none;color:var(--dash-muted);font-size:12px;border:0;text-align:left}
+.aruba-entity-detail-main{flex:1;min-width:0;min-height:0;overflow-y:auto;padding:24px;overscroll-behavior:contain}
+.aruba-entity-unmigrated{border:1px dashed var(--dash-border-soft);border-radius:12px;padding:26px}
+.aruba-entity-unmigrated p{color:var(--dash-muted);line-height:1.65}
+.aruba-entity-overlay .aruba-character-sheet{padding:0;margin:0}
+@media(max-width:780px){
+ .aruba-entity-back-column{flex-basis:82px}
+ .aruba-entity-detail-main{padding:12px}
+}
+/* Preserve a usable character sheet on narrow phones: the original right rail
+   stays 80px wide, while the back action becomes a compact top row. */
+@media(max-width:540px){
+ .aruba-entity-overlay [data-session-slide-over="true"]{
+  width:calc(100vw - 80px)!important;right:80px!important
+ }
+ .aruba-entity-slide-content{flex-direction:column}
+ .aruba-entity-back-column{
+  flex:0 0 auto;padding:8px 12px;border-right:0;
+  border-bottom:1px solid var(--dash-border-soft)
+ }
+ .aruba-entity-detail-main{flex:1 1 auto;min-height:0;padding:12px;overflow-y:auto}
+ .workspace .aruba-session-characters-host [data-session-slide-over="true"]{
+  width:calc(100vw - 80px)!important;right:80px!important
+ }
+ .aruba-session-character-list{padding:12px}
+ .aruba-session-character-row{flex-wrap:wrap}
+ .aruba-session-character-row span{white-space:normal}
+}
+
+.aruba-entity-backdrop{position:fixed;inset:0;z-index:895;background:#0009}
+.aruba-entity-back-column button:disabled{opacity:.5;cursor:wait}
+
+/* Original SessionNotesPanel keeps its native splitter and both section
+   accordions; this only removes the catalog's outer padding in Aruba. */
+.workspace .main-workspace-row>.content:has(.aruba-original-notes-host){
+ padding:0;max-width:none;margin:0;display:flex;flex-direction:column;
+ min-height:0;overflow:hidden;
+}
+.aruba-original-notes-host{
+ flex:1 1 auto;min-height:0;min-width:0;width:100%;height:100%;
+ overflow:hidden;background:var(--dash-bg);color:var(--dash-text);
+}
+.aruba-original-notes-host [data-note-split-panel="true"]{
+ height:100%;min-height:0;min-width:0;
+}
+.aruba-original-notes-host [data-note-sidebar="true"]{
+ border-right:1px solid var(--dash-border-soft);
+ background:var(--dash-sidebar-bg);
+}
+@media(max-width:700px){
+ .aruba-original-notes-host [data-note-sidebar="true"]{
+  max-width:min(48vw,260px);
+ }
+}
+
+/* QA-only original session Notes overlay. Reuse the real SlideOverPanel
+   instead of presenting Notes as a central-page replacement. */
+.workspace .aruba-original-notes-host{
+ display:contents;
+}
+.workspace .aruba-original-notes-host [data-session-slide-over="true"]{
+ top:76px!important;bottom:0!important;right:80px!important;
+ width:min(1024px,calc(100vw - 180px))!important;
+ max-width:none;z-index:900;
+ background:#171612f5!important;
+ border-left:1px solid var(--dash-border-soft)!important;
+ color:var(--dash-text);
+}
+.workspace .aruba-original-notes-host [data-note-split-panel="true"]{
+ height:100%;min-height:0;width:100%;min-width:0;
+}
+@media(max-width:480px){
+ .workspace .aruba-original-notes-host [data-session-slide-over="true"]{
+  width:calc(100vw - 100px)!important;right:80px!important;
+ }
+}
+
+/* Separate dashboard GM and campaign session rails, with the original
+   session icon order and 80px rail width. */
+.session-right-rail{width:80px;min-width:80px;display:flex;flex-direction:column;
+ align-items:center;gap:4px;padding:12px 3px;border-left:1px solid var(--dash-border-soft)}
+.session-rail-link{display:flex;flex-direction:column;align-items:center;
+ justify-content:center;gap:5px;min-height:56px;width:100%;border:0;
+ border-radius:8px;background:transparent;color:var(--dash-text);font-size:11px}
+.session-rail-link.active{background:var(--dash-accent);color:#1b140b}
+.session-rail-link:disabled{opacity:.42;cursor:not-allowed}
+.session-rail-link:not(:disabled):hover{background:var(--dash-surface-2)}
+.session-return{margin-top:22px}
+
+/* Session characters share the ORIGINAL slide-over geometry. Character
+   detail itself reuses original EntityDetailView and contextual detail rail. */
+.workspace .aruba-session-characters-host{display:contents}
+.workspace .aruba-session-characters-host [data-session-slide-over="true"]{
+ top:76px!important;bottom:0!important;right:80px!important;
+ width:min(1024px,calc(100vw - 180px))!important;
+ max-width:none;z-index:900;background:#171612f5!important;
+ border-left:1px solid var(--dash-border-soft)!important;color:var(--dash-text)
+}
+.aruba-session-character-list{height:100%;overflow-y:auto;padding:22px;min-width:0}
+.aruba-session-character-list h2{margin:0 0 8px;font-size:22px}
+.aruba-session-character-row{display:flex;align-items:center;justify-content:space-between;
+ gap:14px;width:100%;margin-top:9px;padding:14px 17px;min-width:0;
+ border:1px solid var(--dash-border-soft);border-radius:10px;
+ background:var(--dash-surface);color:var(--dash-text);text-align:left}
+.aruba-session-character-row strong{overflow-wrap:anywhere;min-width:0}
+.aruba-session-character-row span{color:var(--dash-muted);font-size:12px;white-space:nowrap}
+.aruba-session-character-row:hover{border-color:var(--dash-accent)}
+
+/* Original CampaignHome two-card grid. Protect long labels and narrow viewports. */
+.aruba-campaign-character-section{margin-top:24px;min-width:0}
+.aruba-campaign-character-section h2{font-size:18px;font-weight:600;margin:0 0 12px}
+.aruba-campaign-character-grid{display:grid;grid-template-columns:repeat(2,minmax(200px,1fr));gap:16px;min-width:0}
+.aruba-campaign-character-grid [role="button"]{min-width:0;outline-offset:3px;border-radius:16px}
+.aruba-campaign-character-grid [role="button"]:focus-visible{outline:2px solid var(--dash-accent)}
+@media(max-width:650px){.aruba-campaign-character-grid{grid-template-columns:minmax(0,1fr)}}
+
+/* Read-only, server-authorized roster; no artificial player cards. */
+.aruba-campaign-roster{margin-top:20px;border:1px solid var(--dash-border-soft);
+ border-radius:12px;padding:14px;min-width:0}
+.aruba-campaign-roster h2{font-size:17px;font-weight:600;margin:0 0 7px}
+.aruba-campaign-member{display:flex;align-items:center;justify-content:space-between;
+ flex-wrap:wrap;gap:8px;margin-top:10px;padding-top:10px;
+ border-top:1px solid var(--dash-border-soft);overflow-wrap:anywhere}
+.aruba-campaign-member strong{font-size:12px;color:var(--dash-accent-2)}
+
+/* Original CampaignHome Players grouping, now based only on verified Aruba assignments. */
+.aruba-campaign-player-rows{min-width:0;margin-top:22px}
+.aruba-campaign-player-rows>h2{font-size:18px;font-weight:600;margin:0 0 6px}
+.aruba-campaign-player-row{min-width:0;padding:14px;margin-top:14px;
+ border:1px solid var(--dash-border-soft);border-radius:12px}
+.aruba-campaign-player-row .aruba-campaign-member{margin:0 0 12px;padding:0 0 10px}
+.aruba-campaign-player-row .aruba-campaign-member strong{font-size:14px;color:var(--dash-text)}
+.aruba-no-assigned-character{font-size:12px;margin:0}
+
+/* Server-confirmed availability flag; never implies player ownership. */
+.aruba-availability-toggle{display:block;margin-top:10px;width:100%;padding:9px 12px;
+ border:1px solid var(--dash-border-soft);border-radius:8px;background:transparent;
+ color:var(--dash-text);font-size:12px}
+.aruba-availability-toggle[aria-pressed="true"]{border-color:var(--dash-accent);
+ color:var(--dash-accent-2)}
+.aruba-availability-toggle:disabled{opacity:.55}
+
+.aruba-assignment-label{display:flex;flex-direction:column;gap:6px;margin-top:10px;
+ font-size:12px;color:var(--dash-muted)}
+.aruba-assignment-label select{width:100%;min-width:0;padding:9px 10px;
+ background:var(--dash-surface);color:var(--dash-text);
+ border:1px solid var(--dash-border-soft);border-radius:8px}
+.aruba-assignment-label select:disabled{opacity:.55}
+
+.aruba-player-owned-campaigns{margin-bottom:24px;padding:16px;border:1px solid var(--dash-border-soft);border-radius:12px}
+.aruba-player-owned-campaigns h2{font-size:18px;margin:0 0 8px}
+.aruba-player-campaign-button{margin:6px 8px 6px 0;padding:8px 12px;border:1px solid var(--dash-border-soft);border-radius:8px;background:transparent;color:var(--dash-text)}
+.aruba-player-campaign-button[aria-pressed="true"]{border-color:var(--dash-accent);color:var(--dash-accent-2)}
+.aruba-player-character-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-top:14px}
+.aruba-player-character-open{cursor:pointer}
+
+/* Original Hollowgate shell tokens must exist at the workspace root: the
+   migrated LeftSidebar/GmSectionSidebar are siblings of the content library. */
+.workspace[data-dashboard-palette="noir"]{
+ --dash-bg:#0b0d0d;--dash-panel:#171613;--dash-surface:#231e17;
+ --dash-surface-2:#292319;--dash-sidebar-bg:#10100e;--dash-input:#191714;
+ --dash-border:#745b37;--dash-border-soft:#4c3b28;
+ --dash-text:#eadfc9;--dash-text-strong:#f5e8cf;--dash-muted:#b0a18d;
+ --dash-accent:#a98850;--dash-accent-2:#d1ad71;
+ background:var(--dash-bg);color:var(--dash-text);
+ height:100vh;min-height:0;overflow:hidden;
+}
+.workspace[data-dashboard-palette="noir"]>.main-area{
+ display:flex;flex-direction:column;min-height:0;height:100%;overflow:hidden;
+}
+.workspace[data-dashboard-palette="noir"] .main-workspace-row>.content{
+ max-width:none;margin:0;background:var(--dash-bg);
+}
+
+/* Original TopBar is mounted in the real Aruba workspace, above both rails. */
+.workspace[data-dashboard-palette="noir"] .main-area>header{
+ flex-shrink:0;z-index:20;position:relative;min-height:56px;
+ background:var(--dash-panel);border-bottom:1px solid var(--dash-border-soft);
+}
+.aruba-topbar-notice{display:flex;justify-content:space-between;align-items:center;
+ gap:16px;padding:9px 18px;background:var(--dash-surface);color:var(--dash-text);
+ border-bottom:1px solid var(--dash-border);font-size:13px}
+.aruba-topbar-notice button{color:var(--dash-accent-2);background:transparent;border:0}
+
+/* Phosphor session rail: keep original 80px geometry and a single dice picker. */
+.workspace[data-dashboard-palette="noir"] .session-right-rail{
+ background:var(--dash-sidebar-bg);height:100%;min-height:0;
+ flex-shrink:0;overflow-y:auto;scrollbar-width:thin;
+}
+.workspace[data-dashboard-palette="noir"] .session-rail-link:focus-visible{
+ outline:2px solid var(--dash-accent-2);outline-offset:-2px;
+}
+.workspace[data-dashboard-palette="noir"] .session-rail-link:disabled{
+ opacity:.38;filter:grayscale(.4);
+}

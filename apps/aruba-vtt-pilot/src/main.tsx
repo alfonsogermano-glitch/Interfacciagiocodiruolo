@@ -1,0 +1,320 @@
+import {useEffect,useRef,useState,type FormEvent} from 'react';
+import {createRoot} from 'react-dom/client';
+import {loadPilotSession,logoutPilot,listOwnedCampaigns,createOwnedCampaign,updateOwnedCampaign,RULESETS} from './client.mjs';
+import './styles.css';
+import './legacy-wizard.css';
+import IconStudy from './icon-study';
+import {ArubaQuickDice} from './ArubaQuickDice';
+import {ArubaCharacterDrafts} from './ArubaCharacterDrafts';
+import {ArubaCharacterDetailPanel} from './ArubaCharacterDetailPanel';
+import {ArubaNotesRoute} from './ArubaNotesRoute';
+import {ArubaSessionRightRail} from './ArubaSessionRightRail';
+import {ArubaGmLiveScene} from './ArubaGmLiveScene';
+import {ArubaSessionCharactersPanel} from './ArubaSessionCharactersPanel';
+import {ArubaCampaignCharacterCards,type SessionEntityOpenRequest} from './ArubaCampaignCharacterCards';
+import {ArubaCampaignPlayerRows} from './ArubaCampaignPlayerRows';
+import {ArubaAssignedCharacterPanel} from './ArubaAssignedCharacterPanel';
+import {GmSectionSidebar} from '../../../src/app/layout/GmSectionSidebar';
+import {LeftSidebar} from '../../../src/app/layout/LeftSidebar';
+import {TopBar} from '../../../src/app/layout/TopBar';
+import {ArubaTopBarQaIdentity} from './ArubaOriginalTopBarAdapter';
+import type {Campaign as OriginalCampaign} from '../../../src/app/campaigns/campaignTypes';
+import {HouseIcon,UsersThreeIcon,ScrollIcon,GitBranchIcon,PlayIcon,FileTextIcon,IdentificationBadgeIcon,GhostIcon,LightbulbIcon,BookmarkSimpleIcon,MapTrifoldIcon,ImageIcon,SwordIcon} from '@phosphor-icons/react';
+
+type PilotUser={id:string;email:string;displayName:string;role:'admin'|'standard';characterAvailabilityEnabled:boolean;characterAssignmentsEnabled:boolean;playerCharactersEnabled:boolean;characterPortraitsEnabled:boolean;campaignsEnabled:boolean;charactersEnabled:boolean;entityNotesEnabled:boolean;campaignNotesEnabled:boolean;campaignNoteFoldersEnabled:boolean;originalNotesPanelEnabled:boolean;campaignRosterEnabled:boolean;gameSessionEnabled:boolean;campaignMemberships:{userId:string;campaignId:string;role:'gm'}[]};
+type Campaign={id:string;ownerId:string;name:string;description:string;ruleset:string;createdAt:string};
+type Status={state:'loading'}|{state:'unauthorized'}|{state:'error'}|{state:'ready';user:PilotUser};
+type Section='home'|'campaigns'|'characters'|'session'|'chapters'|'preparation'|'sheets'|'npcs'|'monsters'|'clues'|'equipment'|'map'|'situations'|'phases'|'combat'|'assets';
+const fetcher=fetch.bind(window);
+// Keep the independently tested original Hollowgate left/right navigation contract.
+const leftMenu=[
+ {id:'home',label:'Panoramica',Icon:HouseIcon},
+ {id:'characters',label:'Personaggi',Icon:UsersThreeIcon},
+ {id:'campaigns',label:'Campagne',Icon:ScrollIcon},
+] as const;
+const gmMenu=[
+ {id:'chapters',label:'Capitoli e Scene',Icon:GitBranchIcon},
+ {id:'preparation',label:'Preparazione',Icon:PlayIcon},
+ {id:'sheets',label:'Schede',Icon:FileTextIcon},
+ {id:'npcs',label:'PNG',Icon:IdentificationBadgeIcon},
+ {id:'monsters',label:'Mostri',Icon:GhostIcon},
+ {id:'clues',label:'Indizi',Icon:LightbulbIcon},
+ {id:'equipment',label:'Archivio Oggetti',Icon:BookmarkSimpleIcon},
+ {id:'map',label:'Mappa legacy',Icon:MapTrifoldIcon},
+ {id:'situations',label:'Eventi legacy',Icon:ScrollIcon},
+ {id:'phases',label:'Fasi di Gioco',Icon:PlayIcon},
+ {id:'combat',label:'Combattimento',Icon:SwordIcon},
+ {id:'assets',label:'Asset Grafici',Icon:ImageIcon},
+] as const;
+const menu=[...leftMenu,...gmMenu];
+function App(){
+ const [status,setStatus]=useState<Status>({state:'loading'});
+ const [topbarNotice,setTopbarNotice]=useState<string|null>(null);
+ const [section,setSection]=useState<Section>('home');
+ const [sessionPanel,setSessionPanel]=useState<'notes'|'characters'|null>(null);
+ const [sessionCharacterRequest,setSessionCharacterRequest]=useState<SessionEntityOpenRequest|null>(null);
+ const requestSequence=useRef(0);
+ function openSessionCharacter(id:string){
+  if(!user?.charactersEnabled||!activeCampaign)return;
+  setSessionPanel('characters');
+  setSessionCharacterRequest({kind:'pg',id,requestId:++requestSequence.current});
+ }
+ function closeSessionCharacter(){
+  setSessionCharacterRequest(null);
+  // The roster is hidden while the original Schede panel owns the surface.
+  // Returning from a character detail must restore the campaign roster rather
+  // than leave the panel selected with no visible assignment controls.
+  setSessionPanel(value=>value==='characters'?null:value);
+ }
+
+ // Same architectural contract as original App.tsx/rightSidebarContext.
+ // Detail selection belongs to App, not to the catalog or a legacy inline sheet.
+ const [entityDetail,setEntityDetail]=useState<{kind:'characters-detail';entityType:'character';id:string;campaignId:string}|null>(null);
+ const [characterCatalogRevision,setCharacterCatalogRevision]=useState(0);
+ const [campaigns,setCampaigns]=useState<Campaign[]>([]);
+ const [activeCampaignId,setActiveCampaignId]=useState<string|null>(null);
+ const [campaignError,setCampaignError]=useState<string|null>(null);
+ const [campaignLoading,setCampaignLoading]=useState(false);
+ const [showCreate,setShowCreate]=useState(false);
+ const [showEdit,setShowEdit]=useState(false);
+ const [submitting,setSubmitting]=useState(false);
+ const [closing,setClosing]=useState(false);
+ useEffect(()=>{
+  let alive=true;
+  void loadPilotSession(fetcher).then(user=>{
+    if(alive)setStatus(user?{state:'ready',user:user as PilotUser}:{state:'unauthorized'});
+  }).catch(()=>{if(alive)setStatus({state:'error'});});
+  return ()=>{alive=false;};
+ },[]);
+ const user=status.state==='ready'?status.user:null;
+ const activeCampaign=user?.campaignsEnabled?campaigns.find(c=>c.id===activeCampaignId&&c.ownerId===user.id)??null:null;
+ // The API session must advertise all dependencies, then an owned
+ // campaign must be selected, before the original Notes panel can appear.
+ const notesPanelReady=!!(user?.originalNotesPanelEnabled&&user.campaignNotesEnabled&&
+  user.campaignNoteFoldersEnabled&&activeCampaign&&activeCampaign.ownerId===user.id);
+ function openCampaign(id:string){
+  if(!user?.campaignsEnabled||!campaigns.some(c=>c.id===id&&c.ownerId===user.id))return;
+  setActiveCampaignId(id);setSection('campaigns');setSessionPanel(null);closeSessionCharacter();setEntityDetail(null);
+  setShowEdit(false);setCampaignError(null);
+ }
+ useEffect(()=>{
+  if(!user?.campaignsEnabled)return;
+  let alive=true;
+  setCampaignLoading(true);setCampaignError(null);
+  void listOwnedCampaigns(fetcher,user.id).then(result=>{
+    if(alive){setCampaigns(result);setActiveCampaignId(id=>result.some(c=>c.id===id)?id:null);}
+  }).catch(error=>{
+    if(alive){setCampaigns([]);setActiveCampaignId(null);setCampaignError(error instanceof Error?error.message:'Errore campagne');}
+  }).finally(()=>{if(alive)setCampaignLoading(false);});
+  return ()=>{alive=false;};
+ },[user?.id,user?.campaignsEnabled]);
+ async function create(event:FormEvent<HTMLFormElement>){
+  event.preventDefault();if(!user?.campaignsEnabled||submitting)return;
+  const form=event.currentTarget;
+  const fields=new FormData(form);
+  const data={name:String(fields.get('name')||''),description:String(fields.get('description')||''),
+   ruleset:String(fields.get('ruleset')||'hsc')};
+  setSubmitting(true);setCampaignError(null);
+  try{
+   const campaign=await createOwnedCampaign(fetcher,data,user.id);
+   setCampaigns(current=>[campaign,...current]);
+   setActiveCampaignId(campaign.id);
+   setShowCreate(false);
+  }catch(error){setCampaignError(error instanceof Error?error.message:'Errore durante la creazione');}
+  finally{setSubmitting(false);}
+ }
+ async function editCampaign(event:FormEvent<HTMLFormElement>){
+  event.preventDefault();
+  if(!user?.campaignsEnabled||!activeCampaign||submitting)return;
+  const current=activeCampaign;
+  const data=new FormData(event.currentTarget);
+  setSubmitting(true);setCampaignError(null);
+  try{
+   const updated=await updateOwnedCampaign(fetcher,current.id,{
+    name:String(data.get('name')??''),description:String(data.get('description')??''),
+   },user.id);
+   setCampaigns(list=>list.map(c=>c.id===updated.id?updated:c));
+   setShowEdit(false);
+  }catch(error){setCampaignError(error instanceof Error?error.message:'Errore durante la modifica');}
+  finally{setSubmitting(false);}
+ }
+ async function logout(){
+  setClosing(true);
+  try{await logoutPilot(fetcher);window.location.assign('/login');}
+  catch{setStatus({state:'error'});setClosing(false);}
+ }
+ if(status.state!=='ready')return <main className="entrance">
+  <div className="identity"><span className="mark">✧</span><span className="wordmark">HOLLOWGATE</span></div>
+  <section className="login-state">
+   {status.state==='loading'?<p>Verifica della sessione Aruba…</p>:
+    status.state==='unauthorized'?<><h1>Il varco è chiuso</h1><p>Accedi con il tuo account Aruba verificato.</p><a href="/login">Vai al login</a></>:
+    <><h1>Connessione non disponibile</h1><p>Non è stato possibile verificare la tua sessione.</p><a href="/login">Riprova l'accesso</a></>}
+  </section>
+ </main>;
+ return <div className="workspace" data-dashboard-palette="noir">
+  <LeftSidebar
+   view={section==='home'?'home':section==='session'?'campaign-home':'dashboard'}
+   activeSection={section}
+   campaigns={campaigns.map(c=>({...c,ruleset:c.ruleset as OriginalCampaign['ruleset'],updatedAt:c.createdAt??''}))}
+   selectedCampaignId={activeCampaignId}
+   onGoHome={()=>{setSection('home');setSessionPanel(null);closeSessionCharacter();setEntityDetail(null);}}
+   onGoToHomeSection={id=>{setSection(id);setSessionPanel(null);closeSessionCharacter();setEntityDetail(null);}}
+   onGoToCharacters={()=>{setSection('characters');setSessionPanel(null);closeSessionCharacter();setEntityDetail(null);}}
+   onGoToCampaigns={()=>{setSection('campaigns');setSessionPanel(null);closeSessionCharacter();setEntityDetail(null);}}
+   onSelectCampaign={campaign=>openCampaign(campaign.id)}/>
+  <div className="main-area">
+   <ArubaTopBarQaIdentity user={{id:user.id,email:user.email,displayName:user.displayName,role:user.role}}>
+    <TopBar activeSection={section} sessionWorkspaceActive={false}
+     onLogout={()=>{if(!closing)void logout();}}
+     onOpenSettings={()=>setTopbarNotice('Le impostazioni complete saranno disponibili dopo la migrazione dei servizi Aruba.')}
+     onReportBug={()=>setTopbarNotice('La segnalazione bug non è ancora collegata al servizio Aruba.')}/>
+   </ArubaTopBarQaIdentity>
+   {topbarNotice&&<div role="alert" className="aruba-topbar-notice">
+    <span>{topbarNotice}</span>
+    <button type="button" onClick={()=>setTopbarNotice(null)}>Chiudi</button>
+   </div>}
+   <div className="main-workspace-row">
+   <main className="content">
+    {section==='home'&&<>
+     <div className="overline">IL VARCO TI ATTENDE</div>
+     <h1>Bentornato, {user.displayName}</h1>
+     <p className="muted">La tua nuova casa per le storie che aspettano di essere raccontate.</p>
+     <div className="section-heading"><h2>Azioni rapide</h2></div>
+     <div className="quick-grid">
+      <button type="button" className="quick-card" onClick={()=>{setSection('campaigns');if(user.campaignsEnabled)setShowCreate(true);}}>
+       <span className="quick-symbol">▤</span><strong>Crea campagna</strong>
+       <span>Avvia una nuova storia e diventa Game Master.</span></button>
+      <button type="button" className="quick-card" onClick={()=>setSection('characters')}>
+       <span className="quick-symbol">♙</span><strong>Crea personaggio</strong>
+       <span>Apri le schede del regolamento HSC recuperate su Aruba.</span></button>
+      <button type="button" className="quick-card" onClick={()=>setSection('campaigns')}>
+       <span className="quick-symbol">⌁</span><strong>Unisciti a una sessione</strong>
+       <span>Inviti e partecipazioni verranno abilitati con i relativi permessi.</span></button>
+     </div>
+     <div className="section-heading"><h2>Campagne recenti</h2><button className="text-link" type="button" onClick={()=>setSection('campaigns')}>Vedi tutte</button></div>
+     <CampaignList campaigns={campaigns.slice(0,3)} loading={campaignLoading} enabled={user.campaignsEnabled} activeId={activeCampaignId} onOpen={openCampaign}/>
+    </>}
+    {section==='campaigns'&&<>
+      <div className="overline">STORIE E AVVENTURE</div>
+      <div className="section-title"><div><h1>Le tue campagne</h1><p className="muted">Gestisci le storie che hai creato come Game Master.</p></div>
+       <button type="button" onClick={()=>setShowCreate(true)} disabled={!user.campaignsEnabled}>+ Nuova campagna</button></div>
+      {campaignError&&<p className="error" role="alert">{campaignError}</p>}
+      <CampaignList campaigns={campaigns} loading={campaignLoading} enabled={user.campaignsEnabled} activeId={activeCampaignId} onOpen={openCampaign}/>
+      {activeCampaign&&<section className="selected-campaign" aria-label="Campagna selezionata"><div className="overline">CAMPAGNA SELEZIONATA · GAME MASTER</div><h2>{activeCampaign.name}</h2><p>{activeCampaign.description||'Nessuna descrizione'}</p><p>Regolamento: {RULESETS[activeCampaign.ruleset as keyof typeof RULESETS]}</p><p className="footnote">La campagna è stata riletta dall’API Aruba. L'editor originale HSC è ora collegato ad Aruba nella sezione Personaggi. Note, mappe e sessioni restano da migrare.</p><button type="button" onClick={()=>{setSessionPanel(null);setSection('session');}}>Entra nella campagna</button><button type="button" onClick={()=>setShowEdit(true)}>Modifica nome e descrizione</button><button type="button" onClick={()=>{setActiveCampaignId(null);setSessionPanel(null);setShowEdit(false);}}>Chiudi selezione</button></section>}
+      {user.campaignsEnabled&&<p className="footnote">Le campagne Aruba sono nuove e separate dai dati storici Supabase. Le partecipazioni dei giocatori non sono ancora abilitate.</p>}
+    </>}
+    {section==='characters'&&<>
+      {user.playerCharactersEnabled&&<ArubaAssignedCharacterPanel portraitsEnabled={user.characterPortraitsEnabled} />}
+      {user.charactersEnabled?
+       <ArubaCharacterDrafts campaigns={campaigns} activeCampaignId={activeCampaignId} ownerId={user.id}
+        catalogRevision={characterCatalogRevision} portraitsEnabled={user.characterPortraitsEnabled} onOpenDetail={(id,campaignId)=>setEntityDetail({kind:'characters-detail',entityType:'character',id,campaignId})}/>:
+       <div className="empty">Servizio personaggi in preparazione.</div>}
+    </>}
+    {section==='session'&&activeCampaign&&<div className="aruba-session-content" key={activeCampaign.id}>
+      <div className="overline">CAMPAGNA · CONTESTO SESSIONE</div>
+      <h1>{activeCampaign.name}</h1>
+      <p className="muted">I comandi di sessione verranno attivati dopo la migrazione dei rispettivi servizi. La gestione GM rimane separata.</p>
+      {user.gameSessionEnabled&&user.campaignMemberships.some(m=>m.userId===user.id&&m.campaignId===activeCampaign.id&&m.role==='gm')&&
+       <ArubaGmLiveScene key={activeCampaign.id} bootstrap={user} campaign={activeCampaign}/>}
+      <button type="button" className="session-return" onClick={()=>{setSessionPanel(null);closeSessionCharacter();setSection('campaigns');}}>Torna alla gestione campagne</button>
+      {user.campaignRosterEnabled&&user.charactersEnabled&&!sessionCharacterRequest&&sessionPanel!=='characters'&&
+       <ArubaCampaignPlayerRows key={activeCampaign.id} campaignId={activeCampaign.id}
+        ownerId={user.id} revision={characterCatalogRevision}
+        availabilityEnabled={user.characterAvailabilityEnabled}
+        assignmentsEnabled={user.characterAssignmentsEnabled}
+        portraitsEnabled={user.characterPortraitsEnabled}
+        onOpenCharacter={openSessionCharacter}/>}
+      {user.charactersEnabled&&!user.campaignRosterEnabled&&<ArubaCampaignCharacterCards
+       key={activeCampaign.id} campaignId={activeCampaign.id} ownerId={user.id}
+       revision={characterCatalogRevision} portraitsEnabled={user.characterPortraitsEnabled} onOpenCharacter={openSessionCharacter}/>}
+
+      {sessionPanel==='notes'&&notesPanelReady&&
+       <ArubaNotesRoute key={activeCampaign.id} campaignId={activeCampaign.id}
+        userId={user.id} ownerId={activeCampaign.ownerId}
+        onClose={()=>setSessionPanel(null)}/>}
+      {sessionPanel==='characters'&&!sessionCharacterRequest&&user.charactersEnabled&&
+       <ArubaSessionCharactersPanel key={activeCampaign.id} campaignId={activeCampaign.id}
+        ownerId={user.id} initialSelection={sessionCharacterRequest}
+        onClose={()=>{setSessionPanel(null);closeSessionCharacter();}}
+        onOpenCharacter={openSessionCharacter}/>}
+    </div>}
+    {!['home','campaigns','characters','session'].includes(section)&&<>
+      <div className="overline">STRUMENTI DI GIOCO</div>
+      <h1>{menu.find(m=>m.id===section)?.label}</h1>
+      <div className="placeholder">
+       <span className="placeholder-mark">✧</span><h2>{activeCampaign?`Campagna: ${activeCampaign.name}`:'Seleziona prima una campagna'}</h2>
+       <p>Stiamo recuperando i componenti del VTT originale e collegandoli ai nuovi servizi Aruba.
+        Questa sezione rimane disabilitata fino a quando dati e autorizzazioni non saranno pronti.</p>
+      </div>
+    </>}
+   </main>
+  {section==='session'&&activeCampaign?
+    <ArubaSessionRightRail campaignId={activeCampaign.id}
+     isGm={activeCampaign.ownerId===user.id&&user.campaignMemberships.some(m=>m.userId===user.id&&m.campaignId===activeCampaign.id&&m.role==='gm')}
+     notesEnabled={notesPanelReady}
+     charactersEnabled={!!user.charactersEnabled}
+     activePanel={sessionPanel}
+     onToggleNotes={()=>{setSessionCharacterRequest(null);setSessionPanel(value=>value==='notes'?null:'notes');}}
+     onToggleCharacters={()=>{setSessionCharacterRequest(null);setSessionPanel(value=>value==='characters'?null:'characters');}}/>:
+   section!=='characters'&&<GmSectionSidebar
+    activeTab={section==='preparation'?'scene-encounter':section==='sheets'?'players':section==='equipment'?'equipment-catalog':section==='assets'?'visual-assets':section}
+    onChangeTab={id=>{
+     const target=id==='scene-encounter'?'preparation':id==='players'?'sheets':id==='equipment-catalog'?'equipment':id==='visual-assets'?'assets':id;
+     setSection(target as Section);setSessionPanel(null);closeSessionCharacter();setEntityDetail(null);
+    }}/>}
+   </div>
+  </div>
+  {section==='session'&&activeCampaign&&sessionCharacterRequest&&user.charactersEnabled&&
+   <ArubaCharacterDetailPanel key={activeCampaign.id+':'+sessionCharacterRequest.requestId}
+    characterId={sessionCharacterRequest.id} campaignId={activeCampaign.id}
+    ownerId={user.id} notesEnabled={user.entityNotesEnabled} portraitsEnabled={user.characterPortraitsEnabled}
+    onClose={()=>closeSessionCharacter()}
+    onChanged={()=>setCharacterCatalogRevision(n=>n+1)}
+    onArchived={()=>{setCharacterCatalogRevision(n=>n+1);closeSessionCharacter();}}
+   />}
+  {section==='characters'&&entityDetail&&user.charactersEnabled&&
+   <ArubaCharacterDetailPanel key={entityDetail.campaignId+':'+entityDetail.id}
+    characterId={entityDetail.id} campaignId={entityDetail.campaignId} ownerId={user.id} notesEnabled={user.entityNotesEnabled} portraitsEnabled={user.characterPortraitsEnabled}
+    onClose={()=>setEntityDetail(null)}
+    onChanged={()=>setCharacterCatalogRevision(n=>n+1)}
+    onArchived={()=>{setCharacterCatalogRevision(n=>n+1);setEntityDetail(null);}}
+   />}
+  {section==='session'&&activeCampaign&&<ArubaQuickDice key={activeCampaign.id+':'+user.id} campaignId={activeCampaign.id} userId={user.id} rollerName={user.displayName}/>}
+  {showEdit&&activeCampaign&&user.campaignsEnabled&&<div className="modal-backdrop" role="presentation" onClick={()=>setShowEdit(false)}>
+    <form onSubmit={event=>void editCampaign(event)} className="modal" aria-label="Modifica campagna" onClick={event=>event.stopPropagation()} key={activeCampaign.id}>
+      <div className="overline">MODIFICA CAMPAGNA</div><h2>Modifica {activeCampaign.name}</h2>
+      <label>Nome<input name="name" required maxLength={100} defaultValue={activeCampaign.name}/></label>
+      <label>Descrizione<textarea name="description" maxLength={4000} rows={4} defaultValue={activeCampaign.description}/></label>
+      {campaignError&&<p className="error" role="alert">{campaignError}</p>}
+      <p className="footnote">Il regolamento non viene modificato per evitare di alterare personaggi e dati esistenti.</p>
+      <div className="modal-actions"><button type="button" className="secondary" onClick={()=>setShowEdit(false)}>Annulla</button>
+       <button type="submit" disabled={submitting}>{submitting?'Salvataggio…':'Salva modifiche'}</button></div>
+    </form>
+   </div>}
+  {showCreate&&user.campaignsEnabled&&<div className="modal-backdrop" role="presentation" onClick={()=>setShowCreate(false)}>
+    <form onSubmit={event=>void create(event)} className="modal" aria-label="Nuova campagna" onClick={event=>event.stopPropagation()}>
+     <div className="overline">NUOVA STORIA</div><h2>Crea una campagna</h2>
+     <label>Nome della campagna<input name="name" required minLength={1} maxLength={100} autoFocus/></label>
+     <label>Regolamento<select name="ruleset" defaultValue="hsc">
+       {Object.entries(RULESETS).filter(([id])=>!['dnd5e','pathfinder'].includes(id)).map(([id,label])=><option key={id} value={id}>{label}</option>)}
+     </select></label>
+     <label>Descrizione<textarea name="description" rows={4} maxLength={4000}/></label>
+     <div className="modal-actions"><button type="button" className="secondary" onClick={()=>setShowCreate(false)}>Annulla</button>
+       <button type="submit" disabled={submitting}>{submitting?'Creazione…':'Crea campagna'}</button></div>
+    </form>
+   </div>}
+ </div>;
+}
+function CampaignList({campaigns,loading,enabled,activeId,onOpen}:{campaigns:Campaign[];loading:boolean;enabled:boolean;activeId:string|null;onOpen:(id:string)=>void}){
+ if(!enabled)return <div className="empty">La gestione delle campagne sarà disponibile dopo la migrazione PostgreSQL 008.</div>;
+ if(loading)return <div className="empty">Caricamento campagne Aruba…</div>;
+ if(campaigns.length===0)return <div className="empty">Non hai ancora creato campagne su Aruba.</div>;
+ return <div className="campaign-grid">{campaigns.map(c=><article className={'campaign-card'+(activeId===c.id?' selected':'')} key={c.id}>
+  <div className="campaign-image"><span>✧</span></div><div className="campaign-body">
+   <div className="campaign-type">{RULESETS[c.ruleset as keyof typeof RULESETS]}</div>
+   <h3>{c.name}</h3><p>{c.description||'Una nuova avventura ti attende.'}</p>
+   <div className="campaign-bottom"><span>Game Master</span><button type="button" onClick={()=>onOpen(c.id)} aria-pressed={activeId===c.id}>{activeId===c.id?'Selezionata':'Apri campagna'}</button></div>
+  </div>
+ </article>)}</div>;
+}
+createRoot(document.getElementById('root')!).render(window.location.pathname==='/vtt/icon-study'?<IconStudy/>:<App/>);

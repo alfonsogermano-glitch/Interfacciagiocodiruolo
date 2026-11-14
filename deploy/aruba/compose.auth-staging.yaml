@@ -1,0 +1,42 @@
+# Disposable Aruba authentication staging API. Auth routes are loopback-only.
+# The main Hollowgate API continues to listen on 127.0.0.1:3002.
+# Database is hollowgate_auth_test, never the production hollowgate DB.
+services:
+  aruba-auth-staging:
+    build:
+      context: ../../apps/aruba-api
+    user: "1001:1001"
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3003:3000"
+    environment:
+      PORT: "3000"
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: hollowgate_auth_app
+      PGDATABASE: hollowgate_auth_test
+      POSTGRES_PASSWORD_FILE: /run/secrets/auth_test_db_password
+      AUTH_STAGING_ENABLED: "true"
+      AUTH_ORIGIN: "https://staging.hollowgate.quest"
+      AUTH_RATE_LIMIT_KEY_FILE: /run/secrets/auth_rate_limit_key
+    secrets:
+      - auth_test_db_password
+      - auth_rate_limit_key
+    networks:
+      - hollowgate-db
+      - default
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+secrets:
+  auth_test_db_password:
+    file: /opt/hollowgate/config/auth_test_db_password
+  auth_rate_limit_key:
+    file: /opt/hollowgate/config/auth_rate_limit_key
+
+networks:
+  hollowgate-db:
+    external: true
+    name: hollowgate-db

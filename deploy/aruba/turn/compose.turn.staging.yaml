@@ -1,0 +1,26 @@
+# Manual-only coturn staging on a dedicated verified Aruba IPv4 host.
+# Requires explicit 'docker compose --profile manual-turn up'; NEVER part of API deployments.
+# Host networking is intentional for UDP relay ranges; first audit ports and DNS.
+services:
+  hollowgate-turn-staging:
+    profiles: ["manual-turn"]
+    build:
+      context: ../../..
+      dockerfile: deploy/aruba/turn/Dockerfile
+    image: hollowgate-coturn:4.18.0-r0-hardened
+    network_mode: host
+    restart: "no"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs:
+      - /run/hollowgate:mode=0700,size=1m,uid=65534,gid=65534
+    environment:
+      TURN_HOSTNAME: ${TURN_HOSTNAME:?Set dedicated TURN hostname}
+      TURN_PUBLIC_IPV4: ${TURN_PUBLIC_IPV4:?Set verified public IPv4}
+    volumes:
+      - ./start-turn.sh:/opt/hollowgate/start-turn.sh:ro
+      - /opt/hollowgate/config/turn_shared_secret:/run/secrets/turn_shared_secret:ro
+      - /opt/hollowgate/config/tls/turn-fullchain.pem:/run/tls/turn-fullchain.pem:ro
+      - /opt/hollowgate/config/tls/turn-privkey.pem:/run/tls/turn-privkey.pem:ro
+    entrypoint: ["/bin/sh", "/opt/hollowgate/start-turn.sh"]
