@@ -3,9 +3,25 @@ import {listCharacterDrafts} from './client.mjs';
 
 type Draft={id:string;campaignId:string;ownerId:string;name:string;status:string;sheetData:Record<string,unknown>};
 function sheetSummary(value:Record<string,unknown>){
- return Object.entries(value).filter(([key,item])=>
-  key.length<=80&&(typeof item==='string'||typeof item==='number'||typeof item==='boolean')&&
-  String(item).length<=400).slice(0,24);
+ const rows:{path:string;value:string}[]=[];
+ const visited=new WeakSet<object>();
+ function visit(node:unknown,path:string,depth:number){
+  if(rows.length>=80||depth>5||node===null||node===undefined)return;
+  if(typeof node==='string'||typeof node==='number'||typeof node==='boolean'){
+   if(path&&String(node).length<=600)rows.push({path,value:String(node)});
+   return;
+  }
+  if(typeof node!=='object'||visited.has(node))return;
+  visited.add(node);
+  const entries=Array.isArray(node)?node.map((item,index)=>[String(index+1),item] as const):Object.entries(node);
+  for(const [field,item] of entries.slice(0,120)){
+   if(rows.length>=80)break;
+   if(field.length>100)continue;
+   visit(item,path?path+' / '+field:field,depth+1);
+  }
+ }
+ visit(value,'',0);
+ return rows;
 }
 /** Read-only authenticated Aruba character index, deliberately separate from
  * original Supabase-backed character editor until its service is migrated. */
@@ -52,9 +68,9 @@ export function ArubaOriginalCharactersQA({campaignId,ownerId,enabled}:{
     <button type="button" onClick={()=>setSelected(null)} aria-label="Chiudi scheda">Chiudi</button>
    </div>
    <dl className="grid gap-3 sm:grid-cols-2">
-    {sheetSummary(detail.sheetData).map(([field,value])=><div key={field} className="min-w-0">
-     <dt className="break-words text-xs text-[var(--dash-muted)]">{field}</dt>
-     <dd className="break-words whitespace-pre-wrap">{String(value)}</dd>
+    {sheetSummary(detail.sheetData).map(({path,value})=><div key={path} className="min-w-0">
+     <dt className="break-words text-xs text-[var(--dash-muted)]">{path}</dt>
+     <dd className="break-words whitespace-pre-wrap">{value}</dd>
     </div>)}
    </dl>
    <p className="mt-4 text-xs text-[var(--dash-muted)]">Anteprima di sola lettura. La scheda originale completa è ancora in migrazione.</p>
