@@ -8,7 +8,9 @@ export function projectOriginalSceneTokens(publication,campaignId){
   !Array.isArray(publication.mapTokens))throw new TypeError('Original active scene unavailable');
  let state=createEmptyScene(publication.sceneId);
  for(const source of publication.mapTokens){
-  if(!source||!UUID.test(source.id??'')||typeof source.name!=='string')
+  if(!source||!UUID.test(source.id??'')||typeof source.name!=='string'||
+   (source.visible!==undefined&&typeof source.visible!=='boolean')||
+   (source.hiddenFromPlayers!==undefined&&typeof source.hiddenFromPlayers!=='boolean'))
    throw new TypeError('Invalid original map token');
   state=applySceneTokenAction(state,{type:'add',token:{
    id:source.id,name:source.name,x:source.x,y:source.y,

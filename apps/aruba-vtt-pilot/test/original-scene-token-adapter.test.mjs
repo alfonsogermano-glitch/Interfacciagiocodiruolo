@@ -22,3 +22,9 @@ test('adapter fails closed for missing scene, wrong campaign, invalid token and 
   {...base,mapTokens:[{id:token,name:'a',x:0,y:0},{id:token,name:'b',x:0,y:0}]}])
   assert.throws(()=>projectOriginalSceneTokens(input,campaign));
 });
+
+test('original token visibility fields reject ambiguous values rather than exposing tokens',()=>{
+ const base={campaignId:campaign,sceneId:scene,mapTokens:[{id:token,name:'Secret',x:1,y:2}]};
+ for(const patch of [{visible:'false'},{hiddenFromPlayers:'true'},{visible:null}])
+  assert.throws(()=>projectOriginalSceneTokens({...base,mapTokens:[{...base.mapTokens[0],...patch}]},campaign),/Invalid original map token/);
+});
