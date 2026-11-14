@@ -67,10 +67,16 @@ test('player clears stale scene and accepts a fresh revision epoch after channel
  const deliver=(revision,state)=>channel.onmessage({data:JSON.stringify({type:'game',campaignId,payload:{kind:'snapshot',campaignId,revision,state}})});
  deliver(45,first);
  assert.deepEqual(session.getScene(),first);
- channel.onclose();
+ channel.readyState='closed';channel.onclose();
  assert.equal(session.getScene(),null);
  assert.equal(scenes.at(-1),null);
- deliver(1,next);
+ // A stale closed channel must not deliver snapshots after disconnection.
+ deliver(1,next);assert.equal(session.getScene(),null);
+ Socket.last.message({type:'signal',kind:'offer',payload:{sdp:'new-offer'}});
+ for(let i=0;i<30&&Socket.last.sent.filter(x=>x.kind==='answer').length<2;i++)await tick();
+ assert.equal(Socket.last.sent.filter(x=>x.kind==='answer').length,2);
+ const newChannel=new Channel('hollowgate-game');Peer.last.ondatachannel({channel:newChannel});newChannel.onopen();
+ newChannel.onmessage({data:JSON.stringify({type:'game',campaignId,payload:{kind:'snapshot',campaignId,revision:1,state:next}})});
  assert.deepEqual(session.getScene(),next);
  assert.deepEqual(scenes.at(-1),next);
  session.close();

@@ -12,9 +12,9 @@ export function createWebRtcSession({origin,campaignId,role,WebSocketImpl,PeerCo
  function channelReady(peer,channel){
   peer.channel=channel;
   channel.onopen=()=>{if(peers.get(peer.id)===peer)notify('connected',peer.id);};
-  channel.onclose=()=>{if(peers.get(peer.id)===peer)notify('channel-closed',peer.id);};
+  channel.onclose=()=>{if(peers.get(peer.id)===peer){notify('channel-closed',peer.id);drop(peer.id);}};
   channel.onmessage=event=>{
-   if(stopped||peers.get(peer.id)!==peer||typeof event.data!=='string'||event.data.length>65536)return;
+   if(stopped||peers.get(peer.id)!==peer||channel.readyState!=='open'||typeof event.data!=='string'||event.data.length>65536)return;
    let data;try{data=JSON.parse(event.data);}catch{return;}
    if(data&&typeof data==='object'&&!Array.isArray(data)&&data.campaignId===campaignId&&
       data.type==='game'&&Object.hasOwn(data,'payload'))onData({peerId:peer.id,payload:data.payload});
