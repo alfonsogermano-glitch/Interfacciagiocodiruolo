@@ -6,6 +6,7 @@ import type {Campaign} from '../../../src/app/campaigns/campaignTypes';
 import {ArubaOriginalTopBarQA} from './ArubaOriginalTopBarQA';
 import {ArubaOriginalMapToolQA} from './ArubaOriginalMapToolQA';
 import {ArubaOriginalCampaignOverviewQA} from './ArubaOriginalCampaignOverviewQA';
+import {ArubaOriginalCharactersQA} from './ArubaOriginalCharactersQA';
 
 /** Internal parity QA harness, NOT a substitute VTT and never a production
  * route. Original components are mounted unchanged, without legacy auth.
@@ -19,10 +20,10 @@ const fixtureCampaign:Campaign={
  createdAt:'2026-11-13T00:00:00.000Z',updatedAt:'2026-11-13T00:00:00.000Z',
 };
 export function ArubaOriginalShellParity({campaigns=[fixtureCampaign],displayName='GM di collaudo',
- qaUser=null,mapWorkspaceQa=false}:{
+ qaUser=null,mapWorkspaceQa=false,charactersEnabled=false}:{
  campaigns?:Campaign[];displayName?:string;
  qaUser?:{id:string;email:string;displayName:string;role:'standard'|'admin'}|null;
- mapWorkspaceQa?:boolean;
+ mapWorkspaceQa?:boolean;charactersEnabled?:boolean;
 }={}){
  const [view,setView]=useState<'home'|'dashboard'|'campaign-home'>('dashboard');
  const [section,setSection]=useState('chapters');
@@ -50,8 +51,10 @@ export function ArubaOriginalShellParity({campaigns=[fixtureCampaign],displayNam
    rightSidebar={view==='dashboard'&&!['characters','campaigns'].includes(section)?
     <GmSectionSidebar activeTab={section} onChangeTab={go}/>:null}>
    <section className="p-6" aria-label="Contenuto di collaudo" data-active-section={section}>
-    <ArubaOriginalCampaignOverviewQA campaigns={campaigns} campaign={campaign}
-     section={section} onSelectCampaign={selectCampaign}/>
+    {section==='characters'?<ArubaOriginalCharactersQA campaignId={campaign?.id??null}
+     ownerId={qaUser?.id??fixtureCampaign.ownerId} enabled={charactersEnabled}/>:
+     <ArubaOriginalCampaignOverviewQA campaigns={campaigns} campaign={campaign}
+      section={section} onSelectCampaign={selectCampaign}/>}
     {mapWorkspaceQa&&<ArubaOriginalMapToolQA/>}
    </section>
   </AppShell>
