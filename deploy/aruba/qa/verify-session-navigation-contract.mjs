@@ -65,7 +65,7 @@ assert(JSON.stringify(railIds)===JSON.stringify(contract.dashboardRailIds),
  'Dashboard rail entries no longer match inventory');
 const differences=contract.confirmedPilotDivergences.map(x=>x.id);
 assert(differences.length===7,'Navigation divergence inventory incomplete');
-assert(pilot.includes('<ArubaSessionRightRail notesEnabled={notesPanelReady}')&&
+assert(pilot.includes('<ArubaSessionRightRail campaignId={activeCampaign.id} notesEnabled={notesPanelReady}')&&
  pilot.includes('<ArubaNotesRoute key={activeCampaign.id}'),
  'Pilot Notes/session rail changed: re-audit before marking parity');
 assert(pilot.includes('c.ownerId===user.id')&&pilot.includes('activeCampaign.ownerId===user.id'),
