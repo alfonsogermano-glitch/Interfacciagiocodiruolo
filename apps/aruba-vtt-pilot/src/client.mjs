@@ -486,7 +486,7 @@ export async function saveArubaChapter(fetchImpl,campaignId,draft){
   method:'PUT',credentials:'same-origin',cache:'no-store',redirect:'error',
   headers:{'Content-Type':'application/json'},body:JSON.stringify(draft)});
  const data=await chapterResponse(r);
- if(data?.chapter?.id!==draft.id)throw Error('Conferma capitolo non valida');
+ if(data?.chapter?.id!==draft.id||data.chapter.campaignId!==campaignId)throw Error('Conferma capitolo non valida');
  return data.chapter;
 }
 export async function deleteArubaChapter(fetchImpl,campaignId,chapterId){
