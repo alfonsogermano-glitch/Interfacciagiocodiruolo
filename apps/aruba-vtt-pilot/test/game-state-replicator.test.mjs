@@ -41,3 +41,14 @@ test('player rejects snapshot from another peer even with a matching campaign en
  assert.equal(player.getSnapshot(),null);
  assert.equal(player.receive({peerId:campaignId,payload:{kind:'snapshot',campaignId,revision:1,state:{scene:'real'}}}),true);
 });
+
+test('rejects deeply nested, excessively complex and prototype-shaped snapshots',()=>{
+ const gm=createGameStateReplicator({campaignId,role:'host',send:()=>true});
+ let nested={leaf:true};for(let i=0;i<40;i++)nested={child:nested};
+ assert.throws(()=>gm.publish(nested),/complex/);
+ assert.throws(()=>gm.publish(JSON.parse('{"__proto__":{"admin":true}}')),/Unsafe/);
+ assert.throws(()=>gm.publish({constructor:{admin:true}}),/Unsafe/);
+ const player=createGameStateReplicator({campaignId,role:'player',send:()=>true});
+ assert.equal(player.receive({peerId:campaignId,payload:{kind:'snapshot',campaignId,revision:1,state:JSON.parse('{"__proto__":{"admin":true}}')}}),false);
+ assert.equal(player.getSnapshot(),null);
+});

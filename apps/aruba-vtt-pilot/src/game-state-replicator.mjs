@@ -2,11 +2,27 @@
  * This module deliberately has no storage or signaling dependencies. */
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const MAX=60000;
+const MAX_DEPTH=32;
+const MAX_NODES=10000;
+function safeShape(root){
+ let count=0;const stack=[[root,0]];
+ while(stack.length){
+  const [value,depth]=stack.pop();
+  if(++count>MAX_NODES||depth>MAX_DEPTH)throw new TypeError('Game snapshot too complex');
+  if(value&&typeof value==='object'){
+   if(Object.hasOwn(value,'__proto__')||Object.hasOwn(value,'constructor')||Object.hasOwn(value,'prototype'))
+    throw new TypeError('Unsafe game snapshot key');
+   for(const key of Object.keys(value))stack.push([value[key],depth+1]);
+  }
+ }
+}
+
 function copy(value){
  const encoded=JSON.stringify(value);
  if(typeof encoded!=='string'||encoded.length>MAX)throw new TypeError('Invalid game snapshot');
  const result=JSON.parse(encoded);
  if(!result||typeof result!=='object'||Array.isArray(result))throw new TypeError('Game snapshot must be an object');
+ safeShape(result);
  return result;
 }
 /** GM owns revision and state; players may request refresh but never replace state. */
