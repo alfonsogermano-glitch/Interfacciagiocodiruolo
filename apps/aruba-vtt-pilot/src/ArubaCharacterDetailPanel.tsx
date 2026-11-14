@@ -1,5 +1,5 @@
 import {useCallback,useEffect,useRef,useState} from 'react';
-import {ArrowLeft} from 'lucide-react';
+import {ArrowLeftIcon} from '@phosphor-icons/react';
 import {listCharacterDrafts,saveFullCharacterSheet,archiveOwnedCharacter} from './client.mjs';
 import {EntityDetailRail,type EntityDetailRailSection} from '../../../src/app/components/session/shared/EntityDetailRail';
 import {SlideOverPanel} from '../../../src/app/components/session/SlideOverPanel';
@@ -51,7 +51,7 @@ export function ArubaCharacterDetailPanel({characterId,campaignId,ownerId,notesE
   <SlideOverPanel isOpen onClose={()=>void requestClose()} rightOffset="80px" widthClassName="w-full max-w-6xl">
     <div className="aruba-entity-slide-content">
      <div className="aruba-entity-back-column">
-      <button type="button" onClick={()=>void requestClose()} disabled={closing}><ArrowLeft size={17}/> Torna ai personaggi</button>
+      <button type="button" onClick={()=>void requestClose()} disabled={closing}><ArrowLeftIcon size={17} weight="duotone"/> Torna ai personaggi</button>
      </div>
      <div className="aruba-entity-detail-main">
       {closeError&&<p className="error" role="alert">{closeError}</p>}

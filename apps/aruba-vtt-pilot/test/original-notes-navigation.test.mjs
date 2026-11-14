@@ -40,3 +40,12 @@ test('Notes route uses the actual original SlideOverPanel and regular build stay
  assert.match(vite,/HG_CAMPAIGN_NOTES_CONTRACT==='1'/);
  assert.match(defaultNotes,/non attivato su questa build Aruba/);
 });
+
+test('Aruba character detail uses the Phosphor icon set without changing original sheet controls',()=>{
+ const detail=readFileSync(resolve(root,'src/ArubaCharacterDetailPanel.tsx'),'utf8');
+ assert.match(detail,/import \{ArrowLeftIcon\} from '@phosphor-icons\/react'/);
+ assert.doesNotMatch(detail,/from 'lucide-react'/);
+ assert.match(detail,/<ArrowLeftIcon size=\{17\} weight="duotone"\/> Torna ai personaggi/);
+ assert.match(detail,/<EntityDetailView/);
+ assert.match(detail,/<EntityDetailRail/);
+});
