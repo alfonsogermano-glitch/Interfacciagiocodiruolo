@@ -6,11 +6,16 @@ const pool=new Pool({connectionString:process.env.DATABASE_URL,connectionTimeout
 const checks=[
  ['campaigns table',`SELECT to_regclass('hollowgate_vtt.campaigns') IS NOT NULL AS ready`],
  ['chapter documents table',`SELECT to_regclass('hollowgate_vtt.chapter_documents') IS NOT NULL AS ready`],
- ['chapter read privilege',`SELECT has_table_privilege(current_user,'hollowgate_vtt.chapter_documents','SELECT') AS ready`],
- ['chapter insert privilege',`SELECT has_table_privilege(current_user,'hollowgate_vtt.chapter_documents','INSERT') AS ready`],
- ['chapter update privilege',`SELECT has_table_privilege(current_user,'hollowgate_vtt.chapter_documents','UPDATE') AS ready`],
- ['chapter delete privilege',`SELECT has_table_privilege(current_user,'hollowgate_vtt.chapter_documents','DELETE') AS ready`],
- ['campaign owner read privilege',`SELECT has_column_privilege(current_user,'hollowgate_vtt.campaigns','owner_id','SELECT') AS ready`],
+ ['chapter read privilege',`SELECT NOT has_table_privilege(current_user,'hollowgate_vtt.chapter_documents','SELECT') AS ready`],
+ ['chapter insert privilege',`SELECT NOT has_table_privilege(current_user,'hollowgate_vtt.chapter_documents','INSERT') AS ready`],
+ ['chapter update privilege',`SELECT NOT has_table_privilege(current_user,'hollowgate_vtt.chapter_documents','UPDATE') AS ready`],
+ ['chapter delete privilege',`SELECT NOT has_table_privilege(current_user,'hollowgate_vtt.chapter_documents','DELETE') AS ready`],
+ ['campaign owner read privilege',`SELECT NOT has_column_privilege(current_user,'hollowgate_vtt.campaigns','owner_id','SELECT') AS ready`],
+ ['chapter routine 1',`SELECT has_function_privilege(current_user,'hollowgate_vtt.chapter_owner_authorized(uuid,uuid)','EXECUTE') AS ready`],
+ ['chapter routine 2',`SELECT has_function_privilege(current_user,'hollowgate_vtt.list_owned_chapter_documents(uuid,uuid)','EXECUTE') AS ready`],
+ ['chapter routine 3',`SELECT has_function_privilege(current_user,'hollowgate_vtt.list_owned_chapter_links(uuid,uuid,uuid[])','EXECUTE') AS ready`],
+ ['chapter routine 4',`SELECT has_function_privilege(current_user,'hollowgate_vtt.save_owned_chapter_document(uuid,uuid,uuid,jsonb)','EXECUTE') AS ready`],
+ ['chapter routine 5',`SELECT has_function_privilege(current_user,'hollowgate_vtt.delete_owned_chapter_document(uuid,uuid,uuid)','EXECUTE') AS ready`],
 ];
 let failed=false;
 try{
