@@ -83,10 +83,10 @@ test('Aruba pilot preserves the original Hollowgate left/right rail positions',(
  for(const text of ['Capitoli e Scene','Preparazione','Schede','PNG','Mostri','Indizi','Archivio Oggetti'])assert.ok(right.includes("label:'"+text+"'"));
  assert.match(code,/id:'npcs',label:'PNG',Icon:IdentificationBadgeIcon/);
  assert.match(code,/id:'monsters',label:'Mostri',Icon:GhostIcon/);
- assert.match(code,/className="primary-sidebar"/);
- assert.match(code,/className="gm-sidebar"/);
- assert.ok(code.indexOf('className="primary-sidebar"')<code.indexOf('className="main-area"'));
- assert.ok(code.indexOf('className="main-area"')<code.indexOf('className="gm-sidebar"'));
+ assert.match(code,/<LeftSidebar/);
+ assert.match(code,/<GmSectionSidebar/);
+ assert.ok(code.indexOf('<LeftSidebar')<code.indexOf('className="main-area"'));
+ assert.ok(code.indexOf('className="main-area"')<code.indexOf('<GmSectionSidebar'));
  assert.match(css,/\.primary-sidebar\{width:100px/);
  assert.match(css,/\.gm-sidebar\{width:80px/);
  assert.doesNotMatch(code,/from ['"](?:@supabase\/supabase-js|lucide-react)['"]/);
@@ -97,7 +97,7 @@ test('campaign selection is only offered for Aruba-owned campaigns already retur
  assert.match(code,/campaigns\.some\(c=>c\.id===id&&c\.ownerId===user\.id\)/);
  assert.match(code,/activeCampaign=user\?\.campaignsEnabled\?campaigns\.find\(c=>c\.id===activeCampaignId&&c\.ownerId===user\.id\)/);
  assert.match(code,/setActiveCampaignId\(id=>result\.some\(c=>c\.id===id\)\?id:null\)/);
- assert.match(code,/onClick=\{\(\)=>onOpen\(c\.id\)\}/);
+ assert.match(code,/onSelectCampaign=\{campaign=>openCampaign\(campaign\.id\)\}/);
  assert.match(code,/onClick=\{\(\)=>openCampaign\(c\.id\)\}/);
  assert.doesNotMatch(code,/localStorage|sessionStorage/);
 });
@@ -123,12 +123,12 @@ test('right GM sidebar starts beneath the full-width top bar, as in original App
  const shell=readFileSync(new URL('../../../src/app/layout/AppShell.tsx',import.meta.url),'utf8');
  assert.match(shell,/\{topbar\}[\s\S]*className="flex flex-1 overflow-hidden"[\s\S]*\{rightSidebar\}/);
  const mainStart=code.indexOf('<div className="main-area">');
- const header=code.indexOf('<header className="topbar">',mainStart);
+ const header=code.indexOf('<TopBar activeSection={section}',mainStart);
  const row=code.indexOf('<div className="main-workspace-row">',header);
  const content=code.indexOf('<main className="content">',row);
- const sidebar=code.indexOf('<aside className="gm-sidebar"',content);
+ const sidebar=code.indexOf('<GmSectionSidebar',content);
  assert.ok(mainStart>=0&&header>mainStart&&row>header&&content>row&&sidebar>content);
- assert.ok(code.indexOf('</header>',header)<row);
+ assert.ok(code.indexOf('</ArubaTopBarQaIdentity>',header)<row);
  assert.match(css,/\.main-area\{[^}]*display:flex;flex-direction:column/);
  assert.match(css,/\.main-workspace-row\{[^}]*display:flex;flex:1/);
  assert.match(css,/\.main-workspace-row>\.gm-sidebar\{height:100%/);
@@ -258,7 +258,7 @@ test('global character entry respects original three tabs and invokes wizard wit
  assert.match(character,/onClick=\{\(\)=>\{setError\(null\);setEditingId\(null\);setCreating\(true\);\}\}/);
  assert.doesNotMatch(character,/name="name" required maxLength=\{120\}/);
  assert.match(character,/createCharacterDraft\(fetch,campaignId,character\.name,ownerId\)/);
- assert.match(layout,/section!=='characters'&&<aside className="gm-sidebar"/);
+ assert.match(layout,/section!=='characters'&&<GmSectionSidebar/);
  assert.match(styles,/main-workspace-row>\.content:has\(\.aruba-character-library\)/);
 });
 

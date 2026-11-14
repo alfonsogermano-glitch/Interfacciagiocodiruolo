@@ -40,7 +40,7 @@ test('authenticated QA shell uses cookie bootstrap and owner-scoped Aruba campai
  assert.match(config,/original-shell-auth\.html/);
 });
 
-test('the exact original TopBar mounts in authenticated QA only, with fail-closed Supabase boundary',()=>{
+test('the exact original TopBar mounts in authenticated QA and shipping pilot with isolated Supabase boundary',()=>{
  const config=read('../vite.original-shell.config.mjs');
  const topbar=read('../src/ArubaOriginalTopBarQA.tsx');
  const runtime=read('../src/ArubaOriginalTopBarAdapter.tsx');
@@ -54,7 +54,8 @@ test('the exact original TopBar mounts in authenticated QA only, with fail-close
  assert.match(runtime,/useAuth\(\).*useContext\(Context\)/);
  assert.match(runtime,/notifications:\[\] as NotificationRow\[\]/);
  assert.doesNotMatch(runtime,/fetch\(|supabase\.storage|localStorage|sessionStorage/);
- assert.doesNotMatch(read('../src/main.tsx'),/ArubaOriginalTopBarQA|ArubaOriginalTopBarAdapter/);
+ assert.doesNotMatch(read('../src/main.tsx'),/<ArubaOriginalTopBarQA/);
+ assert.match(read('../src/main.tsx'),/<TopBar activeSection=\{section\}/);
 });
 
 test('original map toolbar QA cannot activate any network map session or bypass edit locks',()=>{
