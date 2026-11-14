@@ -6,7 +6,7 @@ import {
 } from '../../../services/campaign/activeScene';
 import { useCampaignChannel } from '../../../services/realtime/campaignChannel';
 import { notifyCommittedMapPublication, notifyFailedMapPublication } from './activeScenePublicationObserver';
-import { mergePendingMapPublication } from './mapPublicationBatch';
+import { mergePendingMapPublication, buildPersistedMapPublication } from './mapPublicationBatch';
 import {
   isActiveScenePublication,
   type ActiveSceneCollectionDelta,
@@ -195,7 +195,7 @@ export function useActiveScene(campaignId: string | null | undefined) {
     const next = { ...pendingValue, publishedAt: new Date(publishedAtMs).toISOString() };
     const operation = publicationQueueRef.current.then(async () => {
       const latest = latestPublicationRef.current;
-      const persisted = latest && latest.id === next.id ? { ...latest, ...pendingFields, publishedAt: next.publishedAt } : next;
+      const persisted = buildPersistedMapPublication(latest, next, pendingFields);
       const patch: ActiveSceneMapPatch = {
         id: next.id,
         campaignId: next.campaignId,

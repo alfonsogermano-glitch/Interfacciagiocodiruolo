@@ -16,3 +16,16 @@ export function mergePendingMapPublication(
   // for the same field, the newest complete collection wins.
   return { value, fields: { ...previous.fields, ...fields } };
 }
+
+/** Preserve already queued settled fields even when React regenerates the scene ID. */
+export function buildPersistedMapPublication(
+  latest: ActiveScenePublication | null,
+  next: ActiveScenePublication,
+  fields: ActiveSceneMapFields,
+): ActiveScenePublication {
+  const sameScene = latest && latest.campaignId === next.campaignId &&
+    latest.chapterId === next.chapterId && latest.sceneId === next.sceneId;
+  return sameScene
+    ? { ...latest, ...fields, id: next.id, publishedAt: next.publishedAt }
+    : { ...next, ...fields };
+}
