@@ -18,6 +18,7 @@ const next=ws=>new Promise((resolve,reject)=>{
 async function setup(options={}){
  const revoked=new Set(),server=createServer((_req,res)=>res.end('Not found'));
  const identity={async verify({sessionToken,campaignId,connectionRole}){
+  await options.beforeVerify?.({sessionToken,connectionRole});
   if(revoked.has(sessionToken)||campaignId!==campaign)throw Error('Denied');
   if(connectionRole==='host'&&sessionToken===hostToken)
    return {userId:owner,campaignId,role:'gm'};
@@ -25,7 +26,8 @@ async function setup(options={}){
    return {userId:player,campaignId,role:'player'};
   throw Error('Denied');
  }};
- const gateway=createSignalingWebSocketGateway({server,origin,identity,...options});
+ const {beforeVerify,...gatewayOptions}=options;
+ const gateway=createSignalingWebSocketGateway({server,origin,identity,...gatewayOptions});
  server.listen(0,'127.0.0.1');await once(server,'listening');
  const port=server.address().port,sockets=[];
  const url=(role)=>'ws://127.0.0.1:'+port+'/vtt/signaling?campaignId='+campaign+'&role='+role;
@@ -83,6 +85,28 @@ test('a second host cannot replace an active room or disconnect its players',asy
   assert.deepEqual(await toHost,{type:'signal',kind:'answer',
    peerId:member.peerId,payload:{sdp:'still-active'}});
  }finally{await s.close();}
+});
+test('player upgrade cannot resurrect a room after its host disconnects during verification',async()=>{
+ let release,entered;
+ const waiting=new Promise(resolve=>{entered=resolve;});
+ const blocked=new Promise(resolve=>{release=resolve;});
+ const s=await setup({beforeVerify:async({connectionRole})=>{
+  if(connectionRole==='player'){entered();await blocked;}
+ }});
+ try{
+  const {ws:host,ready:hw}=await s.connect('host',hostToken);await hw;
+  const peer=new WebSocket(s.url('player'),{headers:{Origin:origin,
+   Cookie:'__Host-hg_session='+playerToken}});
+  await waiting;
+  const closed=once(host,'close');host.close();await closed;
+  release();
+  const outcome=await new Promise(resolve=>{
+   peer.once('unexpected-response',(_request,response)=>resolve(response.statusCode));
+   peer.once('open',()=>peer.once('close',code=>resolve(code)));
+   peer.once('error',()=>{});
+  });
+  assert.ok([403,1008].includes(outcome));
+ }finally{release?.();await s.close();}
 });
 test('wrong Origin and absent cookie are rejected before upgrade',async()=>{
  const s=await setup();

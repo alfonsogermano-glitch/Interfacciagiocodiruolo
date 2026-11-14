@@ -143,7 +143,8 @@ export function createSignalingWebSocketGateway({server,origin,identity,revalida
    // must never replace the existing host and orphan its player sockets.
    if(role==='host'&&room){ws.close(1008,'Host already connected');return;}
    if(role==='host')rooms.set(campaignId,{host:client,players:new Map()});
-   else if(room)room.players.set(client.peerId,client);
+   else if(room&&!room.host.left&&rooms.get(campaignId)===room)
+    room.players.set(client.peerId,client);
    else{ws.close(1008,'Host unavailable');return;}
    clients.add(ws);sessions.add(client);
    ws.on('close',()=>leave(client));ws.on('error',()=>leave(client));
@@ -154,7 +155,8 @@ export function createSignalingWebSocketGateway({server,origin,identity,revalida
    send(ws,{type:'ready',role,peerId:client.peerId});
    // This identity is sourced only from the server-side membership verifier,
    // never from a player-authored WebSocket or DataChannel envelope.
-   if(role==='player'&&room)send(room.host.ws,{type:'peer-joined',
+   if(role==='player'&&room&&!room.host.left&&rooms.get(campaignId)===room)
+    send(room.host.ws,{type:'peer-joined',
     peerId:client.peerId,userId:client.userId,campaignId:client.campaignId});
   });
  }
