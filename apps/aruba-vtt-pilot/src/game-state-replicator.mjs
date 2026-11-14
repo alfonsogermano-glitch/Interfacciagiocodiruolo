@@ -53,6 +53,7 @@ export function createGameStateReplicator({campaignId,role,send,onSnapshot=()=>{
   publish,
   receive,
   requestSnapshot(){return !closed&&role==='player'&&send({kind:'request-snapshot',campaignId})!==false;},
+  resetPlayerConnection(){if(closed||role!=='player')return false;revision=0;state=null;return true;},
   getSnapshot(){return state?{revision,state:copy(state)}:null;},
   close(){closed=true;state=null;},
  };

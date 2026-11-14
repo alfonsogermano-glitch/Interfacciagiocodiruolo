@@ -11,6 +11,7 @@ export function createCampaignLiveSession({origin,campaignId,role,WebSocketImpl,
    if(stopped)return;
    if(event.state==='connected'&&role==='player')replicator?.requestSnapshot();
    if(event.state==='connected'&&role==='host')replicator?.receive({peerId:event.peerId,payload:{kind:'request-snapshot',campaignId}});
+   if(role==='player'&&['disconnected','channel-closed','signaling-disconnected'].includes(event.state))replicator?.resetPlayerConnection();
    onStatus(event);
   },
   onData:event=>{if(!stopped)replicator?.receive(event);},

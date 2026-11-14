@@ -52,3 +52,17 @@ test('rejects deeply nested, excessively complex and prototype-shaped snapshots'
  assert.equal(player.receive({peerId:campaignId,payload:{kind:'snapshot',campaignId,revision:1,state:JSON.parse('{"__proto__":{"admin":true}}')}}),false);
  assert.equal(player.getSnapshot(),null);
 });
+
+test('player accepts a new GM revision epoch only after transport reconnection reset',()=>{
+ const player=createGameStateReplicator({campaignId,role:'player',send:()=>true});
+ const message=(revision,name)=>({peerId:campaignId,payload:{kind:'snapshot',campaignId,revision,state:{name}}});
+ assert.equal(player.receive(message(45,'old')),true);
+ assert.equal(player.receive(message(1,'new')),false);
+ assert.equal(player.resetPlayerConnection(),true);
+ assert.equal(player.getSnapshot(),null);
+ assert.equal(player.receive(message(1,'new')),true);
+ assert.equal(player.getSnapshot().state.name,'new');
+ const gm=createGameStateReplicator({campaignId,role:'host',send:()=>true});
+ assert.equal(gm.resetPlayerConnection(),false);
+ player.close();assert.equal(player.resetPlayerConnection(),false);
+});
