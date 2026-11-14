@@ -200,7 +200,7 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         if(!['GET','PUT','DELETE'].includes(req.method))throw new HttpProblem(405,'Metodo non consentito');
         if(req.method==='GET'&&match[2]||req.method==='DELETE'&&!match[2]||req.method==='PUT'&&match[2])
           throw new HttpProblem(405,'Metodo non consentito');
-        const token=readSessionCookie(req);
+        const token=extractSession(req);
         if(!token)return response(res,401,{error:'Non autenticato'});
         const user=await getSessionUser(token);
         if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
