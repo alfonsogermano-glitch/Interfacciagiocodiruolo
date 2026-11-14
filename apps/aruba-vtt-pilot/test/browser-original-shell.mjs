@@ -13,9 +13,15 @@ try{
   const right=qa.locator('aside').last();
   const leftBox=await left.boundingBox();
   const rightBox=await right.boundingBox();
-  const topbar=qa.locator('[data-original-topbar-slot]');
+  // The isolated fixture now mounts the exact original TopBar as well.
+  // Keep the geometry assertion tied to the real component, not the
+  // deleted 76px pilot placeholder.
+  const topbar=qa.locator('header.sticky');
+  await topbar.waitFor();
+  assert.equal(await qa.locator('[data-original-topbar-slot]').count(),0);
   const topBox=await topbar.boundingBox();
   assert.ok(leftBox&&rightBox&&topBox);
+  assert.equal(Math.round(topBox.height),48,'original TopBar is h-12');
   assert.equal(Math.round(leftBox.width),100,'original left rail width');
   assert.equal(Math.round(rightBox.width),80,'original right rail width');
   assert.ok(rightBox.y>=topBox.y+topBox.height-1,'right sidebar must start below topbar');
