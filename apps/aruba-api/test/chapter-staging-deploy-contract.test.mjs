@@ -7,6 +7,7 @@ test('chapter schema deployment is explicit and staging-only',()=>{
  assert.match(source,/hollowgate_auth_test/);
  assert.match(source,/feature\/aruba-api-foundation/);
  assert.match(source,/ON_ERROR_STOP=1/);
+ assert.match(source,/test_chapter_documents\.sql/);
  assert.doesNotMatch(source,/\-d\s+(?:hollowgate_prod|hollowgate_production)\b/);
  assert.doesNotMatch(source,/AUTH_VTT_CHAPTERS_ENABLED=true/);
 });
