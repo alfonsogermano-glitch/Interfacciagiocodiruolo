@@ -28,7 +28,8 @@ async function run(mode){
  });
  await page.route('**/vtt/campaigns',async route=>{
   requests.push({path:'/vtt/campaigns',method:route.request().method()});
-  await route.fulfill({json:{campaigns}});
+  if(mode==='expired-campaign-session')return route.fulfill({status:401,json:{error:'Session expired'}});
+  await route.fulfill({json:{campaigns:mode==='empty'?[]:campaigns}});
  });
  await page.goto(base,{waitUntil:'domcontentloaded'});
  if(mode==='unauthorized'){
@@ -39,6 +40,10 @@ async function run(mode){
   await page.locator('[data-original-shell-auth-state="unavailable"]').waitFor();
   assert.equal(await page.locator('[data-original-shell-qa]').count(),0);
   assert.equal(requests.some(r=>r.path==='/vtt/campaigns'),false);
+ }else if(mode==='expired-campaign-session'){
+  await page.locator('[data-original-shell-auth-state="error"]').waitFor();
+  assert.equal(await page.locator('[data-original-shell-qa]').count(),0);
+  assert.equal(requests.filter(r=>r.path==='/vtt/campaigns').length,1);
  }else{
   await page.locator('[data-original-shell-auth-state="ready"]').waitFor();
   const originalTopbar=page.locator('header.sticky');
@@ -51,6 +56,11 @@ async function run(mode){
    'Inactive map is never presented as an operational session');
   const headerBox=await originalTopbar.boundingBox();
   assert.equal(Math.round(headerBox.height),48,'Original TopBar is h-12, not pilot 76px');
+  if(mode==='empty'){
+   await page.getByRole('button',{name:'Campagne',exact:true}).click();
+   assert.equal(await page.locator('[data-campaign-overview-empty="true"]').count(),1);
+   assert.equal(await page.locator('[data-campaign-overview-state="list"]').getByRole('button').count(),0);
+  }else{
   await page.getByRole('button',{name:'Campagna Aruba del GM'}).waitFor();
   await page.getByRole('button',{name:'Campagne',exact:true}).click();
   assert.equal(await page.locator('[data-campaign-overview-state="list"]').count(),1);
@@ -65,6 +75,8 @@ async function run(mode){
   await page.getByRole('button',{name:'Panoramica',exact:true}).click();
   assert.equal(await page.locator('[data-active-section]').getAttribute('data-active-section'),'home');
   assert.equal(await page.locator('[data-campaign-overview-state="home"]').count(),1);
+  }
+  if(mode==='empty')assert.equal(await page.getByRole('button',{name:'Campagna Aruba del GM'}).count(),0);
   assert.equal(requests.filter(r=>r.path==='/vtt/campaigns').length,1);
   assert.equal(requests.some(r=>r.path.includes('supabase')),false);
   const topbarActions=[];
@@ -83,6 +95,8 @@ try{
  await run('unauthorized');
  await run('no-campaign-capability');
  await run('ready');
+ await run('empty');
+ await run('expired-campaign-session');
  assert.deepEqual(errors,[]);
  console.log('Original AppShell with authenticated Aruba campaign API: scope, capability and 401 cases PASS.');
 }finally{await browser.close();}
