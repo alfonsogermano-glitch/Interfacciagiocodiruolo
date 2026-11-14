@@ -81,3 +81,17 @@ test('player clears stale scene and accepts a fresh revision epoch after channel
  assert.deepEqual(scenes.at(-1),next);
  session.close();
 });
+
+test('closed scene session ignores late transport status and snapshots',async()=>{
+ const statuses=[];const scenes=[];
+ const session=createCampaignSceneSession({origin:'https://staging.hollowgate.quest',campaignId,sceneId,role:'player',WebSocketImpl:Socket,PeerConnectionImpl:Peer,onStatus:e=>statuses.push(e),onScene:s=>scenes.push(s)});
+ const socket=Socket.last;
+ session.close();
+ const statusCount=statuses.length;
+ const sceneCount=scenes.length;
+ socket.message({type:'ready',role:'player',peerId:tokenId});
+ for(const fn of socket.listeners.close??[])fn({});
+ assert.equal(statuses.length,statusCount);
+ assert.equal(scenes.length,sceneCount);
+ assert.equal(session.getScene(),null);
+});

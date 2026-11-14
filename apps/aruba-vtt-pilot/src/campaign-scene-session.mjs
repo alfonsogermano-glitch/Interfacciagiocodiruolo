@@ -6,15 +6,16 @@ export function createCampaignSceneSession({origin,campaignId,sceneId,role,WebSo
  if(!['host','player'].includes(role)||typeof onScene!=='function')
   throw new TypeError('Invalid scene session');
  let coordinator;
+ let closed=false;
  const live=createCampaignLiveSession({origin,campaignId,role,WebSocketImpl,PeerConnectionImpl,iceServers,
   onStatus:event=>{
+   if(closed)return;
    if(role==='player'&&['disconnected','channel-closed','signaling-disconnected'].includes(event.state))coordinator?.reset();
    onStatus?.(event);
   },
-  onSnapshot:snapshot=>{if(role==='player')coordinator?.receiveSnapshot(snapshot);},
+  onSnapshot:snapshot=>{if(!closed&&role==='player')coordinator?.receiveSnapshot(snapshot);},
  });
  coordinator=createLiveSceneCoordinator({role,sceneId,liveSession:live,onScene});
- let closed=false;
  return {
   dispatch(action){return !closed&&coordinator.dispatch(action);},
   publishInitial(){return !closed&&coordinator.publishInitial();},
