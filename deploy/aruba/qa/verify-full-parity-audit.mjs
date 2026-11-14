@@ -54,11 +54,16 @@ if(process.argv.includes('--release')){
  const originalRequired=[
   ['<AppShell','Original AppShell is not mounted'],
   ['<CampaignHome','Original CampaignHome/session is not mounted'],
-  ['<GmSectionSidebar','Original GM navigation is not mounted'],
+  ['<ArubaGmSectionSidebar','Original GM navigation adapter is not mounted'],
   ['<SessionRightSidebar','Original session right rail is not mounted'],
  ];
  for(const [code,message] of originalRequired)
   check(pilot.includes(code),'RELEASE STRUCTURE MISSING: '+message);
+ // The Aruba adapter must delegate to the actual original component, not a
+ // parallel recreation with matching markup or labels.
+ const gmAdapter=get('apps/aruba-vtt-pilot/src/ArubaGmSectionSidebar.tsx');
+ check(gmAdapter.includes("from '../../../src/app/layout/GmSectionSidebar'")&&gmAdapter.includes('<GmSectionSidebar'),
+  'RELEASE STRUCTURE MISSING: GM adapter does not mount original sidebar');
  check(!pilot.includes('className="workspace"'),
   'RELEASE STRUCTURE MISSING: Pilot workspace shell is still present');
  check(!pilot.includes('className="placeholder"'),
