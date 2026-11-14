@@ -164,6 +164,18 @@ jobs:
       - name: Verify real SQL authorization, cross-campaign isolation and rollback
         run: |
           docker exec -i hg-chapter-real-pg psql -X -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/chapters/test_chapter_documents.sql
+      - name: Check chapter SQL permissions as a non-owner runtime login
+        run: |
+          set -euo pipefail
+          docker exec hg-chapter-real-pg psql -X -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test -c "CREATE ROLE hg_chapter_ci_login LOGIN INHERIT PASSWORD 'ci-only-chapter-password'"
+          docker exec hg-chapter-real-pg psql -X -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test -c "GRANT hollowgate_api_runtime TO hg_chapter_ci_login"
+          docker exec hg-chapter-real-pg psql -X -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test -c "GRANT CONNECT ON DATABASE hollowgate_test TO hg_chapter_ci_login"
+          docker exec hg-chapter-real-pg psql -X -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test -c "GRANT USAGE ON SCHEMA hollowgate_vtt TO hollowgate_api_runtime"
+          test "$(docker exec -e PGPASSWORD=ci-only-chapter-password hg-chapter-real-pg psql -X -At -v ON_ERROR_STOP=1 -U hg_chapter_ci_login -d hollowgate_test -c "SELECT has_function_privilege(current_user,'hollowgate_vtt.save_owned_chapter_document(uuid,uuid,uuid,jsonb)','EXECUTE') AND NOT has_table_privilege(current_user,'hollowgate_vtt.chapter_documents','SELECT')")" = t
+          if docker exec -e PGPASSWORD=ci-only-chapter-password hg-chapter-real-pg psql -X -v ON_ERROR_STOP=1 -U hg_chapter_ci_login -d hollowgate_test -c 'SELECT * FROM hollowgate_vtt.chapter_documents' >/dev/null 2>&1; then
+            echo 'Unsafe: runtime login can read chapter table directly' >&2
+            exit 1
+          fi
 
   notes-db-http-test:
     # Real PostgreSQL + real API handlers, on a disposable isolated runner.
