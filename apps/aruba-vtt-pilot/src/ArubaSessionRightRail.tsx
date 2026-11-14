@@ -11,8 +11,8 @@ const gm=[
  {id:'encounters',label:'Incontri',Icon:MapTrifoldIcon},
  {id:'combat',label:'Combatti',Icon:SwordIcon},
 ] as const;
-export function ArubaSessionRightRail({notesEnabled,charactersEnabled,activePanel,onToggleNotes,onToggleCharacters}:{
- notesEnabled:boolean;charactersEnabled:boolean;
+export function ArubaSessionRightRail({campaignId,notesEnabled,charactersEnabled,activePanel,onToggleNotes,onToggleCharacters}:{
+ campaignId:string;notesEnabled:boolean;charactersEnabled:boolean;
  activePanel:'notes'|'characters'|null;onToggleNotes:()=>void;onToggleCharacters:()=>void;
 }){
  return <aside className="session-right-rail gm-sidebar"
@@ -25,7 +25,7 @@ export function ArubaSessionRightRail({notesEnabled,charactersEnabled,activePane
     disabled={!enabled} title={enabled?label:label+' · non ancora migrato'}
     onClick={()=>{if(id==='notes'&&enabled)onToggleNotes();
      if(id==='characters'&&enabled)onToggleCharacters();
-     if(id==='dice')window.dispatchEvent(new CustomEvent('hollowgate:aruba-open-dice'));}}>
+     if(id==='dice')window.dispatchEvent(new CustomEvent('hollowgate:aruba-open-dice',{detail:{campaignId}}));}}>
     <Icon size={21} weight="duotone" aria-hidden="true"/><span>{label}</span>
    </button>;
   })}

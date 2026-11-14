@@ -28,10 +28,13 @@ export function ArubaQuickDice({campaignId,userId,rollerName}:{
  // The original session rail opens the existing quick-roll palette instead of
  // creating a second dice state. No shared/session dice are claimed yet.
  useEffect(()=>{
-  const open=()=>{setPaletteOpen(true);setHistoryOpen(false);};
+  const open=(event:Event)=>{
+   if(!(event instanceof CustomEvent)||event.detail?.campaignId!==campaignId)return;
+   setPaletteOpen(true);setHistoryOpen(false);
+  };
   window.addEventListener('hollowgate:aruba-open-dice',open);
   return ()=>window.removeEventListener('hollowgate:aruba-open-dice',open);
- },[]);
+ },[campaignId]);
  const selected=entries.reduce((sum,entry)=>sum+entry.quantity,0);
  const add=(sides:number)=>{
   setEntries(current=>current.reduce((sum,item)=>sum+item.quantity,0)<MAX_SELECTED?

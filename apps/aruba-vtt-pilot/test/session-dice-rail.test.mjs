@@ -14,7 +14,7 @@ test('Aruba session rail retains original panel order and Phosphor icon language
 test('session Dadi opens existing original dice engine rather than a duplicate or fake roll',()=>{
  const rail=read('../src/ArubaSessionRightRail.tsx');
  const dice=read('../src/ArubaQuickDice.tsx');
- assert.match(rail,/id==='dice'\)window\.dispatchEvent\(new CustomEvent\('hollowgate:aruba-open-dice'\)\)/);
+ assert.match(rail,/id==='dice'\)window\.dispatchEvent\(new CustomEvent\('hollowgate:aruba-open-dice',\{detail:\{campaignId\}\}\)\)/);
  assert.match(dice,/addEventListener\('hollowgate:aruba-open-dice',open\)/);
  assert.match(dice,/removeEventListener\('hollowgate:aruba-open-dice',open\)/);
  assert.match(dice,/rollDiceFormula/);
@@ -26,4 +26,14 @@ test('unnamed quick rolls do not invent a saved formula name',()=>{
  const dice=read('../src/ArubaQuickDice.tsx');
  assert.match(dice,/formulaName:''/);
  assert.doesNotMatch(dice,/formulaName:'Tiro rapido'/);
+});
+
+test('dice rail events are scoped to the currently active Aruba campaign',()=>{
+ const rail=read('../src/ArubaSessionRightRail.tsx');
+ const dice=read('../src/ArubaQuickDice.tsx');
+ const main=read('../src/main.tsx');
+ assert.match(main,/<ArubaSessionRightRail campaignId=\{activeCampaign\.id\}/);
+ assert.match(rail,/detail:\{campaignId\}/);
+ assert.match(dice,/event\.detail\?\.campaignId!==campaignId/);
+ assert.match(dice,/\},\[campaignId\]\);/);
 });
