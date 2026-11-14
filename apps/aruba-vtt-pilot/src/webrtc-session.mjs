@@ -10,7 +10,9 @@ export function createWebRtcSession({origin,campaignId,role,WebSocketImpl,PeerCo
  function notify(state,peerId){if(!stopped)onStatus({state,peerId});}
  function drop(id){const peer=peers.get(id);if(!peer)return;peers.delete(id);peer.channel?.close();peer.pc.close();notify('disconnected',id);}
  function channelReady(peer,channel){
+  const previous=peer.channel;
   peer.channel=channel;
+  if(previous&&previous!==channel)previous.close();
   channel.onopen=()=>{if(peers.get(peer.id)===peer&&peer.channel===channel)notify('connected',peer.id);};
   channel.onclose=()=>{if(peers.get(peer.id)===peer&&peer.channel===channel){notify('channel-closed',peer.id);drop(peer.id);}};
   channel.onmessage=event=>{

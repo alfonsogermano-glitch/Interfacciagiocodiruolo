@@ -186,3 +186,22 @@ test('stale replaced player channel cannot deliver data or disconnect the active
  assert.equal(newChannel.sent.length,1);
  session.close();
 });
+
+test('replacement data channel closes the superseded channel without disconnecting its peer',async()=>{
+ const events=[];
+ const session=createWebRtcSession({origin:'https://staging.hollowgate.quest/',campaignId,role:'player',WebSocketImpl:Socket,PeerConnectionImpl:Peer,onStatus:e=>events.push(e)});
+ Socket.last.message({type:'ready',role:'player',peerId});
+ Socket.last.message({type:'signal',kind:'offer',payload:{sdp:'offer'}});
+ await waitForSignal('answer');
+ const oldChannel=new Channel('hollowgate-game');
+ Peer.last.ondatachannel({channel:oldChannel});
+ const replacement=new Channel('hollowgate-game');
+ Peer.last.ondatachannel({channel:replacement});
+ assert.equal(oldChannel.readyState,'closed');
+ assert.equal(replacement.readyState,'open');
+ oldChannel.onclose();
+ assert.equal(events.some(e=>e.state==='disconnected'),false);
+ assert.equal(session.send({hello:'new'}),true);
+ assert.equal(replacement.sent.length,1);
+ session.close();
+});
