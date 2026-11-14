@@ -337,7 +337,12 @@ try{
   await page.locator('[data-entity-context="characters-detail"]')
    .getByRole('button',{name:/Torna ai personaggi/}).click();
   await page.locator('[data-entity-context="characters-detail"]').waitFor({state:'detached'});
-  const release=player.getByRole('combobox',{name:'Assegna Mara di prova a un giocatore'});
+  // Diagnose ambiguous assignment controls without masking a duplicated card.
+  const release=player.locator(assignedCard).getByRole('combobox',{name:'Assegna Mara di prova a un giocatore'});
+  assert.equal(await page.locator(assignedCard).count(),1,
+   'A confirmed assignment must render exactly one character card');
+  assert.equal(await release.count(),1,
+   'The assigned character must expose exactly one assignment selector');
   await release.selectOption('');
   await gm.locator(assignedCard).waitFor();
   assert.equal(await player.locator(assignedCard).count(),0);
