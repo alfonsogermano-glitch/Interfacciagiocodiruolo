@@ -67,6 +67,11 @@ async function run(mode){
    assert.equal(await page.locator('[data-campaign-overview-state="list"]').getByRole('button').count(),0);
   }else{
   await page.getByRole('button',{name:'Campagna Aruba del GM'}).waitFor();
+  if(mode==='characters'){
+   await page.getByRole('button',{name:'Personaggi',exact:true}).click();
+   await page.locator('[data-original-characters-state="no-campaign"]').waitFor();
+   assert.equal(requests.some(r=>r.path==='/vtt/characters'),false);
+  }
   await page.getByRole('button',{name:'Campagne',exact:true}).click();
   assert.equal(await page.locator('[data-campaign-overview-state="list"]').count(),1);
   assert.equal(await page.locator('[data-campaign-overview-state="list"]').getByRole('button',{name:/Campagna Aruba del GM/}).count(),1);
