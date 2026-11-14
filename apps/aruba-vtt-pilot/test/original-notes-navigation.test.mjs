@@ -65,3 +65,9 @@ test('character detail and Schede rail remain usable on narrow screens',()=>{
  assert.match(css,/\.aruba-entity-detail-main\{flex:1 1 auto;min-height:0;padding:12px;overflow-y:auto\}/);
  assert.match(css,/\.aruba-session-character-row\{flex-wrap:wrap\}/);
 });
+
+test('mobile Schede slide-overs reserve both original 100px left and 80px right rails',()=>{
+ const css=readFileSync(resolve(root,'src/styles.css'),'utf8');
+ assert.match(css,/\.aruba-entity-overlay \[data-session-slide-over="true"\]\{\s*left:100px!important;right:80px!important;\s*width:calc\(100vw - 180px\)!important/);
+ assert.match(css,/\.workspace \.aruba-session-characters-host \[data-session-slide-over="true"\]\{\s*left:100px!important;right:80px!important;\s*width:calc\(100vw - 180px\)!important/);
+});

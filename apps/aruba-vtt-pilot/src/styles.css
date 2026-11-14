@@ -181,7 +181,8 @@
    stays 80px wide, while the back action becomes a compact top row. */
 @media(max-width:540px){
  .aruba-entity-overlay [data-session-slide-over="true"]{
-  width:calc(100vw - 80px)!important;right:80px!important
+  left:100px!important;right:80px!important;
+  width:calc(100vw - 180px)!important
  }
  .aruba-entity-slide-content{flex-direction:column}
  .aruba-entity-back-column{
@@ -190,7 +191,8 @@
  }
  .aruba-entity-detail-main{flex:1 1 auto;min-height:0;padding:12px;overflow-y:auto}
  .workspace .aruba-session-characters-host [data-session-slide-over="true"]{
-  width:calc(100vw - 80px)!important;right:80px!important
+  left:100px!important;right:80px!important;
+  width:calc(100vw - 180px)!important
  }
  .aruba-session-character-list{padding:12px}
  .aruba-session-character-row{flex-wrap:wrap}
