@@ -9,21 +9,21 @@ test('chapter removal checks campaign ownership and scopes DELETE to campaign',a
  const queries=[];
  const service=createChapterService({pool:{query:async(sql,args)=>{
   queries.push({sql,args});
-  if(sql.includes('FROM hollowgate_vtt.campaigns'))return {rows:args[1]===OWNER?[{id:CAMPAIGN}]:[]};
-  if(sql.includes('DELETE FROM'))return {rows:[{id:CHAPTER}]};
+  if(sql.includes('chapter_owner_authorized'))return {rows:args[0]===OWNER?[{allowed:true}]:[{allowed:false}]};
+  if(sql.includes('delete_owned_chapter_document'))return {rows:[{id:CHAPTER}]};
   throw Error(sql);
  }}});
  await assert.rejects(()=>service.remove(OTHER,CAMPAIGN,CHAPTER),e=>e.status===404);
- assert.equal(queries.some(q=>q.sql.includes('DELETE FROM')),false);
+ assert.equal(queries.some(q=>q.sql.includes('delete_owned_chapter_document')),false);
  await assert.rejects(()=>service.remove(OWNER,CAMPAIGN,'invalid'),e=>e.status===400);
  assert.equal((await service.remove(OWNER,CAMPAIGN,CHAPTER)).deleted,true);
- const deletion=queries.find(q=>q.sql.includes('DELETE FROM'));
- assert.deepEqual(deletion.args,[CHAPTER,CAMPAIGN]);
- assert.match(deletion.sql,/id=\$1 AND campaign_id=\$2/);
+ const deletion=queries.find(q=>q.sql.includes('delete_owned_chapter_document'));
+ assert.deepEqual(deletion.args,[OWNER,CAMPAIGN,CHAPTER]);
+ assert.match(deletion.sql,/delete_owned_chapter_document/);
 });
 test('removing missing chapter returns 404',async()=>{
  const service=createChapterService({pool:{query:async(sql)=>{
-  if(sql.includes('FROM hollowgate_vtt.campaigns'))return {rows:[{id:CAMPAIGN}]};
+  if(sql.includes('chapter_owner_authorized'))return {rows:[{allowed:true}]};
   return {rows:[]};
  }}});
  await assert.rejects(()=>service.remove(OWNER,CAMPAIGN,CHAPTER),e=>e.status===404);

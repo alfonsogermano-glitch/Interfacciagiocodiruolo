@@ -10,20 +10,20 @@ test('chapter reads and writes check campaign ownership before touching chapter 
  const queries=[];
  const pool={query:async(sql,args)=>{
   queries.push({sql,args});
-  if(sql.includes('FROM hollowgate_vtt.campaigns'))return {rows:args[1]===OWNER?[{id:CAMPAIGN}]:[]};
-  if(sql.includes('SELECT id,campaign_id,payload'))return {rows:[{id:CHAPTER,campaign_id:CAMPAIGN,payload:draft}]};
-  if(sql.includes('INSERT INTO'))return {rows:[{id:CHAPTER}]};
+  if(sql.includes('chapter_owner_authorized'))return {rows:args[0]===OWNER?[{allowed:true}]:[{allowed:false}]};
+  if(sql.includes('list_owned_chapter_documents'))return {rows:[{id:CHAPTER,campaign_id:CAMPAIGN,payload:draft}]};
+  if(sql.includes('save_owned_chapter_document'))return {rows:[{id:CHAPTER}]};
   throw Error(sql);
  }};
  const service=createChapterService({pool});
  await assert.rejects(()=>service.list(OTHER,CAMPAIGN),e=>e.status===404);
  await assert.rejects(()=>service.save(OTHER,CAMPAIGN,draft),e=>e.status===404);
- assert.equal(queries.filter(q=>q.sql.includes('chapter_documents')).length,0);
+ assert.equal(queries.filter(q=>q.sql.includes('chapter_documents')||q.sql.includes('save_owned_chapter_document')).length,0);
  const listed=await service.list(OWNER,CAMPAIGN);
  assert.equal(listed.chapters[0].campaignId,CAMPAIGN);
  const saved=await service.save(OWNER,CAMPAIGN,draft);
  assert.equal(saved.chapter.id,CHAPTER);
- assert.equal(queries.filter(q=>q.sql.includes('chapter_documents')).length,2);
+ assert.equal(queries.filter(q=>q.sql.includes('chapter_documents')||q.sql.includes('save_owned_chapter_document')).length,2);
 });
 test('chapter writes reject client-supplied ownership before SQL',async()=>{
  const queries=[];

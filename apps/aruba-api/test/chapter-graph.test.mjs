@@ -9,9 +9,9 @@ const draft={id:CHAPTER,title:'Intro',description:'',notes:'',kind:'intro',isAct
 test('chapter graph refuses cross-campaign or missing next chapter',async()=>{
  let writes=0;
  const service=createChapterService({pool:{query:async(sql)=>{
-  if(sql.includes('FROM hollowgate_vtt.campaigns'))return {rows:[{id:CAMPAIGN}]};
-  if(sql.includes('id=ANY'))return {rows:[]};
-  if(sql.includes('INSERT INTO')){writes++;return {rows:[{id:CHAPTER}]};}
+  if(sql.includes('chapter_owner_authorized'))return {rows:[{allowed:true}]};
+  if(sql.includes('list_owned_chapter_links'))return {rows:[]};
+  if(sql.includes('save_owned_chapter_document')){writes++;return {rows:[{id:CHAPTER}]};}
   throw Error(sql);
  }}});
  await assert.rejects(()=>service.save(OWNER,CAMPAIGN,draft),e=>e.status===400);
@@ -21,12 +21,12 @@ test('chapter graph validates all linked IDs in same campaign',async()=>{
  const queries=[];
  const service=createChapterService({pool:{query:async(sql,args)=>{
   queries.push({sql,args});
-  if(sql.includes('FROM hollowgate_vtt.campaigns'))return {rows:[{id:CAMPAIGN}]};
-  if(sql.includes('id=ANY'))return {rows:[{id:NEXT}]};
-  if(sql.includes('INSERT INTO'))return {rows:[{id:CHAPTER}]};
+  if(sql.includes('chapter_owner_authorized'))return {rows:[{allowed:true}]};
+  if(sql.includes('list_owned_chapter_links'))return {rows:[{id:NEXT}]};
+  if(sql.includes('save_owned_chapter_document'))return {rows:[{id:CHAPTER}]};
   throw Error(sql);
  }}});
  await service.save(OWNER,CAMPAIGN,draft);
- const check=queries.find(q=>q.sql.includes('id=ANY'));
- assert.deepEqual(check.args,[CAMPAIGN,[NEXT]]);
+ const check=queries.find(q=>q.sql.includes('list_owned_chapter_links'));
+ assert.deepEqual(check.args,[OWNER,CAMPAIGN,[NEXT]]);
 });
