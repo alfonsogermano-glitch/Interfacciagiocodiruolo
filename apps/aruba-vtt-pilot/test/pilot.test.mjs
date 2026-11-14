@@ -126,7 +126,7 @@ test('right GM sidebar starts beneath the full-width top bar, as in original App
  const header=code.indexOf('<TopBar activeSection={section}',mainStart);
  const row=code.indexOf('<div className="main-workspace-row">',header);
  const content=code.indexOf('<main className="content">',row);
- const sidebar=code.indexOf('<GmSectionSidebar',content);
+ const sidebar=code.indexOf('<ArubaGmSectionSidebar',content);
  assert.ok(mainStart>=0&&header>mainStart&&row>header&&content>row&&sidebar>content);
  assert.ok(code.indexOf('</ArubaTopBarQaIdentity>',header)<row);
  assert.match(css,/\.main-area\{[^}]*display:flex;flex-direction:column/);
@@ -258,7 +258,7 @@ test('global character entry respects original three tabs and invokes wizard wit
  assert.match(character,/onClick=\{\(\)=>\{setError\(null\);setEditingId\(null\);setCreating\(true\);\}\}/);
  assert.doesNotMatch(character,/name="name" required maxLength=\{120\}/);
  assert.match(character,/createCharacterDraft\(fetch,campaignId,character\.name,ownerId\)/);
- assert.match(layout,/section!=='characters'&&<GmSectionSidebar/);
+ assert.match(layout,/section!=='characters'&&<ArubaGmSectionSidebar/);
  assert.match(styles,/main-workspace-row>\.content:has\(\.aruba-character-library\)/);
 });
 
