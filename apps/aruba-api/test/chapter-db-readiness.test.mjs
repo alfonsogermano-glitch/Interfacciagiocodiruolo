@@ -8,7 +8,7 @@ test('chapter database readiness probe is strictly read-only',()=>{
  assert.match(script,/to_regclass/);
  const queries=[...script.matchAll(/\x60(SELECT [^\x60]+)\x60/g)].map(match=>match[1]);
  assert.equal(queries.length,7);
- assert.ok(queries.every(query=>/^SELECT\\s/i.test(query)));
- assert.doesNotMatch(queries.join('\\n'),/\\b(?:INSERT INTO|UPDATE\\s+\\w+|DELETE FROM|CREATE TABLE|ALTER TABLE|GRANT\\s+|DROP TABLE|TRUNCATE)\\b/i);
+ assert.ok(queries.every(query=>query.startsWith('SELECT ')));
+ assert.ok(queries.every(query=>!['INSERT INTO','UPDATE ','DELETE FROM','CREATE TABLE','ALTER TABLE','GRANT ','DROP TABLE','TRUNCATE'].some(unsafe=>query.toUpperCase().includes(unsafe))));
  assert.match(script,/if\(failed\)process\.exitCode=1/);
 });
