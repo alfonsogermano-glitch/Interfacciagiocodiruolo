@@ -129,3 +129,23 @@ test('original Notes panel bootstrap cannot advertise disabled backend dependenc
   notesPanelEnabled:true,
  }),/requires both/);
 });
+
+
+test('bootstrap exposes only server-verified GM memberships when explicitly enabled',async()=>{
+ const userId='00000000-0000-4000-8000-000000000002';
+ const campaignId='00000000-0000-4000-8000-000000000001';
+ const handler=createAuthHttpHandler({origin:ORIGIN,login:async()=>{},
+  getSessionUser:async()=>({id:userId,email:'gm@example.org',displayName:'GM',role:'standard'}),
+  revokeSession:async()=>{},campaigns:{list:async()=>({campaigns:[]})},
+  gameSessionBootstrap:async user=>{
+   assert.equal(user.id,userId);
+   return [{userId,campaignId,role:'gm'}];
+  }});
+ await withServer(handler,async base=>{
+  const r=await fetch(base+'/vtt/bootstrap',{headers:{cookie:'__Host-hg_session='+TOKEN}});
+  assert.equal(r.status,200);
+  const payload=await r.json();
+  assert.equal(payload.capabilities.gameSession,true);
+  assert.deepEqual(payload.campaignMemberships,[{userId,campaignId,role:'gm'}]);
+ });
+});

@@ -164,6 +164,27 @@ async function main() {
       if(!campaigns)throw new Error('Signaling requires staging campaigns and SQL 016');
       signalingIdentity=createSignalingIdentityService({getSessionUser,pool,campaigns});
     }
+    const gameSessionFlag=process.env.AUTH_VTT_GAME_SESSION_ENABLED;
+    if(gameSessionFlag&&!['true','false'].includes(gameSessionFlag))
+      throw new Error('Unsupported AUTH_VTT_GAME_SESSION_ENABLED value');
+    if(gameSessionFlag==='true'&&!signalingIdentity)
+      throw new Error('Game sessions require authenticated signaling');
+    const gameSessionBootstrap=gameSessionFlag==='true'?async user=>{
+      const owned=await campaigns.list(user.id);
+      if(!Array.isArray(owned?.campaigns)||owned.campaigns.length>100)
+        throw new Error('Invalid owned campaign list');
+      const memberships=[];
+      for(const campaign of owned.campaigns){
+        if(campaign.ownerId!==user.id)throw new Error('Invalid campaign owner');
+        const result=await pool.query(
+          'SELECT hollowgate_vtt.campaign_member_role($1,$2) AS member_role',
+          [user.id,campaign.id]);
+        if(result.rows[0]?.member_role!=='gm')
+          throw new Error('Campaign membership changed');
+        memberships.push({userId:user.id,campaignId:campaign.id,role:'gm'});
+      }
+      return memberships;
+    }:null;
     const turnFlag=process.env.AUTH_VTT_TURN_ENABLED;
     if(turnFlag&&!['true','false'].includes(turnFlag))
       throw new Error('Unsupported AUTH_VTT_TURN_ENABLED value');
@@ -177,7 +198,7 @@ async function main() {
         identity:signalingIdentity,sharedSecret:secret,urls,
       });
     }
-    authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession, passwordReset,signupService,campaigns,characters,entityNotes,campaignNotes,campaignFolders,notesPanelEnabled,campaignRoster,characterAvailability,characterAssignments,playerCharacters,characterPortraits,turnCredentials});
+    authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession, passwordReset,signupService,campaigns,characters,entityNotes,campaignNotes,campaignFolders,notesPanelEnabled,campaignRoster,characterAvailability,characterAssignments,playerCharacters,characterPortraits,turnCredentials,gameSessionBootstrap});
   } else if (process.env.AUTH_VTT_TURN_ENABLED === 'true') {
     throw new Error('TURN requires dedicated auth staging');
   } else if (process.env.AUTH_VTT_SIGNALING_ENABLED === 'true') {

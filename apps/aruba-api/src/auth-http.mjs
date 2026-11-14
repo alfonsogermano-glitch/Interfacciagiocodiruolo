@@ -64,7 +64,7 @@ class HttpProblem extends Error {
   }
 }
 
-export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, passwordReset = null, signupService = null, campaigns = null,characters = null,entityNotes = null,campaignNotes = null,campaignFolders = null,notesPanelEnabled = false,campaignRoster = null,characterAvailability = null,characterAssignments = null,playerCharacters = null,characterPortraits = null, turnCredentials = null }) {
+export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, passwordReset = null, signupService = null, campaigns = null,characters = null,entityNotes = null,campaignNotes = null,campaignFolders = null,notesPanelEnabled = false,campaignRoster = null,characterAvailability = null,characterAssignments = null,playerCharacters = null,characterPortraits = null, turnCredentials = null, gameSessionBootstrap = null }) {
   if(typeof notesPanelEnabled!=='boolean'||(notesPanelEnabled&&(!campaignNotes||!campaignFolders)))
     throw new TypeError('Original Notes panel requires both authenticated Notes and folders');
   const allowedOrigin = new URL(origin);
@@ -574,8 +574,10 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         if (!token) return response(res, 401, {error:'Non autenticato'});
         const user = await getSessionUser(token);
         if (!user) return response(res, 401, {error:'Non autenticato'}, LOGOUT_COOKIE);
+        const memberships=gameSessionBootstrap ? await gameSessionBootstrap(user) : null;
         return response(res, 200, {
           user,
+          ...(memberships ? {campaignMemberships:memberships} : {}),
           backend:'aruba-staging',
           capabilities:{
             campaigns:{read:!!campaigns,write:!!campaigns},
@@ -589,7 +591,7 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
             campaignNotes:{read:!!campaignNotes,write:!!campaignNotes},
             campaignNoteFolders:{read:!!campaignFolders,write:!!campaignFolders},
             originalNotesPanel:{read:notesPanelEnabled,write:notesPanelEnabled},
-            gameSession:false,
+            gameSession:memberships!==null,
           },
         });
       }

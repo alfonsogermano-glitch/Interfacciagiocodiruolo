@@ -50,9 +50,21 @@ export function validateBootstrap(data){
       typeof c.campaignNoteFolders.read!=='boolean'||
       c.campaignNoteFolders.read!==c.campaignNoteFolders.write||
       (c.campaignNoteFolders.read&&c.campaignNotes?.read!==true)))||
-    c.gameSession!==false)
+    typeof c.gameSession!=='boolean'||
+    (c.gameSession&&(!c.campaigns.read||!Array.isArray(data.campaignMemberships)||
+      data.campaignMemberships.length>100))||
+    (!c.gameSession&&data.campaignMemberships!==undefined))
     throw new Error('Funzionalità non autorizzate');
+  const memberships=c.gameSession?data.campaignMemberships.map(m=>{
+    if(!m||m.userId!==data.user.id||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(m.campaignId??'')||
+      m.role!=='gm')throw new Error('Appartenenza campagna non valida');
+    return Object.freeze({userId:m.userId,campaignId:m.campaignId,role:m.role});
+  }):[];
+  if(new Set(memberships.map(m=>m.campaignId)).size!==memberships.length)
+    throw new Error('Appartenenze duplicate');
   return Object.freeze({
+    gameSessionEnabled:c.gameSession,campaignMemberships:Object.freeze(memberships),
     id:data.user.id,email:data.user.email,displayName:data.user.displayName,role:data.user.role,
     campaignsEnabled:c.campaigns.read,charactersEnabled:c.characters.read,
     characterAvailabilityEnabled:c.characterAvailability?.read===true,
