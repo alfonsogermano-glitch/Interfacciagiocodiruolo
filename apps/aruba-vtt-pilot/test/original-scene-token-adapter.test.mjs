@@ -36,3 +36,13 @@ test('original adapter bounds oversized scenes and malformed optional sizes befo
   assert.throws(()=>projectOriginalSceneTokens({...base,mapTokens:[{id:token,name:'Scout',x:0,y:0,size}]},campaign),/Invalid original map token/);
  assert.throws(()=>projectOriginalSceneTokens(base,'not-a-campaign'),/unavailable/);
 });
+
+test('original publication token projection strips private visual metadata before transport',()=>{
+ const original={campaignId:campaign,sceneId:scene,mapTokens:[{
+  id:token,name:'Guardiano',x:10,y:12,size:2,visible:true,
+  portraitImageUrl:'https://private.example/portrait',ownerProfileId:'secret-owner',
+  conditions:[{id:'secret',name:'hidden'}],light:{radius:40},vision:{radius:30},
+ }]};
+ const result=projectOriginalSceneTokens(original,campaign);
+ assert.deepEqual(result.tokens,[{id:token,name:'Guardiano',x:10,y:12,size:2,visible:true}]);
+});
