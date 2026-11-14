@@ -68,6 +68,7 @@ export function createArubaSettledMapRequestCorrelator({
    userId===gmUserId||!UUID.test(peerId)||!UUID.test(requestId)||
    typeof chapterId!=='string'||!chapterId||
    !canonicalTimestamp(acceptedAfter)||
+   (latest!==null&&acceptedAfter<latest)||
    !validEffectKeys(effectKeys)||
    !member(userId)||pending.size>=MAX_PENDING||
    pending.has(key(userId,requestId)))return false;
@@ -119,7 +120,8 @@ export function createArubaSettledMapRequestCorrelator({
      // doing so could falsely attribute that later state to this request.
      error(e);
      pending.delete(id);
-     eligible.pop();
+     // Keep its field provenance for this batch: a throwing proof must
+     // still contest another request touching the same canonical field.
      continue;
     }
     if(proven)matched.push({id,entry,priorRevision:peer.revision});

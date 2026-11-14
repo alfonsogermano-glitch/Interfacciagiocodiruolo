@@ -302,3 +302,30 @@ test('failure notifications from other campaigns do not suspend this campaign',(
  assert.equal(x.tracker.pendingCount,1);
  x.close();
 });
+
+test('failed overlapping proof still blocks a matching request on the same field',()=>{
+ const x=setup({prove:({requestId})=>{
+  if(requestId===req1)throw Error('unavailable effect proof');
+  return true;
+ }});
+ assert.equal(x.register(req1,t0,['token:token:x']),true);
+ assert.equal(x.register(req2,t0,['token:token:x']),true);
+ x.notify(t1,20);
+ assert.equal(x.handle.revision,1);
+ assert.equal(x.correlator.pendingCount,0);
+ assert.equal(x.tracker.pendingCount,0);
+ assert.equal(x.tracker.acknowledge({authenticatedUserId:user,
+  verifiedCampaignId:campaign,peerId:peer,revision:1}),false);
+ x.close();
+});
+test('registration refuses a baseline older than the latest observed settled publication',()=>{
+ const x=setup();
+ x.notify(t1,10);
+ assert.equal(x.handle.revision,1);
+ assert.equal(x.register(req1,t0),false);
+ assert.equal(x.correlator.pendingCount,0);
+ assert.equal(x.register(req1,t1),true);
+ x.notify(t2,20);
+ assert.equal(x.tracker.pendingCount,1);
+ x.close();
+});

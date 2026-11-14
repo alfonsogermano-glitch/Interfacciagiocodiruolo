@@ -353,3 +353,13 @@ attach these canonical keys at the original handler boundary and
 include genuine per-command disposition; the prototype MUST NOT
 represent this as complete concurrent-edit correctness or graphical
 parity.
+
+## Further settled-correlation safety checks (pre-integration)
+
+The correlator rejects registration against a baseline older than its latest
+observed committed publication. A proof callback throwing is treated as an
+unconfirmed command, but its canonical field keys still participate in
+same-batch conflict detection: another request touching the same field must
+not inherit an unprovable attribution. These checks are isolated regression
+coverage, **not** evidence that SessionWorkspace is already wired to the
+revisioned GM stream or that end-to-end multiplayer is complete.
