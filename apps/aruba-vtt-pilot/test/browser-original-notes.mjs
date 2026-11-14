@@ -251,6 +251,26 @@ try{
   assert.ok(layout.contentWidth>150,'Sheet content must retain usable width: '+JSON.stringify(layout));
   await detail.getByRole('button',{name:/Torna ai personaggi/}).click();
   await detail.waitFor({state:'detached'});
+  // The Schede list is a distinct slide-over and must also remain clickable
+  // between the original 100px left navigation and 80px session rail.
+  const sessionRail=page.locator('[data-aruba-session-rail="true"]');
+  await sessionRail.getByRole('button',{name:'Schede',exact:true}).click();
+  const list=page.locator('.aruba-session-characters-host');
+  await list.waitFor({state:'attached'});
+  await list.getByRole('button',{name:'Apri scheda di Mara di prova'}).waitFor();
+  const listBounds=await page.evaluate(()=>{
+   const panel=document.querySelector('.aruba-session-characters-host [data-session-slide-over="true"]');
+   if(!panel)throw Error('Missing mobile Schede list slide-over');
+   const rect=panel.getBoundingClientRect();
+   return {left:rect.left,right:rect.right,width:rect.width,viewport:window.innerWidth};
+  });
+  assert.ok(listBounds.left>=99,'Schede list overlaps original left navigation: '+JSON.stringify(listBounds));
+  assert.ok(listBounds.right<=listBounds.viewport-79,'Schede list overlaps session rail: '+JSON.stringify(listBounds));
+  await list.getByRole('button',{name:'Apri scheda di Mara di prova'}).click();
+  await detail.waitFor({state:'attached'});
+  await page.getByRole('region',{name:'Scheda di Mara di prova'}).waitFor();
+  await detail.getByRole('button',{name:/Torna ai personaggi/}).click();
+  await detail.waitFor({state:'detached'});
   await page.close();
  }
  // Portraits in the GM archive and original detail/Token must be loaded
