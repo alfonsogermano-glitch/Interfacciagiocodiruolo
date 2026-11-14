@@ -77,8 +77,8 @@ export async function loadPilotSession(fetchImpl){
 }
 export function validateCampaign(data){
   if(!data||typeof data!=='object'||Array.isArray(data)||
-    typeof data.id!=='string'||!(/^[0-9a-f-]{36}$/i.test(data.id))||
-    typeof data.ownerId!=='string'||
+    typeof data.id!=='string'||!(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.id))||
+    typeof data.ownerId!=='string'||!(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.ownerId))||
     typeof data.name!=='string'||data.name.length<1||
     typeof data.description!=='string'||!Object.hasOwn(RULESETS,data.ruleset))
     throw new Error('Campagna non valida');
