@@ -75,7 +75,7 @@ test('mobile Schede slide-overs reserve both original 100px left and 80px right 
 test('Phosphor GM icons are injected only by Aruba, preserving the original sidebar dependency boundary',()=>{
  const app=readFileSync(resolve(root,'src/main.tsx'),'utf8');
  const adapter=readFileSync(resolve(root,'src/ArubaGmSectionSidebar.tsx'),'utf8');
- const original=readFileSync(resolve(root,'../../../src/app/layout/GmSectionSidebar.tsx'),'utf8');
+ const original=readFileSync(resolve(root,'../../src/app/layout/GmSectionSidebar.tsx'),'utf8');
  assert.match(app,/<ArubaGmSectionSidebar/);
  assert.match(adapter,/from '@phosphor-icons\/react'/);
  assert.match(adapter,/iconOverrides=\{icons\}/);

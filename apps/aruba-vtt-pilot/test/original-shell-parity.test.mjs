@@ -142,9 +142,12 @@ test('authenticated original shell renders owner-scoped campaign data without le
 test('shipping Aruba pilot mounts the original left and GM navigation, not duplicated pilot sidebars',()=>{
  const main=read('../src/main.tsx');
  assert.match(main,/import \{LeftSidebar\} from '\.\.\/\.\.\/\.\.\/src\/app\/layout\/LeftSidebar'/);
- assert.match(main,/import \{GmSectionSidebar\} from '\.\.\/\.\.\/\.\.\/src\/app\/layout\/GmSectionSidebar'/);
+ assert.match(main,/import \{ArubaGmSectionSidebar\} from '\.\/ArubaGmSectionSidebar'/);
+ const adapter=read('../src/ArubaGmSectionSidebar.tsx');
+ assert.match(adapter,/import \{GmSectionSidebar\} from '\.\.\/\.\.\/\.\.\/src\/app\/layout\/GmSectionSidebar'/);
+ assert.match(adapter,/<GmSectionSidebar/);
  assert.match(main,/<LeftSidebar/);
- assert.match(main,/<GmSectionSidebar/);
+ assert.match(main,/<ArubaGmSectionSidebar/);
  assert.doesNotMatch(main,/<aside className="primary-sidebar"/);
  assert.doesNotMatch(main,/<aside className="gm-sidebar"/);
  for(const mapping of ["scene-encounter","players","equipment-catalog","visual-assets"])
