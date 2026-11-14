@@ -36,6 +36,17 @@ BEGIN
  SELECT hollowgate_vtt.save_owned_chapter_document(v_owner,v_campaign,v_chapter,
  jsonb_set(v_payload,'{campaignId}',to_jsonb(v_other_campaign::text))) INTO v_result;
  IF v_result IS NOT NULL THEN RAISE EXCEPTION 'Forged payload campaign accepted'; END IF;
+ -- A forged chapter ID must not overwrite an existing document.
+ SELECT hollowgate_vtt.save_owned_chapter_document(v_owner,v_campaign,v_chapter,
+ jsonb_set(v_payload,'{id}',to_jsonb(gen_random_uuid()::text))) INTO v_result;
+ IF v_result IS NOT NULL THEN RAISE EXCEPTION 'Forged payload chapter ID accepted'; END IF;
+ -- Updating the owner's own chapter must replace its payload, not duplicate rows.
+ SELECT hollowgate_vtt.save_owned_chapter_document(v_owner,v_campaign,v_chapter,
+ jsonb_set(v_payload,'{title}',to_jsonb('Updated chapter'::text))) INTO v_result;
+ IF v_result IS DISTINCT FROM v_chapter THEN RAISE EXCEPTION 'Owner chapter update failed'; END IF;
+ IF (SELECT count(*) FROM hollowgate_vtt.list_owned_chapter_documents(v_owner,v_campaign))<>1
+ OR (SELECT payload->>'title' FROM hollowgate_vtt.list_owned_chapter_documents(v_owner,v_campaign) LIMIT 1) IS DISTINCT FROM 'Updated chapter'
+ THEN RAISE EXCEPTION 'Chapter update did not replace payload atomically'; END IF;
  -- A valid owner may not reuse an ID to overwrite a different campaign.
  SELECT hollowgate_vtt.save_owned_chapter_document(v_other,v_other_campaign,v_chapter,
  jsonb_set(v_payload,'{campaignId}',to_jsonb(v_other_campaign::text))) INTO v_result;
