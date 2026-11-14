@@ -161,6 +161,12 @@ jobs:
             docker exec -i hg-chapter-real-pg psql -X -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < "$f" > /dev/null
           done
           docker exec -i hg-chapter-real-pg psql -X -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/chapters/001_chapter_documents.sql
+      - name: Apply original Scene schema in disposable PostgreSQL
+        run: |
+          docker exec -i hg-chapter-real-pg psql -X -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/scenes/001_scene_documents.sql
+      - name: Verify real Scene ownership, chapter isolation and rollback
+        run: |
+          docker exec -i hg-chapter-real-pg psql -X -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/scenes/test_scene_documents.sql
       - name: Verify real SQL authorization, cross-campaign isolation and rollback
         run: |
           docker exec -i hg-chapter-real-pg psql -X -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/chapters/test_chapter_documents.sql
