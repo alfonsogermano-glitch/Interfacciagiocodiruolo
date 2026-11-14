@@ -166,3 +166,23 @@ test('player ignores duplicate offers until the previous peer disconnects',async
  assert.equal(Socket.last.sent.filter(x=>x.kind==='answer').length,2);
  session.close();
 });
+
+test('stale replaced player channel cannot deliver data or disconnect the active channel',async()=>{
+ const received=[];const statuses=[];
+ const session=createWebRtcSession({origin:'https://staging.hollowgate.quest/',campaignId,role:'player',WebSocketImpl:Socket,PeerConnectionImpl:Peer,onData:x=>received.push(x),onStatus:x=>statuses.push(x)});
+ Socket.last.message({type:'ready',role:'player',peerId});
+ Socket.last.message({type:'signal',kind:'offer',payload:{sdp:'gm-offer'}});
+ await waitForSignal('answer');
+ const oldChannel=new Channel('hollowgate-game');Peer.last.ondatachannel({channel:oldChannel});oldChannel.onopen();
+ const newChannel=new Channel('hollowgate-game');Peer.last.ondatachannel({channel:newChannel});newChannel.onopen();
+ const packet={data:JSON.stringify({type:'game',campaignId,payload:{scene:'active'}})};
+ oldChannel.onmessage(packet);
+ oldChannel.onclose();
+ assert.equal(received.length,0);
+ assert.equal(statuses.some(x=>x.state==='channel-closed'),false);
+ newChannel.onmessage(packet);
+ assert.equal(received.length,1);
+ assert.equal(session.send({ping:true}),true);
+ assert.equal(newChannel.sent.length,1);
+ session.close();
+});

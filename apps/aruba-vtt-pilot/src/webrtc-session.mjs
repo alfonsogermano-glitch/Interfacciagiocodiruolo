@@ -11,10 +11,10 @@ export function createWebRtcSession({origin,campaignId,role,WebSocketImpl,PeerCo
  function drop(id){const peer=peers.get(id);if(!peer)return;peers.delete(id);peer.channel?.close();peer.pc.close();notify('disconnected',id);}
  function channelReady(peer,channel){
   peer.channel=channel;
-  channel.onopen=()=>{if(peers.get(peer.id)===peer)notify('connected',peer.id);};
-  channel.onclose=()=>{if(peers.get(peer.id)===peer){notify('channel-closed',peer.id);drop(peer.id);}};
+  channel.onopen=()=>{if(peers.get(peer.id)===peer&&peer.channel===channel)notify('connected',peer.id);};
+  channel.onclose=()=>{if(peers.get(peer.id)===peer&&peer.channel===channel){notify('channel-closed',peer.id);drop(peer.id);}};
   channel.onmessage=event=>{
-   if(stopped||peers.get(peer.id)!==peer||channel.readyState!=='open'||typeof event.data!=='string'||event.data.length>65536)return;
+   if(stopped||peers.get(peer.id)!==peer||peer.channel!==channel||channel.readyState!=='open'||typeof event.data!=='string'||event.data.length>65536)return;
    let data;try{data=JSON.parse(event.data);}catch{return;}
    if(data&&typeof data==='object'&&!Array.isArray(data)&&data.campaignId===campaignId&&
       data.type==='game'&&Object.hasOwn(data,'payload'))onData({peerId:peer.id,payload:data.payload});
