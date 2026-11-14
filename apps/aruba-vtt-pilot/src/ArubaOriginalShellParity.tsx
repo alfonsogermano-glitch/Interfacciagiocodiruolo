@@ -9,7 +9,7 @@ import {ArubaOriginalMapToolQA} from './ArubaOriginalMapToolQA';
 /** Internal parity QA harness, NOT a substitute VTT and never a production
  * route. Original components are mounted unchanged, without legacy auth.
  * This proves original shell composition before replacing the pilot.
- * TopBar and SessionRightSidebar still require their Aruba service adapters.
+ * SessionRightSidebar still requires its Aruba service adapter.
  */
 const fixtureCampaign:Campaign={
  id:'00000000-0000-4000-8000-000000000001',name:'Campagna di collaudo',
@@ -40,11 +40,9 @@ export function ArubaOriginalShellParity({campaigns=[fixtureCampaign],displayNam
     onGoToCharacters={()=>go('characters')}
     onGoToCampaigns={()=>go('campaigns')}
     onSelectCampaign={value=>{setCampaign(value);setView('campaign-home');setSection('campaign-home');}}/>}
-   topbar={qaUser?<ArubaOriginalTopBarQA user={qaUser} section={section} mapWorkspaceQa={mapWorkspaceQa}/>:<header data-original-topbar-slot="pending-Aruba-adapter"
-    className="flex h-[76px] shrink-0 items-center justify-between border-b border-[var(--dash-border)] px-6">
-    <strong>HOLLOWGATE · {displayName}</strong>
-    <span className="text-xs text-[var(--dash-muted)]">TopBar originale non ancora collegata</span>
-   </header>}
+   topbar={<ArubaOriginalTopBarQA
+    user={qaUser??{id:fixtureCampaign.ownerId,email:'qa@example.invalid',displayName,role:'standard'}}
+    section={section} mapWorkspaceQa={mapWorkspaceQa}/>} 
    rightSidebar={view==='dashboard'&&!['characters','campaigns'].includes(section)?
     <GmSectionSidebar activeTab={section} onChangeTab={go}/>:null}>
    <section className="p-6" aria-label="Contenuto di collaudo" data-active-section={section}>

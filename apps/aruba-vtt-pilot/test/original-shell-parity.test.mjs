@@ -12,7 +12,8 @@ test('QA shell mounts the original components with their original slot hierarchy
  assert.match(qa,/leftSidebar=\{<LeftSidebar/);
  assert.match(qa,/rightSidebar=\{view==='dashboard'/);
  assert.match(shell,/\{topbar\}[\s\S]*\{rightSidebar\}/);
- assert.match(qa,/data-original-topbar-slot="pending-Aruba-adapter"/);
+ assert.doesNotMatch(qa,/data-original-topbar-slot="pending-Aruba-adapter"/);
+ assert.match(qa,/topbar=\{<ArubaOriginalTopBarQA/);
  assert.doesNotMatch(qa,/supabase|localStorage|sessionStorage|fetch\(/);
 });
 test('QA shell cannot accidentally become the shipping VTT entry',()=>{
@@ -45,7 +46,7 @@ test('the exact original TopBar mounts in authenticated QA only, with fail-close
  const runtime=read('../src/ArubaOriginalTopBarAdapter.tsx');
  const shell=read('../src/ArubaOriginalShellParity.tsx');
  assert.match(topbar,/import \{TopBar\} from/);
- assert.match(shell,/qaUser\?<ArubaOriginalTopBarQA/);
+ assert.match(shell,/qaUser\?\?/);
  assert.match(topbar,/sessionWorkspaceActive=\{mapWorkspaceQa\}/);
  assert.match(config,/aruba-original-topbar-qa-isolation/);
  for(const name of ['AuthContext','NotificationsContext','CampaignContext','charactersService'])
@@ -114,4 +115,12 @@ test('original SessionWorkspace revokes shared map state when campaign context u
  assert.match(original,/useActiveScene\(campaignId\)/);
  assert.match(original,/useCampaignChannel\(campaignId/);
  assert.match(store,/export function resetSessionMapRuntime\(\)/);
+});
+
+test('unauthenticated isolated QA fixture uses the original TopBar rather than a synthetic header',()=>{
+ const shell=read('../src/ArubaOriginalShellParity.tsx');
+ assert.match(shell,/topbar=\{<ArubaOriginalTopBarQA/);
+ assert.match(shell,/email:'qa@example.invalid'/);
+ assert.doesNotMatch(shell,/TopBar originale non ancora collegata/);
+ assert.doesNotMatch(read('../src/main.tsx'),/ArubaOriginalShellParity/);
 });
