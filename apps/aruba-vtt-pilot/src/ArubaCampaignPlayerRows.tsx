@@ -21,6 +21,7 @@ export function ArubaCampaignPlayerRows({campaignId,ownerId,revision,availabilit
  const [pending,setPending]=useState<string|null>(null);
  const [saveError,setSaveError]=useState<string|null>(null);
  const [error,setError]=useState<string|null>(null);
+ const [retryRevision,setRetryRevision]=useState(0);
  const rows=useMemo<Row[]>(()=> {
   if(busy||error)return [];
   try{return composeOwnedCampaignPlayerRows(members,characters,ownerId,assignments);}
@@ -72,12 +73,13 @@ export function ArubaCampaignPlayerRows({campaignId,ownerId,revision,availabilit
    if(active)setError(reason instanceof Error?reason.message:'Partecipanti non disponibili');
   }).finally(()=>{if(active)setBusy(false);});
   return()=>{active=false;};
- },[campaignId,ownerId,revision,availabilityEnabled,assignmentsEnabled]);
+ },[campaignId,ownerId,revision,retryRevision,availabilityEnabled,assignmentsEnabled]);
  return <section className="aruba-campaign-player-rows" aria-label="Partecipanti campagna">
   <h2>Giocatori e personaggi</h2>
   <p className="muted">Ruoli e assegnazioni verificati dal server · le schede restano di proprietà del GM.</p>
   {busy&&<p role="status">Caricamento partecipanti…</p>}
-  {error&&<p role="alert">{error}</p>}
+  {error&&<div role="alert"><p>{error}</p><button type="button" disabled={busy}
+   onClick={()=>setRetryRevision(current=>current+1)}>Riprova caricamento partecipanti</button></div>}
   {groupingError&&<p role="alert">{groupingError}</p>}
   {saveError&&<p role="alert">{saveError}</p>}
   {!busy&&!error&&!groupingError&&rows.map(row=><section key={row.userId}
