@@ -12,7 +12,7 @@
  * This module does not invoke the original handlers or replace their
  * publication. It is opt-in, not mounted in SessionWorkspace.
  */
-import {subscribeCommittedMapPublication} from '../../../src/app/components/session/activeScenePublicationObserver.ts';
+import {subscribeCommittedMapPublication,subscribeFailedMapPublication} from '../../../src/app/components/session/activeScenePublicationObserver.ts';
 
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const safeRevision=n=>Number.isSafeInteger(n)&&n>=0;
@@ -34,6 +34,7 @@ export function createArubaSettledMapRequestCorrelator({
  campaignId,gmUserId,source,tracker,getVerifiedPeer,isVerifiedMember,
  proveRequestedEffect,onResyncRequired=()=>{},onError=()=>{},
  subscribe=subscribeCommittedMapPublication,
+ subscribeFailure=subscribeFailedMapPublication,
 }={}){
  if(!UUID.test(campaignId)||!UUID.test(gmUserId)||
   typeof source?.publishObservedMap!=='function'||
@@ -41,7 +42,7 @@ export function createArubaSettledMapRequestCorrelator({
   typeof getVerifiedPeer!=='function'||typeof isVerifiedMember!=='function'||
   typeof proveRequestedEffect!=='function'||
   typeof onResyncRequired!=='function'||typeof onError!=='function'||
-  typeof subscribe!=='function')
+  typeof subscribe!=='function'||typeof subscribeFailure!=='function')
   throw new TypeError('Trusted original publication, player proof and GM source required');
  const pending=new Map();
  let closed=false,suspended=false,processing=false,latest=null;
@@ -188,6 +189,9 @@ export function createArubaSettledMapRequestCorrelator({
   }finally{processing=false;}
  }
  const unsubscribe=subscribe(campaignId,settled);
+ const unsubscribeFailure=subscribeFailure(campaignId,()=>{
+  if(!closed)suspend('Original queued map save or broadcast failed');
+ });
  function revoke({userId,peerId}={}){
   if(closed)return;
   for(const [id,entry] of pending){
@@ -203,6 +207,7 @@ export function createArubaSettledMapRequestCorrelator({
    if(closed)return;
    closed=true;
    unsubscribe();
+   unsubscribeFailure();
    for(const entry of pending.values())revokeEntry(entry);
    pending.clear();
   },

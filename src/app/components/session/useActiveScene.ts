@@ -5,7 +5,7 @@ import {
   saveActiveScene,
 } from '../../../services/campaign/activeScene';
 import { useCampaignChannel } from '../../../services/realtime/campaignChannel';
-import { notifyCommittedMapPublication } from './activeScenePublicationObserver';
+import { notifyCommittedMapPublication, notifyFailedMapPublication } from './activeScenePublicationObserver';
 import {
   isActiveScenePublication,
   type ActiveSceneCollectionDelta,
@@ -219,7 +219,12 @@ export function useActiveScene(campaignId: string | null | undefined) {
       // not evidence that the map has been persisted and broadcast.
       notifyCommittedMapPublication(persisted);
     });
-    publicationQueueRef.current = operation.catch(() => {});
+    publicationQueueRef.current = operation.catch(error => {
+      // A failed original save or broadcast leaves the GM/client state uncertain.
+      // Experimental listeners must resnapshot, never confirm pending commands.
+      if (campaignId) notifyFailedMapPublication(campaignId);
+      console.error('Pubblicazione mappa non riuscita:', error);
+    });
     void operation;
   }, [campaignId, send]);
 

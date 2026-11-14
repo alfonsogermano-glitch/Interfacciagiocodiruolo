@@ -64,3 +64,25 @@ export function notifyCommittedMapPublication(
     }
   }
 }
+
+/** Read-only failure signal for the original queued map publication. */
+type FailureListener = (value: Readonly<{ campaignId: string }>) => void;
+const failureListeners = new Map<string, Set<FailureListener>>();
+export function subscribeFailedMapPublication(campaignId: string, listener: FailureListener): () => void {
+  if (!campaignId || typeof listener !== 'function') throw new TypeError('Campaign and listener required');
+  const group = failureListeners.get(campaignId) ?? new Set<FailureListener>();
+  failureListeners.set(campaignId, group);
+  group.add(listener);
+  return () => {
+    group.delete(listener);
+    if (group.size === 0) failureListeners.delete(campaignId);
+  };
+}
+export function notifyFailedMapPublication(campaignId: string): void {
+  const group = failureListeners.get(campaignId);
+  if (!group) return;
+  for (const listener of [...group]) {
+    try { listener(Object.freeze({campaignId})); }
+    catch (error) { console.error('Failed map observer failed:', error); }
+  }
+}
