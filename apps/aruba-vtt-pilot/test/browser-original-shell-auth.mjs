@@ -23,7 +23,7 @@ async function run(mode){
    backend:'aruba-staging',
    user:{id:owner,email:'qa@example.org',displayName:'GM Aruba',role:'standard'},
    capabilities:{
-    campaigns:{read:allowed,write:allowed},characters:{read:['characters','character-error','switch-campaign','character-revoked'].includes(mode),write:['characters','character-error','switch-campaign'].includes(mode)},
+    campaigns:{read:allowed,write:allowed},characters:{read:['characters','character-error','switch-campaign','character-revoked'].includes(mode),write:['characters','character-error','switch-campaign','character-revoked'].includes(mode)},
     campaignRoster:{read:['roster','roster-error','roster-switch'].includes(mode),write:false},gameSession:false,
    },
   }});
