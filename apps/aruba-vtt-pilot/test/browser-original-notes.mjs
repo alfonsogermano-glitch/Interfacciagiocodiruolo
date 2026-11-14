@@ -491,7 +491,8 @@ try{
   await page.locator('[data-entity-context="characters-detail"]')
    .getByRole('button',{name:/Torna ai personaggi/}).click();
   await page.locator('[data-entity-context="characters-detail"]').waitFor({state:'detached'});
-  await sessionRail.getByRole('button',{name:'Schede',exact:true}).click();
+  // Detail close already deselects Schede and restores the campaign roster.
+  // Clicking Schede here would reopen it, not close it.
   await page.locator('.aruba-session-characters-host').waitFor({state:'detached'});
   assert.equal(await sessionRail.getByRole('button',{name:'Note',exact:true}).isEnabled(),true);
   assert.equal(await page.getByRole('button',{name:'Capitoli e Scene',exact:true}).count(),0);
