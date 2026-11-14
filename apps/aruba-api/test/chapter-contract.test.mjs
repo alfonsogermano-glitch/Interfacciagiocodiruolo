@@ -32,3 +32,13 @@ test('original Chapter timestamps survive Aruba validation unchanged',()=>{
  for(const bad of ['yesterday','2026-02-30T03:04:05.000Z',null,42])
   assert.throws(()=>validateChapterDraft(CAMPAIGN,{...base(),createdAt:bad}),ChapterRejected);
 });
+
+test('chapter map references cannot silently retain the retired Supabase host',()=>{
+ for(const mapUrl of [
+  'https://old-project.supabase.co/storage/v1/object/public/visual-assets/map.webp',
+  'https://old-project.supabase.in/storage/v1/object/public/map.webp',
+ ]){
+  assert.throws(()=>validateChapterDraft(CAMPAIGN,{...base(),mapUrl}),ChapterRejected);
+ }
+ assert.equal(validateChapterDraft(CAMPAIGN,{...base(),mapUrl:'/assets/maps/chapter.webp'}).mapUrl,'/assets/maps/chapter.webp');
+});
