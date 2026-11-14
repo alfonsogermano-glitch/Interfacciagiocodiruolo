@@ -231,7 +231,9 @@ try{
   await page.locator('[data-campaign-character-id="'+characterId+'"]')
    .getByRole('button',{name:'Apri scheda campagna di Mara di prova'}).click();
   const detail=page.locator('[data-entity-context="characters-detail"]');
-  await detail.waitFor();
+  // The overlay wrapper is display:contents in the pilot and has no box;
+  // assert attachment, then wait for the actual visible sheet region.
+  await detail.waitFor({state:'attached'});
   await page.getByRole('region',{name:'Scheda di Mara di prova'}).waitFor();
   const layout=await page.evaluate(()=>{
    const panel=document.querySelector('.aruba-entity-overlay [data-session-slide-over="true"]');
