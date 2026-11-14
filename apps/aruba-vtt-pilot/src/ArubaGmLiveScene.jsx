@@ -7,19 +7,31 @@ export function ArubaGmLiveScene({bootstrap,campaign}){
  const [state,setState]=useState('idle');
  const [error,setError]=useState('');
  const [scene,setScene]=useState(null);
- useEffect(()=>()=>{session.current?.close();session.current=null;},[campaign.id]);
- function stop(){session.current?.close();session.current=null;setState('idle');setScene(null);}
+ const generation=useRef(0);
+ useEffect(()=>()=>{
+  generation.current++;
+  session.current?.close();session.current=null;
+ },[campaign.id]);
+ function stop(){
+  generation.current++;
+  const previous=session.current;session.current=null;
+  previous?.close();setState('idle');setScene(null);setError('');
+ }
  function start(){
   if(session.current)return;
-  setError('');
+  // The UI is GM-only; reject an accidental player mount before opening sockets.
+  if(campaign.ownerId!==bootstrap.id){setError('Connessione GM non autorizzata');return;}
+  const attempt=++generation.current;
+  setError('');setScene(null);
   try{
    // Temporary one-scene-per-campaign identifier, never persisted as a real map.
    const active=createAuthorizedSceneSession({bootstrap,campaign,sceneId:campaign.id,
     origin:window.location.origin,WebSocketImpl:window.WebSocket,
     PeerConnectionImpl:window.RTCPeerConnection,
-    onStatus:event=>setState(event.state),onScene:setScene});
+    onStatus:event=>{if(generation.current===attempt)setState(event.state);},
+    onScene:value=>{if(generation.current===attempt)setScene(value);}});
    session.current=active;setState('connecting');
-  }catch(e){setError(e instanceof Error?e.message:'Connessione non disponibile');setState('idle');}
+  }catch(e){if(generation.current===attempt){setError(e instanceof Error?e.message:'Connessione non disponibile');setState('idle');}}
  }
  return <section className="selected-campaign" aria-label="Sessione multiplayer GM">
   <div className="overline">CONNESSIONE MULTIPLAYER · GM</div>
