@@ -57,7 +57,8 @@ async function run(mode){
   assert.equal(await page.locator('[data-campaign-overview-state="list"]').getByRole('button',{name:/Campagna Aruba del GM/}).count(),1);
   assert.equal(await page.locator('[data-campaign-overview-state="list"]').getByText('Campagna estranea').count(),0);
   assert.equal(await page.getByRole('button',{name:'Campagna estranea'}).count(),0);
-  await page.getByRole('button',{name:'Campagna Aruba del GM'}).click();
+  await page.locator('[data-campaign-overview-state="list"]')
+   .getByRole('button',{name:/Campagna Aruba del GM/}).click();
   assert.equal(await page.locator('[data-active-section]').getAttribute('data-active-section'),'campaign-home');
   assert.equal(await page.locator('[data-campaign-overview-state="selected"]').getAttribute('data-campaign-id'),campaigns[0].id);
   assert.equal(await page.locator('[data-campaign-session-state="not-connected"]').count(),1);
