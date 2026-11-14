@@ -65,9 +65,14 @@ assert(JSON.stringify(railIds)===JSON.stringify(contract.dashboardRailIds),
  'Dashboard rail entries no longer match inventory');
 const differences=contract.confirmedPilotDivergences.map(x=>x.id);
 assert(differences.length===7,'Navigation divergence inventory incomplete');
-assert(pilot.includes('<ArubaSessionRightRail campaignId={activeCampaign.id} notesEnabled={notesPanelReady}')&&
+assert(pilot.includes('<ArubaSessionRightRail campaignId={activeCampaign.id}')&&
+ pilot.includes('isGm={activeCampaign.ownerId===user.id&&user.campaignMemberships.some(')&&
+ pilot.includes('notesEnabled={notesPanelReady}')&&
  pilot.includes('<ArubaNotesRoute key={activeCampaign.id}'),
  'Pilot Notes/session rail changed: re-audit before marking parity');
+const pilotRail=load('apps/aruba-vtt-pilot/src/ArubaSessionRightRail.tsx');
+assert(pilotRail.includes('...(isGm?gm:[])')&&pilotRail.includes('isGm:boolean'),
+ 'Pilot GM-only session icons must remain hidden from players');
 assert(pilot.includes('c.ownerId===user.id')&&pilot.includes('activeCampaign.ownerId===user.id'),
  'Owner-only pilot campaign gate changed: re-evaluate player access');
 assert(pilot.includes('<TopBar activeSection={section}')&&
