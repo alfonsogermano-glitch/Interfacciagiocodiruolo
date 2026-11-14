@@ -6,6 +6,7 @@ import {
 } from '../../../services/campaign/activeScene';
 import { useCampaignChannel } from '../../../services/realtime/campaignChannel';
 import { notifyCommittedMapPublication, notifyFailedMapPublication } from './activeScenePublicationObserver';
+import { mergePendingMapPublication } from './mapPublicationBatch';
 import {
   isActiveScenePublication,
   type ActiveSceneCollectionDelta,
@@ -253,7 +254,13 @@ export function useActiveScene(campaignId: string | null | undefined) {
 
   const publishMapPatch = useCallback(async (value: ActiveScenePublication, fields: ActiveSceneMapFields) => {
     if (!campaignId) return;
-    publicationPendingRef.current = { value, fields };
+    const merged = mergePendingMapPublication(publicationPendingRef.current, value, fields);
+    if (merged === null) {
+      // Never silently replace a pending patch for a different scene/chapter.
+      // Flush it into the original serial queue before scheduling the next.
+      flushPendingPublication();
+    }
+    publicationPendingRef.current = merged ?? { value, fields };
     if (publicationDebounceRef.current !== null) {
       clearTimeout(publicationDebounceRef.current);
     }
