@@ -1,5 +1,5 @@
 import {createSignalingClient} from './signaling-client.mjs';
-const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** Browser peer lifecycle for GM-hosted sessions. Signaling carries only SDP/ICE. */
 export function createWebRtcSession({origin,campaignId,role,WebSocketImpl,PeerConnectionImpl,iceServers=[],onStatus=()=>{},onData=()=>{}}){
  if(!['host','player'].includes(role)||typeof PeerConnectionImpl!=='function'||

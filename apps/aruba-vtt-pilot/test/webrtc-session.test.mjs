@@ -99,3 +99,12 @@ test('game channel send failure disconnects only failing peer without throwing',
  assert.equal(session.send({scene:2},peerId),false);
  session.close();
 });
+
+test('valid RFC 4122 peer identity negotiates an offer rather than silently discarding peer-joined',async()=>{
+ const session=createWebRtcSession({origin:'https://staging.hollowgate.quest/',campaignId,role:'host',WebSocketImpl:Socket,PeerConnectionImpl:Peer});
+ Socket.last.message({type:'ready',role:'host',peerId});
+ Socket.last.message({type:'peer-joined',peerId,campaignId});
+ await waitForSignal('offer');
+ assert.equal(Socket.last.sent[0].targetPeerId,peerId);
+ session.close();
+});
