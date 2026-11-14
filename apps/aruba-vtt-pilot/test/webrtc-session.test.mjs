@@ -61,7 +61,7 @@ test('player answers GM offer and ignores cross-campaign game data',async()=>{
 test('GM rejects malformed target and unserializable or oversized game messages',async()=>{
  const session=createWebRtcSession({origin:'https://staging.hollowgate.quest/',campaignId,role:'host',WebSocketImpl:Socket,PeerConnectionImpl:Peer});
  Socket.last.message({type:'ready',role:'host',peerId});
- Socket.last.message({type:'peer-joined',peerId,campaignId});await tick();
+ Socket.last.message({type:'peer-joined',peerId,campaignId});await waitForSignal('offer');
  assert.equal(session.send({hello:1},'invalid'),false);
  const circular={};circular.self=circular;
  assert.equal(session.send(circular),false);
@@ -93,7 +93,7 @@ test('player serializes ICE and offer processing and drops failed negotiation',a
 test('game channel send failure disconnects only failing peer without throwing',async()=>{
  const session=createWebRtcSession({origin:'https://staging.hollowgate.quest/',campaignId,role:'host',WebSocketImpl:Socket,PeerConnectionImpl:Peer});
  Socket.last.message({type:'ready',role:'host',peerId});
- Socket.last.message({type:'peer-joined',peerId,campaignId});await tick();
+ Socket.last.message({type:'peer-joined',peerId,campaignId});await waitForSignal('offer');
  Peer.last.channel.send=()=>{throw new Error('channel closed mid-send');};
  assert.equal(session.send({scene:1},peerId),false);
  assert.equal(session.send({scene:2},peerId),false);
