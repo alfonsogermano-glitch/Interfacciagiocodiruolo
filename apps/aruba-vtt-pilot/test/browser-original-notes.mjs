@@ -351,6 +351,7 @@ try{
     workspaceCount:document.querySelectorAll('.workspace').length,
     outerContext:node.closest('main')?.outerHTML.slice(0,250),
     regionIndex:[...document.querySelectorAll('.aruba-campaign-player-rows')].indexOf(node.closest('.aruba-campaign-player-rows')),
+    rosterInstance:node.closest('.aruba-campaign-player-rows')?.getAttribute('data-roster-instance'),
     regionParent:node.closest('.aruba-campaign-player-rows')?.parentElement?.className,
     regionSiblingCount:node.closest('.aruba-campaign-player-rows')?.parentElement?.children.length,
     cardRowId:node.closest('[data-campaign-member-id]')?.getAttribute('data-campaign-member-id'),

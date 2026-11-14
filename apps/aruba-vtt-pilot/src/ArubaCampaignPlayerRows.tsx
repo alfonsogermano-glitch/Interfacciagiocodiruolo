@@ -24,6 +24,7 @@ export function ArubaCampaignPlayerRows({campaignId,ownerId,revision,availabilit
  const [retryRevision,setRetryRevision]=useState(0);
  const [snapshotKey,setSnapshotKey]=useState('');
  const currentKey=campaignId+':'+ownerId+':'+revision+':'+retryRevision;
+ const instanceId=useRef<string>(crypto.randomUUID());
  const requestGeneration=useRef(0);
  const currentKeyRef=useRef(currentKey);
  useEffect(()=>{
@@ -86,7 +87,7 @@ export function ArubaCampaignPlayerRows({campaignId,ownerId,revision,availabilit
   }).finally(()=>{if(active)setBusy(false);});
   return()=>{active=false;};
  },[campaignId,ownerId,revision,retryRevision,availabilityEnabled,assignmentsEnabled]);
- return <section className="aruba-campaign-player-rows" aria-label="Partecipanti campagna">
+ return <section className="aruba-campaign-player-rows" data-roster-instance={instanceId.current} aria-label="Partecipanti campagna">
   <h2>Giocatori e personaggi</h2>
   <p className="muted">Ruoli e assegnazioni verificati dal server · le schede restano di proprietà del GM.</p>
   {(busy||snapshotKey!==currentKey&&!error)&&<p role="status">Caricamento partecipanti…</p>}
