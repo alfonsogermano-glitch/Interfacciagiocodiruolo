@@ -31,7 +31,7 @@ export function createWebRtcSession({origin,campaignId,role,WebSocketImpl,PeerCo
   }};
   pc.onconnectionstatechange=()=>{if(peers.get(id)===peer&&['failed','closed','disconnected'].includes(pc.connectionState))drop(id);};
   if(role==='host')channelReady(peer,pc.createDataChannel('hollowgate-game',{ordered:true}));
-  else pc.ondatachannel=event=>{if(event.channel.label==='hollowgate-game')channelReady(peer,event.channel);else event.channel.close();};
+  else pc.ondatachannel=event=>{if(stopped||peers.get(id)!==peer||event.channel.label!=='hollowgate-game')event.channel.close();else channelReady(peer,event.channel);};
   return peer;
  }
  async function remote(peer,sdp){

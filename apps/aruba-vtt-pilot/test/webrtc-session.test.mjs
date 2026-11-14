@@ -277,3 +277,23 @@ test('failed player answer signaling drops peer rather than leaving a stalled co
  assert.equal(Peer.last.connectionState,'closed');
  session.close();
 });
+
+test('late data channel from retired player peer is closed without replacing active connection',async()=>{
+ const session=createWebRtcSession({origin:'https://staging.hollowgate.quest/',campaignId,role:'player',WebSocketImpl:Socket,PeerConnectionImpl:Peer});
+ Socket.last.message({type:'ready',role:'player',peerId});
+ Socket.last.message({type:'signal',kind:'offer',payload:{sdp:'first'}});
+ await waitForSignal('answer');
+ const retired=Peer.last;
+ retired.connectionState='disconnected';retired.onconnectionstatechange();
+ Socket.last.message({type:'signal',kind:'offer',payload:{sdp:'second'}});
+ for(let i=0;i<30&&Socket.last.sent.filter(x=>x.kind==='answer').length<2;i++)await tick();
+ assert.notEqual(Peer.last,retired);
+ const late=new Channel('hollowgate-game');
+ retired.ondatachannel({channel:late});
+ assert.equal(late.readyState,'closed');
+ const active=new Channel('hollowgate-game');
+ Peer.last.ondatachannel({channel:active});
+ assert.equal(session.send({scene:'current'}),true);
+ assert.equal(active.sent.length,1);
+ session.close();
+});
