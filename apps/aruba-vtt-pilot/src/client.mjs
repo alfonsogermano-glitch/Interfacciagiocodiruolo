@@ -462,12 +462,21 @@ async function chapterResponse(response){
 }
 /** Staging-only adapter. Do not mount original ChapterManager until its full
  * data dependencies are migrated; the UI must not fall back to Supabase. */
+const UUID_CHAPTER=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export async function listArubaChapters(fetchImpl,campaignId){
  const r=await fetchImpl(chapterUrl(campaignId),{
   method:'GET',credentials:'same-origin',cache:'no-store',redirect:'error'});
  const data=await chapterResponse(r);
  if(!Array.isArray(data?.chapters)||data.chapters.length>1000)
   throw Error('Risposta capitoli non valida');
+ const ids=new Set();
+ for(const chapter of data.chapters){
+  if(!chapter||typeof chapter!=='object'||Array.isArray(chapter)||
+   typeof chapter.id!=='string'||!UUID_CHAPTER.test(chapter.id)||
+   chapter.campaignId!==campaignId||ids.has(chapter.id))
+   throw Error('Risposta capitoli non valida');
+  ids.add(chapter.id);
+ }
  return data.chapters;
 }
 export async function saveArubaChapter(fetchImpl,campaignId,draft){

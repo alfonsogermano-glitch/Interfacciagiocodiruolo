@@ -25,3 +25,11 @@ test('Aruba chapter client rejects invalid IDs before HTTP and fails closed',asy
  await assert.rejects(()=>listArubaChapters(async()=>({status:401,ok:false}),campaign),/Sessione scaduta/);
  await assert.rejects(()=>listArubaChapters(async()=>({status:200,ok:true,json:async()=>({chapters:'bad'})}),campaign),/non valida/);
 });
+
+test('chapter list rejects cross-campaign documents, malformed IDs and duplicates',async()=>{
+ const respond=chapters=>async()=>({status:200,ok:true,json:async()=>({chapters})});
+ await assert.rejects(()=>listArubaChapters(respond([{id:chapter,campaignId:'00000000-0000-4000-8000-000000000000'}]),campaign),/non valida/);
+ await assert.rejects(()=>listArubaChapters(respond([{id:'bad',campaignId:campaign}]),campaign),/non valida/);
+ await assert.rejects(()=>listArubaChapters(respond([{id:chapter,campaignId:campaign},{id:chapter,campaignId:campaign}]),campaign),/non valida/);
+ assert.equal((await listArubaChapters(respond([{id:chapter,campaignId:campaign}]),campaign)).length,1);
+});
