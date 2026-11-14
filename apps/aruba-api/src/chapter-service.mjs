@@ -19,6 +19,14 @@ export function createChapterService({pool}){
  async function save(ownerId,campaignId,draft){
   const chapter=validateChapterDraft(campaignId,draft);
   await assertOwner(ownerId,campaignId);
+  // The graph must never point to a chapter in another campaign or to a missing chapter.
+  if(chapter.nextChapterIds.length){
+   const linked=await pool.query(
+    'SELECT id FROM hollowgate_vtt.chapter_documents WHERE campaign_id=$1 AND id=ANY($2::uuid[])',
+    [campaignId,chapter.nextChapterIds]);
+   if(linked.rows.length!==chapter.nextChapterIds.length)
+    throw new ChapterRejected('Collegamenti a capitoli non validi');
+  }
   const result=await pool.query(
    'INSERT INTO hollowgate_vtt.chapter_documents(id,campaign_id,payload) VALUES($1,$2,$3::jsonb) ON CONFLICT (id,campaign_id) DO UPDATE SET payload=EXCLUDED.payload RETURNING id',
    [chapter.id,campaignId,JSON.stringify(chapter)]);
