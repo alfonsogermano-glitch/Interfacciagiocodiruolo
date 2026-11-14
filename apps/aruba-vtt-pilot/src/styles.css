@@ -301,3 +301,21 @@
 .aruba-player-campaign-button[aria-pressed="true"]{border-color:var(--dash-accent);color:var(--dash-accent-2)}
 .aruba-player-character-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-top:14px}
 .aruba-player-character-open{cursor:pointer}
+
+/* Original Hollowgate shell tokens must exist at the workspace root: the
+   migrated LeftSidebar/GmSectionSidebar are siblings of the content library. */
+.workspace[data-dashboard-palette="noir"]{
+ --dash-bg:#0b0d0d;--dash-panel:#171613;--dash-surface:#231e17;
+ --dash-surface-2:#292319;--dash-sidebar-bg:#10100e;--dash-input:#191714;
+ --dash-border:#745b37;--dash-border-soft:#4c3b28;
+ --dash-text:#eadfc9;--dash-text-strong:#f5e8cf;--dash-muted:#b0a18d;
+ --dash-accent:#a98850;--dash-accent-2:#d1ad71;
+ background:var(--dash-bg);color:var(--dash-text);
+ height:100vh;min-height:0;overflow:hidden;
+}
+.workspace[data-dashboard-palette="noir"]>.main-area{
+ display:flex;flex-direction:column;min-height:0;height:100%;overflow:hidden;
+}
+.workspace[data-dashboard-palette="noir"] .main-workspace-row>.content{
+ max-width:none;margin:0;background:var(--dash-bg);
+}

@@ -141,7 +141,7 @@ function App(){
     <><h1>Connessione non disponibile</h1><p>Non è stato possibile verificare la tua sessione.</p><a href="/login">Riprova l'accesso</a></>}
   </section>
  </main>;
- return <div className="workspace">
+ return <div className="workspace" data-dashboard-palette="noir">
   <LeftSidebar
    view={section==='home'?'home':section==='session'?'campaign-home':'dashboard'}
    activeSection={section}
