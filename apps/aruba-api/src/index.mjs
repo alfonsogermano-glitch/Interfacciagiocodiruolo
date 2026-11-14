@@ -10,6 +10,7 @@ import { createTransactionalMailer } from './transactional-mail.mjs';
 import {createSignupService} from './signup-service.mjs';
 import {createCampaignService} from './campaign-service.mjs';
 import {createChapterService} from './chapter-service.mjs';
+import {createSceneService} from './scene-service.mjs';
 import {createCampaignRosterService} from './campaign-roster-service.mjs';
 import {createCharacterService} from './character-service.mjs';
 import {createCharacterAvailabilityService} from './character-availability-service.mjs';
@@ -97,6 +98,13 @@ async function main() {
       throw new Error('Chapters require staging campaigns');
     // Requires chapter_documents SQL and an explicit staging opt-in.
     const chapters=chaptersFlag==='true'?createChapterService({pool}):null;
+    const scenesFlag=process.env.AUTH_VTT_SCENES_ENABLED;
+    if(scenesFlag&&!['true','false'].includes(scenesFlag))
+      throw new Error('Unsupported AUTH_VTT_SCENES_ENABLED value');
+    if(scenesFlag==='true'&&!chapters)
+      throw new Error('Scenes require staging chapters');
+    // Requires scenes/001_scene_documents.sql and a deliberate staging opt-in.
+    const scenes=scenesFlag==='true'?createSceneService({pool}):null;
     const rosterFlag=process.env.AUTH_VTT_CAMPAIGN_ROSTER_ENABLED;
     if(rosterFlag&&!['true','false'].includes(rosterFlag))
       throw new Error('Unsupported AUTH_VTT_CAMPAIGN_ROSTER_ENABLED value');
@@ -206,7 +214,9 @@ async function main() {
         identity:signalingIdentity,sharedSecret:secret,urls,
       });
     }
-    authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession, passwordReset,signupService,campaigns,chapters,characters,entityNotes,campaignNotes,campaignFolders,notesPanelEnabled,campaignRoster,characterAvailability,characterAssignments,playerCharacters,characterPortraits,turnCredentials,gameSessionBootstrap});
+    authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession, passwordReset,signupService,campaigns,chapters,scenes,characters,entityNotes,campaignNotes,campaignFolders,notesPanelEnabled,campaignRoster,characterAvailability,characterAssignments,playerCharacters,characterPortraits,turnCredentials,gameSessionBootstrap});
+  } else if (process.env.AUTH_VTT_SCENES_ENABLED === 'true') {
+    throw new Error('Scenes require dedicated auth staging');
   } else if (process.env.AUTH_VTT_CHAPTERS_ENABLED === 'true') {
     throw new Error('Chapters require dedicated auth staging');
   } else if (process.env.AUTH_VTT_TURN_ENABLED === 'true') {
