@@ -136,7 +136,7 @@ test('bootstrap exposes only server-verified GM memberships when explicitly enab
  const campaignId='00000000-0000-4000-8000-000000000001';
  const handler=createAuthHttpHandler({origin:ORIGIN,login:async()=>{},
   getSessionUser:async()=>({id:userId,email:'gm@example.org',displayName:'GM',role:'standard'}),
-  revokeSession:async()=>{},campaigns:{list:async()=>({campaigns:[]})},
+  revokeSession:async()=>{},campaigns:{list:async()=>({campaigns:[]}),create:async()=>{},update:async()=>{}} ,
   gameSessionBootstrap:async user=>{
    assert.equal(user.id,userId);
    return [{userId,campaignId,role:'gm'}];
