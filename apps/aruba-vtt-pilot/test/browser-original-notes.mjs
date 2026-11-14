@@ -339,8 +339,15 @@ try{
   await page.locator('[data-entity-context="characters-detail"]').waitFor({state:'detached'});
   // Diagnose ambiguous assignment controls without masking a duplicated card.
   const release=player.locator(assignedCard).getByRole('combobox',{name:'Assegna Mara di prova a un giocatore'});
-  assert.equal(await page.locator(assignedCard).count(),1,
-   'A confirmed assignment must render exactly one character card');
+  const cardCount=await page.locator(assignedCard).count();
+  if(cardCount!==1){
+   const origins=await page.locator(assignedCard).evaluateAll(nodes=>nodes.map(node=>({
+    parent:node.closest('.aruba-campaign-player-rows')?.outerHTML.slice(0,600),
+    ancestor:node.parentElement?.parentElement?.className,
+    visible:!!node.getClientRects().length,
+   })));
+   throw new Error('Duplicate assigned cards: '+JSON.stringify({cardCount,origins}));
+  }
   assert.equal(await release.count(),1,
    'The assigned character must expose exactly one assignment selector');
   await release.selectOption('');
