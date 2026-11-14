@@ -48,3 +48,13 @@ test('session dice palette does not leak into campaign management or home views'
  assert.match(main,/\{section==='session'&&activeCampaign&&<ArubaQuickDice key=/);
  assert.doesNotMatch(main,/\{activeCampaign&&<ArubaQuickDice/);
 });
+
+test('Aruba session rail follows original GM-only visibility for encounters and combat',()=>{
+ const original=read('../../../src/app/components/session/SessionRightSidebar.tsx');
+ const rail=read('../src/ArubaSessionRightRail.tsx');
+ const main=read('../src/main.tsx');
+ assert.match(original,/isOwner \? \[\.\.\.ICONS, \.\.\.GM_ICONS\] : ICONS/);
+ assert.match(rail,/\[\.\.\.shared,\.\.\.\(isGm\?gm:\[\]\)\]/);
+ assert.match(rail,/isGm:boolean/);
+ assert.match(main,/isGm=\{activeCampaign\.ownerId===user\.id&&user\.campaignMemberships\.some/);
+});

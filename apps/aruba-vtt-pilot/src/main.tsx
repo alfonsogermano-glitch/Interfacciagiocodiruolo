@@ -249,7 +249,9 @@ function App(){
     </>}
    </main>
   {section==='session'&&activeCampaign?
-    <ArubaSessionRightRail campaignId={activeCampaign.id} notesEnabled={notesPanelReady}
+    <ArubaSessionRightRail campaignId={activeCampaign.id}
+     isGm={activeCampaign.ownerId===user.id&&user.campaignMemberships.some(m=>m.userId===user.id&&m.campaignId===activeCampaign.id&&m.role==='gm')}
+     notesEnabled={notesPanelReady}
      charactersEnabled={!!user.charactersEnabled}
      activePanel={sessionPanel}
      onToggleNotes={()=>{setSessionCharacterRequest(null);setSessionPanel(value=>value==='notes'?null:'notes');}}

@@ -11,13 +11,13 @@ const gm=[
  {id:'encounters',label:'Incontri',Icon:MapTrifoldIcon},
  {id:'combat',label:'Combatti',Icon:SwordIcon},
 ] as const;
-export function ArubaSessionRightRail({campaignId,notesEnabled,charactersEnabled,activePanel,onToggleNotes,onToggleCharacters}:{
- campaignId:string;notesEnabled:boolean;charactersEnabled:boolean;
+export function ArubaSessionRightRail({campaignId,isGm,notesEnabled,charactersEnabled,activePanel,onToggleNotes,onToggleCharacters}:{
+ campaignId:string;isGm:boolean;notesEnabled:boolean;charactersEnabled:boolean;
  activePanel:'notes'|'characters'|null;onToggleNotes:()=>void;onToggleCharacters:()=>void;
 }){
  return <aside className="session-right-rail gm-sidebar"
   aria-label="Strumenti sessione" data-aruba-session-rail="true">
-  {[...shared,...gm].map(({id,label,Icon})=>{
+  {[...shared,...(isGm?gm:[])].map(({id,label,Icon})=>{
    const enabled=(id==='notes'&&notesEnabled)||(id==='characters'&&charactersEnabled)||id==='dice';
    return <button key={id} type="button" aria-label={label}
     className={'session-rail-link'+(activePanel===id?' active':'')}
