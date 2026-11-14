@@ -23,7 +23,7 @@ test('original Notes route is server gated and lives in its own session rail',()
  assert.match(app,/requestSequence.current/);
  assert.match(app,/section==='session'&&activeCampaign/);
  assert.doesNotMatch(app,/gmMenu\.filter\(item=>item\.id!=='notes'/);
- assert.match(app,/<GmSectionSidebar/,
+ assert.match(app,/<ArubaGmSectionSidebar/,
   'shipping GM rail must reuse the original grouped navigation');
 });
 test('Notes route uses the actual original SlideOverPanel and regular build stays disabled',()=>{
@@ -70,4 +70,15 @@ test('mobile Schede slide-overs reserve both original 100px left and 80px right 
  const css=readFileSync(resolve(root,'src/styles.css'),'utf8');
  assert.match(css,/\.aruba-entity-overlay \[data-session-slide-over="true"\]\{\s*left:100px!important;right:80px!important;\s*width:calc\(100vw - 180px\)!important/);
  assert.match(css,/\.workspace \.aruba-session-characters-host \[data-session-slide-over="true"\]\{\s*left:100px!important;right:80px!important;\s*width:calc\(100vw - 180px\)!important/);
+});
+
+test('Phosphor GM icons are injected only by Aruba, preserving the original sidebar dependency boundary',()=>{
+ const app=readFileSync(resolve(root,'src/main.tsx'),'utf8');
+ const adapter=readFileSync(resolve(root,'src/ArubaGmSectionSidebar.tsx'),'utf8');
+ const original=readFileSync(resolve(root,'../../../src/app/layout/GmSectionSidebar.tsx'),'utf8');
+ assert.match(app,/<ArubaGmSectionSidebar/);
+ assert.match(adapter,/from '@phosphor-icons\/react'/);
+ assert.match(adapter,/iconOverrides=\{icons\}/);
+ assert.doesNotMatch(original,/@phosphor-icons\/react/);
+ assert.match(original,/iconOverrides\?\.\[section.id\] \?\? section.icon/);
 });

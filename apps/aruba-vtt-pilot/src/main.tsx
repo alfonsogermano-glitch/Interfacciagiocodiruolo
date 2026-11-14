@@ -14,7 +14,7 @@ import {ArubaSessionCharactersPanel} from './ArubaSessionCharactersPanel';
 import {ArubaCampaignCharacterCards,type SessionEntityOpenRequest} from './ArubaCampaignCharacterCards';
 import {ArubaCampaignPlayerRows} from './ArubaCampaignPlayerRows';
 import {ArubaAssignedCharacterPanel} from './ArubaAssignedCharacterPanel';
-import {GmSectionSidebar} from '../../../src/app/layout/GmSectionSidebar';
+import {ArubaGmSectionSidebar} from './ArubaGmSectionSidebar';
 import {LeftSidebar} from '../../../src/app/layout/LeftSidebar';
 import {TopBar} from '../../../src/app/layout/TopBar';
 import {ArubaTopBarQaIdentity} from './ArubaOriginalTopBarAdapter';
@@ -256,7 +256,7 @@ function App(){
      activePanel={sessionPanel}
      onToggleNotes={()=>{setSessionCharacterRequest(null);setSessionPanel(value=>value==='notes'?null:'notes');}}
      onToggleCharacters={()=>{setSessionCharacterRequest(null);setSessionPanel(value=>value==='characters'?null:'characters');}}/>:
-   section!=='characters'&&<GmSectionSidebar
+   section!=='characters'&&<ArubaGmSectionSidebar
     activeTab={section==='preparation'?'scene-encounter':section==='sheets'?'players':section==='equipment'?'equipment-catalog':section==='assets'?'visual-assets':section}
     onChangeTab={id=>{
      const target=id==='scene-encounter'?'preparation':id==='players'?'sheets':id==='equipment-catalog'?'equipment':id==='visual-assets'?'assets':id;
