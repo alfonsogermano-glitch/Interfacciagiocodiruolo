@@ -446,3 +446,44 @@ export async function saveCharacterPortraitSource(fetchImpl,campaignId,character
   throw Error('Conferma sorgente non valida');
  return {publicUrl:'data:image/jpeg;base64,'+dataBase64};
 }
+
+const CHAPTER_UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function chapterUrl(campaignId,chapterId=null){
+ if(typeof campaignId!=='string'||!CHAPTER_UUID.test(campaignId)||
+  (chapterId!==null&&(typeof chapterId!=='string'||!CHAPTER_UUID.test(chapterId))))
+  throw Error('Identificativo capitolo o campagna non valido');
+ return '/vtt/campaigns/'+campaignId+'/chapters'+(chapterId?'/'+chapterId:'');
+}
+async function chapterResponse(response){
+ if(response.status===401)throw Error('Sessione scaduta: effettua nuovamente il login.');
+ if(response.status===404)throw Error('Campagna o capitolo non autorizzato');
+ if(!response.ok)throw Error('Operazione capitoli non riuscita');
+ return response.json();
+}
+/** Staging-only adapter. Do not mount original ChapterManager until its full
+ * data dependencies are migrated; the UI must not fall back to Supabase. */
+export async function listArubaChapters(fetchImpl,campaignId){
+ const r=await fetchImpl(chapterUrl(campaignId),{
+  method:'GET',credentials:'same-origin',cache:'no-store',redirect:'error'});
+ const data=await chapterResponse(r);
+ if(!Array.isArray(data?.chapters)||data.chapters.length>1000)
+  throw Error('Risposta capitoli non valida');
+ return data.chapters;
+}
+export async function saveArubaChapter(fetchImpl,campaignId,draft){
+ if(!draft||typeof draft!=='object'||Array.isArray(draft))
+  throw Error('Capitolo non valido');
+ const r=await fetchImpl(chapterUrl(campaignId),{
+  method:'PUT',credentials:'same-origin',cache:'no-store',redirect:'error',
+  headers:{'Content-Type':'application/json'},body:JSON.stringify(draft)});
+ const data=await chapterResponse(r);
+ if(data?.chapter?.id!==draft.id)throw Error('Conferma capitolo non valida');
+ return data.chapter;
+}
+export async function deleteArubaChapter(fetchImpl,campaignId,chapterId){
+ const r=await fetchImpl(chapterUrl(campaignId,chapterId),{
+  method:'DELETE',credentials:'same-origin',cache:'no-store',redirect:'error'});
+ const data=await chapterResponse(r);
+ if(data?.deleted!==true)throw Error('Conferma eliminazione non valida');
+ return true;
+}
