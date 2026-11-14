@@ -95,3 +95,14 @@ test('closed scene session ignores late transport status and snapshots',async()=
  assert.equal(scenes.length,sceneCount);
  assert.equal(session.getScene(),null);
 });
+
+test('scene session exposes original publication only through GM role and refuses closed sessions',()=>{
+ const host=createCampaignSceneSession({origin:'https://staging.hollowgate.quest',campaignId,sceneId,role:'host',WebSocketImpl:Socket,PeerConnectionImpl:Peer});
+ const publication={campaignId,sceneId,mapTokens:[{id:tokenId,name:'Scout',x:1,y:2,hiddenFromPlayers:true}]};
+ assert.equal(host.loadOriginal(publication,campaignId),true);
+ assert.equal(host.getScene().tokens[0].name,'Scout');
+ host.close();assert.equal(host.loadOriginal(publication,campaignId),false);
+ const player=createCampaignSceneSession({origin:'https://staging.hollowgate.quest',campaignId,sceneId,role:'player',WebSocketImpl:Socket,PeerConnectionImpl:Peer});
+ assert.equal(player.loadOriginal(publication,campaignId),false);
+ player.close();
+});
