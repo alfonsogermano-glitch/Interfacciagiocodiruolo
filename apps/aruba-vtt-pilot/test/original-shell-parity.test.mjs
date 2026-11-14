@@ -150,3 +150,16 @@ test('shipping Aruba pilot mounts the original left and GM navigation, not dupli
   assert.ok(main.includes(mapping),'missing original GM section mapping '+mapping);
  assert.match(main,/onSelectCampaign=\{campaign=>openCampaign\(campaign\.id\)\}/);
 });
+
+test('shipping original Noir navigation has generated utilities, scoped tokens and viewport slots',()=>{
+ const css=read('../src/styles.css');
+ const main=read('../src/main.tsx');
+ assert.match(css,/@import "tailwindcss";/);
+ assert.match(css,/@source "\.\.\/\.\.\/\.\.\/src\/app\/layout";/);
+ assert.match(css,/\.workspace\[data-dashboard-palette="noir"\]/);
+ assert.match(css,/--dash-sidebar-bg:#10100e/);
+ assert.match(css,/height:100vh;min-height:0;overflow:hidden/);
+ assert.match(main,/className="workspace" data-dashboard-palette="noir"/);
+ assert.match(main,/<LeftSidebar/);
+ assert.match(main,/<GmSectionSidebar/);
+});
