@@ -1,0 +1,56 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {createCampaignSceneSession} from '../src/campaign-scene-session.mjs';
+const campaignId='12345678-1234-4123-8123-123456789abc';
+const sceneId='22345678-1234-4123-8123-123456789abc';
+const tokenId='32345678-1234-4123-8123-123456789abc';
+class Socket{
+ static OPEN=1;
+ constructor(){this.readyState=1;this.listeners={};this.sent=[];Socket.last=this;}
+ addEventListener(type,fn){(this.listeners[type]??=[]).push(fn);}
+ message(data){for(const fn of this.listeners.message??[])fn({data:JSON.stringify(data)});}
+ send(data){this.sent.push(JSON.parse(data));}
+ close(){this.readyState=3;for(const fn of this.listeners.close??[])fn({});}
+}
+class Channel{
+ constructor(label){this.label=label;this.readyState='open';this.sent=[];}
+ send(data){this.sent.push(JSON.parse(data));}
+ close(){this.readyState='closed';}
+}
+class Peer{
+ constructor(){this.remoteDescription=null;this.connectionState='new';Peer.last=this;}
+ createDataChannel(label){return this.channel=new Channel(label);}
+ async createOffer(){return {type:'offer',sdp:'offer'};}
+ async createAnswer(){return {type:'answer',sdp:'answer'};}
+ async setLocalDescription(v){this.localDescription=v;}
+ async setRemoteDescription(v){this.remoteDescription=v;}
+ async addIceCandidate(){}
+ close(){this.connectionState='closed';}
+}
+const tick=()=>new Promise(resolve=>setImmediate(resolve));
+test('GM scene session publishes redacted token state through actual game channel',async()=>{
+ const session=createCampaignSceneSession({origin:'https://staging.hollowgate.quest',campaignId,sceneId,role:'host',WebSocketImpl:Socket,PeerConnectionImpl:Peer});
+ const token={id:tokenId,name:'Secret',x:1,y:2,size:1,visible:false};
+ assert.equal(session.dispatch({type:'add',token}),true);
+ Socket.last.message({type:'ready',role:'host',peerId:tokenId});
+ Socket.last.message({type:'peer-joined',peerId:tokenId,campaignId});
+ for(let i=0;i<30&&!Socket.last.sent.some(x=>x.kind==='offer');i++)await tick();
+ assert.ok(Socket.last.sent.some(x=>x.kind==='offer'));
+ Peer.last.channel.onopen();
+ assert.deepEqual(Peer.last.channel.sent[0].payload.state.tokens,[]);
+ assert.equal(session.dispatch({type:'visibility',tokenId,visible:true}),true);
+ assert.equal(Peer.last.channel.sent[1].payload.state.tokens[0].id,tokenId);
+ session.close();assert.equal(session.dispatch({type:'remove',tokenId}),false);
+});
+test('player scene session rejects local token mutations and accepts GM snapshots from its channel',async()=>{
+ const scenes=[];const session=createCampaignSceneSession({origin:'https://staging.hollowgate.quest',campaignId,sceneId,role:'player',WebSocketImpl:Socket,PeerConnectionImpl:Peer,onScene:s=>scenes.push(s)});
+ assert.equal(session.dispatch({type:'add',token:{}}),false);
+ Socket.last.message({type:'ready',role:'player',peerId:tokenId});
+ Socket.last.message({type:'signal',kind:'offer',payload:{sdp:'offer'}});
+ for(let i=0;i<30&&!Socket.last.sent.some(x=>x.kind==='answer');i++)await tick();
+ const channel=new Channel('hollowgate-game');Peer.last.ondatachannel({channel});channel.onopen();
+ const state={sceneId,tokens:[{id:tokenId,name:'Explorer',x:3,y:4,size:1,visible:true}]};
+ channel.onmessage({data:JSON.stringify({type:'game',campaignId,payload:{kind:'snapshot',campaignId,revision:1,state}})});
+ assert.deepEqual(session.getScene(),state);assert.equal(scenes.length,1);
+ session.close();assert.equal(session.getScene(),null);
+});
