@@ -345,6 +345,11 @@ try{
     parent:node.closest('.aruba-campaign-player-rows')?.outerHTML.slice(0,600),
     ancestor:node.parentElement?.parentElement?.className,
     visible:!!node.getClientRects().length,
+    rootId:node.closest('[id]')?.id,
+    rootChildren:document.querySelector('#root')?.children.length,
+    mainCount:document.querySelectorAll('main.content').length,
+    workspaceCount:document.querySelectorAll('.workspace').length,
+    outerContext:node.closest('main')?.outerHTML.slice(0,250),
    })));
    throw new Error('Duplicate assigned cards: '+JSON.stringify({cardCount,origins}));
   }
