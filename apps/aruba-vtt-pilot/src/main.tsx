@@ -204,7 +204,7 @@ function App(){
         catalogRevision={characterCatalogRevision} portraitsEnabled={user.characterPortraitsEnabled} onOpenDetail={(id,campaignId)=>setEntityDetail({kind:'characters-detail',entityType:'character',id,campaignId})}/>:
        <div className="empty">Servizio personaggi in preparazione.</div>}
     </>}
-    {section==='session'&&activeCampaign&&<>
+    {section==='session'&&activeCampaign&&<div className="aruba-session-content" key={activeCampaign.id}>
       <div className="overline">CAMPAGNA · CONTESTO SESSIONE</div>
       <h1>{activeCampaign.name}</h1>
       <p className="muted">I comandi di sessione verranno attivati dopo la migrazione dei rispettivi servizi. La gestione GM rimane separata.</p>
@@ -231,7 +231,7 @@ function App(){
         ownerId={user.id} initialSelection={sessionCharacterRequest}
         onClose={()=>{setSessionPanel(null);closeSessionCharacter();}}
         onOpenCharacter={openSessionCharacter}/>}
-    </>}
+    </div>}
     {!['home','campaigns','characters','session'].includes(section)&&<>
       <div className="overline">STRUMENTI DI GIOCO</div>
       <h1>{menu.find(m=>m.id===section)?.label}</h1>
