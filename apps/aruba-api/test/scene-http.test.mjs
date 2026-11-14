@@ -64,3 +64,16 @@ test('Scene routes require an installed Chapter service',()=>{
   scenes:{list:async()=>{},save:async()=>{},remove:async()=>{}}
  }),/Scene endpoints require chapters/);
 });
+
+test('Scene writes reject missing Origin, missing cookie and unsupported JSON',async()=>{
+ await serve(true,async(base,calls)=>{
+  const cookie={cookie:'__Host-hg_session='+token};
+  const body=JSON.stringify({id:scene,chapterId:scene,title:'Scene'});
+  assert.equal((await fetch(base+url,{method:'PUT',headers:{...cookie,'content-type':'application/json'},body})).status,403);
+  assert.equal((await fetch(base+url,{method:'PUT',headers:{origin,'content-type':'application/json'},body})).status,401);
+  assert.equal((await fetch(base+url,{method:'PUT',headers:{...cookie,origin,'content-type':'text/plain'},body})).status,415);
+  assert.equal((await fetch(base+url+'/'+scene,{method:'DELETE',headers:cookie})).status,403);
+  assert.equal((await fetch(base+url+'/'+scene,{method:'DELETE',headers:{origin}})).status,401);
+  assert.deepEqual(calls,[]);
+ });
+});
