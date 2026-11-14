@@ -149,7 +149,12 @@ export function createArubaSettledMapRequestCorrelator({
      !tracker.expect({
       userId:item.entry.userId,peerId:item.entry.peerId,
       requestId:item.entry.requestId,revision:item.priorRevision+1,
-     }))continue;
+     })){
+     // A proved request whose receipt cannot be registered must never be
+     // credited to a later unrelated settled publication.
+     pending.delete(item.id);
+     continue;
+    }
     registered.push(item);
    }
    const ok=source.publishObservedMap({

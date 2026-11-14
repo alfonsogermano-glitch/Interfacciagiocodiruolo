@@ -261,3 +261,22 @@ test('a throwing effect proof is discarded rather than confirmed by a later batc
  assert.equal(x.handle.revision,2);
  x.close();
 });
+
+test('failed receipt registration cannot be retried against a later unrelated publication',()=>{
+ const x=setup({prove:()=>true});
+ assert.equal(x.register(req1),true);
+ // Fill the real bounded receipt tracker so the first proof cannot register.
+ for(let i=0;i<128;i++){
+  const requestId=`10000000-0000-4000-8000-${String(i).padStart(12,'0')}`;
+  assert.equal(x.tracker.expect({userId:user,peerId:peer,requestId,revision:1}),true);
+ }
+ x.notify(t1,10);
+ assert.equal(x.correlator.pendingCount,0);
+ assert.equal(x.tracker.pendingCount,128);
+ x.tracker.revoke({userId:user,peerId:peer});
+ x.notify(t2,20);
+ assert.equal(x.tracker.pendingCount,0);
+ assert.equal(x.correlator.pendingCount,0);
+ assert.equal(x.handle.revision,2);
+ x.close();
+});
