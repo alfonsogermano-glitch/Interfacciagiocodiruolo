@@ -22,3 +22,13 @@ test('chapter model rejects malformed or unsafe graph and payloads',()=>{
   assert.throws(()=>validateChapterDraft(CAMPAIGN,{...base(),...patch}),ChapterRejected);
  }
 });
+
+test('original Chapter timestamps survive Aruba validation unchanged',()=>{
+ const createdAt='2026-01-02T03:04:05.000Z';
+ const updatedAt='2026-01-03T03:04:05.000Z';
+ const result=validateChapterDraft(CAMPAIGN,{...base(),createdAt,updatedAt});
+ assert.equal(result.createdAt,createdAt);
+ assert.equal(result.updatedAt,updatedAt);
+ for(const bad of ['yesterday','2026-02-30T03:04:05.000Z',null,42])
+  assert.throws(()=>validateChapterDraft(CAMPAIGN,{...base(),createdAt:bad}),ChapterRejected);
+});
