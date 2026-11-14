@@ -409,7 +409,7 @@ try{
   await sessionRail.getByRole('button',{name:'Schede',exact:true}).click();
   await page.locator('.aruba-session-characters-host').waitFor({state:'detached'});
 
-  for(const label of ['Chat','Dadi','Incontri','Combatti'])
+  for(const label of ['Chat','Incontri','Combatti'])
    assert.equal(await sessionRail.getByRole('button',{name:label,exact:true}).isDisabled(),true,
     label+' must not pretend to be migrated');
   assert.equal(await sessionRail.getByRole('button',{name:'Schede',exact:true}).isEnabled(),true);
