@@ -16,7 +16,7 @@ test('GM coordinator publishes token changes, player coordinator applies revisio
  assert.equal(player.receiveSnapshot({revision:1,state:sent[0]}),false);
  assert.equal(player.dispatch({type:'remove',tokenId}),false);
  assert.equal(host.receiveSnapshot({revision:99,state:{}}),false);
- assert.equal(gmScenes.length,1);assert.equal(playerScenes.length,2);
+ assert.equal(gmScenes.length,2);assert.deepEqual(gmScenes[0],{sceneId,tokens:[]});assert.equal(playerScenes.length,2);
  player.reset();assert.equal(player.getScene(),null);
 });
 test('hidden GM tokens remain invisible to player coordinator until explicitly revealed',()=>{
