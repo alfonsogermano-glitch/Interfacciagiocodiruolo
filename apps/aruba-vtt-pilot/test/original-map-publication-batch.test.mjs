@@ -47,3 +47,21 @@ test('original hook cancels pending debounce and waits for queued map writes bef
  const hook=await readFile(new URL('../../../src/app/components/session/useActiveScene.ts',import.meta.url),'utf8');
  assert.match(hook,/const clear = useCallback\(async \(\) => \{[\s\S]*?publicationPendingRef\.current = null;[\s\S]*?await publicationQueueRef\.current;[\s\S]*?await clearActiveScene/);
 });
+
+test('scene clear is serialized as a queued operation and not merely preceded by a queue wait',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const hook=await readFile(new URL('../../../src/app/components/session/useActiveScene.ts',import.meta.url),'utf8');
+ const clear=hook.slice(hook.indexOf('const clear = useCallback'));
+ assert.match(clear,/const operation = publicationQueueRef\.current\.then\(async \(\) => \{/);
+ assert.match(clear,/await clearActiveScene\(campaignId\)/);
+ assert.match(clear,/publicationQueueRef\.current = operation\.catch\(/);
+ assert.doesNotMatch(clear,/await publicationQueueRef\.current;[\s\S]*?await clearActiveScene/);
+});
+test('failed scene changes and clears notify correlation listeners',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const hook=await readFile(new URL('../../../src/app/components/session/useActiveScene.ts',import.meta.url),'utf8');
+ assert.match(hook,/Cambio scena non riuscito:/);
+ assert.match(hook,/Cancellazione scena non riuscita:/);
+ const calls=[...hook.matchAll(/notifyFailedMapPublication\(campaignId\)/g)];
+ assert.ok(calls.length>=3);
+});

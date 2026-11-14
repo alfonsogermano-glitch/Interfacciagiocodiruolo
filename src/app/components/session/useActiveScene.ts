@@ -251,7 +251,10 @@ export function useActiveScene(campaignId: string | null | undefined) {
       setActiveScene(next);
       await send('active_scene_change', { activeScene: next });
     });
-    publicationQueueRef.current = operation.catch(() => {});
+    publicationQueueRef.current = operation.catch(error => {
+      notifyFailedMapPublication(campaignId);
+      console.error('Cambio scena non riuscito:', error);
+    });
     await operation;
   }, [campaignId, send, flushPendingPublication]);
 
@@ -281,11 +284,19 @@ export function useActiveScene(campaignId: string | null | undefined) {
       publicationDebounceRef.current = null;
     }
     publicationPendingRef.current = null;
-    await publicationQueueRef.current;
-    await clearActiveScene(campaignId);
-    latestPublicationRef.current = null;
-    setActiveScene(null);
-    await send('active_scene_change', { activeScene: null });
+    const operation = publicationQueueRef.current.then(async () => {
+      await clearActiveScene(campaignId);
+      latestPublicationRef.current = null;
+      setActiveScene(null);
+      await send('active_scene_change', { activeScene: null });
+    });
+    // Queue the clear itself, not just the wait: a subsequent publish must
+    // not overtake the deletion while its storage request is in flight.
+    publicationQueueRef.current = operation.catch(error => {
+      notifyFailedMapPublication(campaignId);
+      console.error('Cancellazione scena non riuscita:', error);
+    });
+    await operation;
   }, [campaignId, send]);
 
   return { activeScene, loading, channelReady, publish, publishMapPatch, clear };
