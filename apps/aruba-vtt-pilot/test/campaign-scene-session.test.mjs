@@ -54,3 +54,24 @@ test('player scene session rejects local token mutations and accepts GM snapshot
  assert.deepEqual(session.getScene(),state);assert.equal(scenes.length,1);
  session.close();assert.equal(session.getScene(),null);
 });
+
+test('player clears stale scene and accepts a fresh revision epoch after channel closes',async()=>{
+ const scenes=[];
+ const session=createCampaignSceneSession({origin:'https://staging.hollowgate.quest',campaignId,sceneId,role:'player',WebSocketImpl:Socket,PeerConnectionImpl:Peer,onScene:scene=>scenes.push(scene)});
+ Socket.last.message({type:'ready',role:'player',peerId:tokenId});
+ Socket.last.message({type:'signal',kind:'offer',payload:{sdp:'offer'}});
+ for(let i=0;i<30&&!Socket.last.sent.some(x=>x.kind==='answer');i++)await tick();
+ const channel=new Channel('hollowgate-game');Peer.last.ondatachannel({channel});channel.onopen();
+ const first={sceneId,tokens:[{id:tokenId,name:'Old',x:1,y:1,size:1,visible:true}]};
+ const next={sceneId,tokens:[{id:tokenId,name:'New',x:2,y:2,size:1,visible:true}]};
+ const deliver=(revision,state)=>channel.onmessage({data:JSON.stringify({type:'game',campaignId,payload:{kind:'snapshot',campaignId,revision,state}})});
+ deliver(45,first);
+ assert.deepEqual(session.getScene(),first);
+ channel.onclose();
+ assert.equal(session.getScene(),null);
+ assert.equal(scenes.at(-1),null);
+ deliver(1,next);
+ assert.deepEqual(session.getScene(),next);
+ assert.deepEqual(scenes.at(-1),next);
+ session.close();
+});

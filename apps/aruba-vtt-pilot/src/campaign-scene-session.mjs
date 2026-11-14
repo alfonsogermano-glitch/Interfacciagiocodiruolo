@@ -6,7 +6,11 @@ export function createCampaignSceneSession({origin,campaignId,sceneId,role,WebSo
  if(!['host','player'].includes(role)||typeof onScene!=='function')
   throw new TypeError('Invalid scene session');
  let coordinator;
- const live=createCampaignLiveSession({origin,campaignId,role,WebSocketImpl,PeerConnectionImpl,iceServers,onStatus,
+ const live=createCampaignLiveSession({origin,campaignId,role,WebSocketImpl,PeerConnectionImpl,iceServers,
+  onStatus:event=>{
+   if(role==='player'&&['disconnected','channel-closed','signaling-disconnected'].includes(event.state))coordinator?.reset();
+   onStatus?.(event);
+  },
   onSnapshot:snapshot=>{if(role==='player')coordinator?.receiveSnapshot(snapshot);},
  });
  coordinator=createLiveSceneCoordinator({role,sceneId,liveSession:live,onScene});
