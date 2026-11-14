@@ -50,3 +50,21 @@ test('player answers GM offer and ignores cross-campaign game data',async()=>{
  assert.deepEqual(data,[{peerId:campaignId,payload:{scene:1}}]);
  session.close();assert.equal(session.send({scene:2}),false);
 });
+
+test('GM rejects malformed target and unserializable or oversized game messages',async()=>{
+ const session=createWebRtcSession({origin:'https://staging.hollowgate.quest/',campaignId,role:'host',WebSocketImpl:Socket,PeerConnectionImpl:Peer});
+ Socket.last.message({type:'ready',role:'host',peerId});
+ Socket.last.message({type:'peer-joined',peerId,campaignId});await tick();
+ assert.equal(session.send({hello:1},'invalid'),false);
+ const circular={};circular.self=circular;
+ assert.equal(session.send(circular),false);
+ assert.equal(session.send({text:'x'.repeat(66000)}),false);
+ assert.equal(Peer.last.channel.sent.length,0);session.close();
+});
+test('closed session never sends an offer after delayed asynchronous negotiation',async()=>{
+ class SlowPeer extends Peer{async createOffer(){await new Promise(resolve=>setImmediate(resolve));return super.createOffer();}}
+ const session=createWebRtcSession({origin:'https://staging.hollowgate.quest/',campaignId,role:'host',WebSocketImpl:Socket,PeerConnectionImpl:SlowPeer});
+ Socket.last.message({type:'ready',role:'host',peerId});Socket.last.message({type:'peer-joined',peerId,campaignId});
+ session.close();await tick();await tick();
+ assert.equal(Socket.last.sent.length,0);
+});

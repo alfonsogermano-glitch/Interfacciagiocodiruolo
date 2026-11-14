@@ -13,16 +13,17 @@ export function createWebRtcSession({origin,campaignId,role,WebSocketImpl,PeerCo
   channel.onopen=()=>notify('connected',peer.id);
   channel.onclose=()=>notify('channel-closed',peer.id);
   channel.onmessage=event=>{
-   if(stopped||typeof event.data!=='string'||event.data.length>65536)return;
+   if(stopped||peers.get(peer.id)!==peer||typeof event.data!=='string'||event.data.length>65536)return;
    let data;try{data=JSON.parse(event.data);}catch{return;}
    if(data&&typeof data==='object'&&!Array.isArray(data)&&data.campaignId===campaignId&&
       data.type==='game'&&Object.hasOwn(data,'payload'))onData({peerId:peer.id,payload:data.payload});
   };
  }
  function makePeer(id){
-  if(!UUID.test(id)||peers.has(id)||stopped)return peers.get(id);
+  if(!UUID.test(id)||stopped)return null;
+  if(peers.has(id))return peers.get(id);
   const pc=new PeerConnectionImpl({iceServers});const peer={id,pc,channel:null,pendingIce:[]};peers.set(id,peer);
-  pc.onicecandidate=event=>{if(event.candidate)signal.send('ice',{candidate:event.candidate.toJSON?.()??event.candidate},role==='host'?id:undefined);};
+  pc.onicecandidate=event=>{if(!stopped&&peers.get(id)===peer&&event.candidate)signal.send('ice',{candidate:event.candidate.toJSON?.()??event.candidate},role==='host'?id:undefined);};
   pc.onconnectionstatechange=()=>{if(['failed','closed','disconnected'].includes(pc.connectionState))drop(id);};
   if(role==='host')channelReady(peer,pc.createDataChannel('hollowgate-game',{ordered:true}));
   else pc.ondatachannel=event=>{if(event.channel.label==='hollowgate-game')channelReady(peer,event.channel);else event.channel.close();};
@@ -37,7 +38,8 @@ export function createWebRtcSession({origin,campaignId,role,WebSocketImpl,PeerCo
   if(data.type==='peer-left'&&role==='host'){drop(data.peerId);return;}
   if(data.type==='peer-joined'&&role==='host'&&data.campaignId===campaignId&&UUID.test(data.peerId??'')){
    const peer=makePeer(data.peerId);if(!peer)return;
-   const offer=await peer.pc.createOffer();await peer.pc.setLocalDescription(offer);
+   const offer=await peer.pc.createOffer();if(stopped||peers.get(peer.id)!==peer)return;
+   await peer.pc.setLocalDescription(offer);if(stopped||peers.get(peer.id)!==peer)return;
    signal.send('offer',{sdp:offer.sdp},peer.id);return;
   }
   if(data.type!=='signal'||!['offer','answer','ice'].includes(data.kind))return;
@@ -47,12 +49,14 @@ export function createWebRtcSession({origin,campaignId,role,WebSocketImpl,PeerCo
   const peer=makePeer(id);if(!peer)return;
   if(data.kind==='ice'){
    if(!data.payload?.candidate)return;
-   if(!peer.pc.remoteDescription)peer.pendingIce.push(data.payload.candidate);
+   if(!peer.pc.remoteDescription){if(peer.pendingIce.length>=128){drop(id);return;}peer.pendingIce.push(data.payload.candidate);}
    else await peer.pc.addIceCandidate(data.payload.candidate);
   }else if(typeof data.payload?.sdp==='string'){
    await remote(peer,{type:data.kind,sdp:data.payload.sdp});
+   if(stopped||peers.get(peer.id)!==peer)return;
    if(role==='player'&&data.kind==='offer'){
-    const answer=await peer.pc.createAnswer();await peer.pc.setLocalDescription(answer);
+    const answer=await peer.pc.createAnswer();if(stopped||peers.get(peer.id)!==peer)return;
+    await peer.pc.setLocalDescription(answer);if(stopped||peers.get(peer.id)!==peer)return;
     signal.send('answer',{sdp:answer.sdp});
    }
   }
@@ -65,9 +69,10 @@ export function createWebRtcSession({origin,campaignId,role,WebSocketImpl,PeerCo
  return {
   send(payload,peerId){
    if(stopped)return false;
+   if(role==='host'&&peerId!==undefined&&!UUID.test(peerId))return false;
+   let message;try{message=JSON.stringify({type:'game',campaignId,payload});}catch{return false;}
+   if(typeof message!=='string'||message.length>65536)return false;
    const targets=role==='host'?(peerId?[peers.get(peerId)]:[...peers.values()]):[peers.get(campaignId)];
-   const message=JSON.stringify({type:'game',campaignId,payload});
-   if(message.length>65536)return false;
    let sent=false;
    for(const peer of targets){if(peer?.channel?.readyState==='open'){peer.channel.send(message);sent=true;}}
    return sent;
