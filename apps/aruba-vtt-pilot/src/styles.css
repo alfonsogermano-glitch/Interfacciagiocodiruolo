@@ -173,7 +173,29 @@
 .aruba-entity-unmigrated{border:1px dashed var(--dash-border-soft);border-radius:12px;padding:26px}
 .aruba-entity-unmigrated p{color:var(--dash-muted);line-height:1.65}
 .aruba-entity-overlay .aruba-character-sheet{padding:0;margin:0}
-@media(max-width:780px){.aruba-entity-back-column{flex-basis:82px}.aruba-entity-detail-main{padding:12px}}
+@media(max-width:780px){
+ .aruba-entity-back-column{flex-basis:82px}
+ .aruba-entity-detail-main{padding:12px}
+}
+/* Preserve a usable character sheet on narrow phones: the original right rail
+   stays 80px wide, while the back action becomes a compact top row. */
+@media(max-width:540px){
+ .aruba-entity-overlay [data-session-slide-over="true"]{
+  width:calc(100vw - 80px)!important;right:80px!important
+ }
+ .aruba-entity-slide-content{flex-direction:column}
+ .aruba-entity-back-column{
+  flex:0 0 auto;padding:8px 12px;border-right:0;
+  border-bottom:1px solid var(--dash-border-soft)
+ }
+ .aruba-entity-detail-main{flex:1 1 auto;min-height:0;padding:12px;overflow-y:auto}
+ .workspace .aruba-session-characters-host [data-session-slide-over="true"]{
+  width:calc(100vw - 80px)!important;right:80px!important
+ }
+ .aruba-session-character-list{padding:12px}
+ .aruba-session-character-row{flex-wrap:wrap}
+ .aruba-session-character-row span{white-space:normal}
+}
 
 .aruba-entity-backdrop{position:fixed;inset:0;z-index:895;background:#0009}
 .aruba-entity-back-column button:disabled{opacity:.5;cursor:wait}

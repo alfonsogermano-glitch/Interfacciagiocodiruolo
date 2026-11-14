@@ -56,3 +56,12 @@ test('session character selection unmounts the list while original detail owns t
  assert.match(app,/section==='session'&&activeCampaign&&sessionCharacterRequest&&user\.charactersEnabled&&\s*<ArubaCharacterDetailPanel/);
  assert.match(app,/onClose=\{\(\)=>closeSessionCharacter\(\)\}/);
 });
+
+test('character detail and Schede rail remain usable on narrow screens',()=>{
+ const css=readFileSync(resolve(root,'src/styles.css'),'utf8');
+ assert.match(css,/@media\(max-width:540px\)/);
+ assert.match(css,/\.aruba-entity-slide-content\{flex-direction:column\}/);
+ assert.match(css,/\.aruba-entity-back-column\{\s*flex:0 0 auto/);
+ assert.match(css,/\.aruba-entity-detail-main\{flex:1 1 auto;min-height:0;padding:12px;overflow-y:auto\}/);
+ assert.match(css,/\.aruba-session-character-row\{flex-wrap:wrap\}/);
+});
