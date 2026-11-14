@@ -84,9 +84,9 @@ test('Aruba pilot preserves the original Hollowgate left/right rail positions',(
  assert.match(code,/id:'npcs',label:'PNG',Icon:IdentificationBadgeIcon/);
  assert.match(code,/id:'monsters',label:'Mostri',Icon:GhostIcon/);
  assert.match(code,/<LeftSidebar/);
- assert.match(code,/<GmSectionSidebar/);
+ assert.match(code,/<ArubaGmSectionSidebar/);
  assert.ok(code.indexOf('<LeftSidebar')<code.indexOf('className="main-area"'));
- assert.ok(code.indexOf('className="main-area"')<code.indexOf('<GmSectionSidebar'));
+ assert.ok(code.indexOf('className="main-area"')<code.indexOf('<ArubaGmSectionSidebar'));
  assert.match(css,/\.primary-sidebar\{width:100px/);
  assert.match(css,/\.gm-sidebar\{width:80px/);
  assert.doesNotMatch(code,/from ['"](?:@supabase\/supabase-js|lucide-react)['"]/);
