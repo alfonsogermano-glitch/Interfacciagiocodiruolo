@@ -28,11 +28,18 @@ class Peer{
  close(){this.connectionState='closed';}
 }
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
+async function waitForSignal(kind){
+ for(let i=0;i<30;i++){
+  if(Socket.last.sent.some(x=>x.kind===kind))return;
+  await tick();
+ }
+ assert.fail('WebRTC '+kind+' not emitted; events='+JSON.stringify(Socket.last.sent));
+}
 test('GM creates offer only after authenticated peer joins, then drops on departure',async()=>{
  const statuses=[];const session=createWebRtcSession({origin:'https://staging.hollowgate.quest/',campaignId,role:'host',WebSocketImpl:Socket,PeerConnectionImpl:Peer,onStatus:x=>statuses.push(x)});
  assert.equal(session.send({hello:1}),false);
  Socket.last.message({type:'ready',role:'host',peerId});
- Socket.last.message({type:'peer-joined',peerId,campaignId});await tick();
+ Socket.last.message({type:'peer-joined',peerId,campaignId});await waitForSignal('offer');
  assert.equal(Socket.last.sent[0].kind,'offer');assert.equal(Socket.last.sent[0].targetPeerId,peerId);
  assert.equal(session.send({hello:1},peerId),true);
  assert.deepEqual(Peer.last.channel.sent[0],{type:'game',campaignId,payload:{hello:1}});
@@ -42,7 +49,7 @@ test('GM creates offer only after authenticated peer joins, then drops on depart
 test('player answers GM offer and ignores cross-campaign game data',async()=>{
  const data=[];const session=createWebRtcSession({origin:'https://staging.hollowgate.quest/',campaignId,role:'player',WebSocketImpl:Socket,PeerConnectionImpl:Peer,onData:x=>data.push(x)});
  Socket.last.message({type:'ready',role:'player',peerId});
- Socket.last.message({type:'signal',kind:'offer',payload:{sdp:'gm-offer'}});await tick();
+ Socket.last.message({type:'signal',kind:'offer',payload:{sdp:'gm-offer'}});await waitForSignal('answer');
  assert.equal(Socket.last.sent[0].kind,'answer');
  const channel=new Channel('hollowgate-game');Peer.last.ondatachannel({channel});
  channel.onmessage({data:JSON.stringify({type:'game',campaignId:'other',payload:'secret'})});
@@ -78,7 +85,7 @@ test('player serializes ICE and offer processing and drops failed negotiation',a
  Socket.last.message({type:'ready',role:'player',peerId});
  Socket.last.message({type:'signal',kind:'ice',payload:{candidate:{candidate:'candidate:1'}}});
  Socket.last.message({type:'signal',kind:'offer',payload:{sdp:'gm-offer'}});
- await tick();await tick();await tick();
+ await waitForSignal('answer');
  assert.equal(Socket.last.sent[0]?.kind,'answer');
  assert.equal(Peer.last.ice?.length,1);
  session.close();
