@@ -113,7 +113,7 @@ async function run(mode){
    assert.equal(await page.locator('[data-original-roster-state="unavailable"]').count(),1);
    assert.equal(requests.some(r=>r.path==='/vtt/roster'),false);
   }
-  if(['characters','character-error','switch-campaign'].includes(mode)){
+  if(['characters','character-error','switch-campaign','character-revoked'].includes(mode)){
    await page.getByRole('button',{name:'Personaggi',exact:true}).click();
    if(mode==='character-error'||mode==='character-revoked'){
     await page.locator('[data-original-characters-state="error"]').waitFor();
