@@ -139,6 +139,9 @@ export function createSignalingWebSocketGateway({server,origin,identity,revalida
    const client={ws,token,userId:proof.userId,campaignId,role,
     peerId:randomUUID(),left:false};
    const room=rooms.get(campaignId);
+   // Recheck inside the upgrade callback: two concurrent verified upgrades
+   // must never replace the existing host and orphan its player sockets.
+   if(role==='host'&&room){ws.close(1008,'Host already connected');return;}
    if(role==='host')rooms.set(campaignId,{host:client,players:new Map()});
    else if(room)room.players.set(client.peerId,client);
    else{ws.close(1008,'Host unavailable');return;}

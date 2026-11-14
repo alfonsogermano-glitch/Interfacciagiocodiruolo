@@ -63,6 +63,27 @@ test('authenticated host and player exchange only SDP/ICE signaling',async()=>{
   assert.deepEqual(await toPlayer,{type:'signal',kind:'offer',payload:{sdp:'offer'}});
  }finally{await s.close();}
 });
+test('a second host cannot replace an active room or disconnect its players',async()=>{
+ const s=await setup();
+ try{
+  const {ws:host,ready:hw}=await s.connect('host',hostToken);await hw;
+  const joined=next(host);
+  const {ws:peer,ready:pw}=await s.connect('player',playerToken);
+  await pw;const member=await joined;
+  const rejected=await new Promise(resolve=>{
+   const duplicate=new WebSocket(s.url('host'),{headers:{Origin:origin,
+    Cookie:'__Host-hg_session='+hostToken}});
+   duplicate.on('unexpected-response',(_request,response)=>resolve(response.statusCode));
+   duplicate.on('open',()=>duplicate.once('close',()=>resolve(1008)));
+   duplicate.on('error',()=>{});
+  });
+  assert.ok([403,1008].includes(rejected));
+  const toHost=next(host);
+  peer.send(JSON.stringify({type:'signal',kind:'answer',payload:{sdp:'still-active'}}));
+  assert.deepEqual(await toHost,{type:'signal',kind:'answer',
+   peerId:member.peerId,payload:{sdp:'still-active'}});
+ }finally{await s.close();}
+});
 test('wrong Origin and absent cookie are rejected before upgrade',async()=>{
  const s=await setup();
  try{
