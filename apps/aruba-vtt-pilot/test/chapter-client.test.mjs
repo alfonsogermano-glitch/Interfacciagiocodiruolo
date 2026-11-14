@@ -8,7 +8,7 @@ test('Aruba chapter client uses same-origin cookie session for read and write',a
  const fetchImpl=async(url,opts)=>{
   calls.push({url,opts});
   return {ok:true,status:200,json:async()=>opts.method==='GET'?{chapters:[]}:
-   opts.method==='PUT'?{chapter:{id:chapter,campaignId:campaign}}:{deleted:true}};
+   opts.method==='PUT'?{chapter:{id:chapter,campaignId:campaign,title:'Intro',createdAt:'2026-01-02T03:04:05.000Z',updatedAt:'2026-01-02T03:04:05.000Z'}}:{deleted:true}};
  };
  assert.deepEqual(await listArubaChapters(fetchImpl,campaign),[]);
  await saveArubaChapter(fetchImpl,campaign,{id:chapter,title:'Intro'});
@@ -37,4 +37,9 @@ test('chapter list rejects cross-campaign documents, malformed IDs and duplicate
 test('chapter save refuses mismatched campaign in server acknowledgement',async()=>{
  const forged=async()=>({ok:true,status:200,json:async()=>({chapter:{id:chapter,campaignId:'00000000-0000-4000-8000-000000000000'}})});
  await assert.rejects(()=>saveArubaChapter(forged,campaign,{id:chapter,title:'Intro'}),/Conferma capitolo non valida/);
+});
+
+test('chapter save requires original Chapter fields in server acknowledgement',async()=>{
+ const partial=async()=>({ok:true,status:200,json:async()=>({chapter:{id:chapter,campaignId:campaign}})});
+ await assert.rejects(()=>saveArubaChapter(partial,campaign,{id:chapter,title:'Intro'}),/Conferma capitolo non valida/);
 });
