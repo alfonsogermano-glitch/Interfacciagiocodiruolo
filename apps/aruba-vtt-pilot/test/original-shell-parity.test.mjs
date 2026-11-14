@@ -124,3 +124,16 @@ test('unauthenticated isolated QA fixture uses the original TopBar rather than a
  assert.doesNotMatch(shell,/TopBar originale non ancora collegata/);
  assert.doesNotMatch(read('../src/main.tsx'),/ArubaOriginalShellParity/);
 });
+
+test('authenticated original shell renders owner-scoped campaign data without legacy writes',()=>{
+ const shell=read('../src/ArubaOriginalShellParity.tsx');
+ const overview=read('../src/ArubaOriginalCampaignOverviewQA.tsx');
+ const browser=read('./browser-original-shell-auth.mjs');
+ assert.match(shell,/<ArubaOriginalCampaignOverviewQA campaigns=\{campaigns\}/);
+ assert.match(overview,/data-campaign-overview-state="selected"/);
+ assert.match(overview,/data-campaign-session-state="not-connected"/);
+ assert.match(overview,/RULESETS\[campaign\.ruleset\]/);
+ assert.doesNotMatch(overview,/fetch\(|supabase|localStorage|sessionStorage|CampaignHome\s*\(/);
+ assert.match(browser,/data-campaign-overview-state="list"/);
+ assert.match(browser,/data-campaign-overview-state="selected"/);
+});

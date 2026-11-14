@@ -52,11 +52,18 @@ async function run(mode){
   const headerBox=await originalTopbar.boundingBox();
   assert.equal(Math.round(headerBox.height),48,'Original TopBar is h-12, not pilot 76px');
   await page.getByRole('button',{name:'Campagna Aruba del GM'}).waitFor();
+  await page.getByRole('button',{name:'Campagne',exact:true}).click();
+  assert.equal(await page.locator('[data-campaign-overview-state="list"]').count(),1);
+  assert.equal(await page.locator('[data-campaign-overview-state="list"]').getByRole('button',{name:/Campagna Aruba del GM/}).count(),1);
+  assert.equal(await page.locator('[data-campaign-overview-state="list"]').getByText('Campagna estranea').count(),0);
   assert.equal(await page.getByRole('button',{name:'Campagna estranea'}).count(),0);
   await page.getByRole('button',{name:'Campagna Aruba del GM'}).click();
   assert.equal(await page.locator('[data-active-section]').getAttribute('data-active-section'),'campaign-home');
+  assert.equal(await page.locator('[data-campaign-overview-state="selected"]').getAttribute('data-campaign-id'),campaigns[0].id);
+  assert.equal(await page.locator('[data-campaign-session-state="not-connected"]').count(),1);
   await page.getByRole('button',{name:'Panoramica',exact:true}).click();
   assert.equal(await page.locator('[data-active-section]').getAttribute('data-active-section'),'home');
+  assert.equal(await page.locator('[data-campaign-overview-state="home"]').count(),1);
   assert.equal(requests.filter(r=>r.path==='/vtt/campaigns').length,1);
   assert.equal(requests.some(r=>r.path.includes('supabase')),false);
   const topbarActions=[];

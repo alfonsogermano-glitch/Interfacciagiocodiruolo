@@ -5,6 +5,7 @@ import {GmSectionSidebar} from '../../../src/app/layout/GmSectionSidebar';
 import type {Campaign} from '../../../src/app/campaigns/campaignTypes';
 import {ArubaOriginalTopBarQA} from './ArubaOriginalTopBarQA';
 import {ArubaOriginalMapToolQA} from './ArubaOriginalMapToolQA';
+import {ArubaOriginalCampaignOverviewQA} from './ArubaOriginalCampaignOverviewQA';
 
 /** Internal parity QA harness, NOT a substitute VTT and never a production
  * route. Original components are mounted unchanged, without legacy auth.
@@ -26,6 +27,9 @@ export function ArubaOriginalShellParity({campaigns=[fixtureCampaign],displayNam
  const [view,setView]=useState<'home'|'dashboard'|'campaign-home'>('dashboard');
  const [section,setSection]=useState('chapters');
  const [campaign,setCampaign]=useState<Campaign|null>(null);
+ const selectCampaign=(value:Campaign)=>{
+  setCampaign(value);setView('campaign-home');setSection('campaign-home');
+ };
  function go(sectionId:string){
   setView('dashboard');setSection(sectionId);
  }
@@ -39,16 +43,15 @@ export function ArubaOriginalShellParity({campaigns=[fixtureCampaign],displayNam
     onGoToHomeSection={go}
     onGoToCharacters={()=>go('characters')}
     onGoToCampaigns={()=>go('campaigns')}
-    onSelectCampaign={value=>{setCampaign(value);setView('campaign-home');setSection('campaign-home');}}/>}
+    onSelectCampaign={selectCampaign}/>}
    topbar={<ArubaOriginalTopBarQA
     user={qaUser??{id:fixtureCampaign.ownerId,email:'qa@example.invalid',displayName,role:'standard'}}
     section={section} mapWorkspaceQa={mapWorkspaceQa}/>} 
    rightSidebar={view==='dashboard'&&!['characters','campaigns'].includes(section)?
     <GmSectionSidebar activeTab={section} onChangeTab={go}/>:null}>
    <section className="p-6" aria-label="Contenuto di collaudo" data-active-section={section}>
-    <h1 className="text-xl">Verifica struttura e navigazione</h1>
-    <p>Componenti originali AppShell, LeftSidebar, GmSectionSidebar.</p>
-    <p>Questa schermata non rappresenta la versione completa del VTT.</p>
+    <ArubaOriginalCampaignOverviewQA campaigns={campaigns} campaign={campaign}
+     section={section} onSelectCampaign={selectCampaign}/>
     {mapWorkspaceQa&&<ArubaOriginalMapToolQA/>}
    </section>
   </AppShell>
