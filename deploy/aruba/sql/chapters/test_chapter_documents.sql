@@ -36,6 +36,17 @@ BEGIN
  SELECT hollowgate_vtt.save_owned_chapter_document(v_owner,v_campaign,v_chapter,
  jsonb_set(v_payload,'{campaignId}',to_jsonb(v_other_campaign::text))) INTO v_result;
  IF v_result IS NOT NULL THEN RAISE EXCEPTION 'Forged payload campaign accepted'; END IF;
+ -- A valid owner may not reuse an ID to overwrite a different campaign.
+ SELECT hollowgate_vtt.save_owned_chapter_document(v_other,v_other_campaign,v_chapter,
+ jsonb_set(v_payload,'{campaignId}',to_jsonb(v_other_campaign::text))) INTO v_result;
+ IF v_result IS DISTINCT FROM v_chapter THEN RAISE EXCEPTION 'Second campaign chapter creation failed'; END IF;
+ IF (SELECT count(*) FROM hollowgate_vtt.list_owned_chapter_documents(v_owner,v_campaign))<>1
+ OR (SELECT count(*) FROM hollowgate_vtt.list_owned_chapter_documents(v_other,v_other_campaign))<>1
+ THEN RAISE EXCEPTION 'Same chapter ID crossed campaign boundaries'; END IF;
+ SELECT hollowgate_vtt.delete_owned_chapter_document(v_owner,v_other_campaign,v_chapter) INTO v_result;
+ IF v_result IS NOT NULL THEN RAISE EXCEPTION 'Foreign campaign chapter deletion accepted'; END IF;
+ IF (SELECT count(*) FROM hollowgate_vtt.list_owned_chapter_documents(v_other,v_other_campaign))<>1
+ THEN RAISE EXCEPTION 'Foreign deletion affected second campaign'; END IF;
  SELECT hollowgate_vtt.delete_owned_chapter_document(v_other,v_campaign,v_chapter) INTO v_result;
  IF v_result IS NOT NULL THEN RAISE EXCEPTION 'Foreign owner deleted chapter'; END IF;
  SELECT hollowgate_vtt.delete_owned_chapter_document(v_owner,v_campaign,v_chapter) INTO v_result;
