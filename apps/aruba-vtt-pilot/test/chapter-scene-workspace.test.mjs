@@ -73,3 +73,40 @@ test('invalidates cached graph when a multi-document operation fails',async()=>{
  await assert.rejects(()=>workspace.reorderScenes(chapterId,[secondId,sceneId]),/Server unavailable/);
  assert.throws(()=>workspace.snapshot(),/Carica prima/);
 });
+
+test('saves Chapter and Scene through Aruba and refreshes both authoritative collections',async()=>{
+ const {fetchImpl,calls}=mock();
+ const workspace=createArubaChapterSceneWorkspace(fetchImpl,campaign);
+ await workspace.load();
+ await workspace.saveChapter({...chapter,title:'Nuovo capitolo'});
+ await workspace.saveScene({...scene(sceneId),title:'Nuova scena'});
+ assert.equal(workspace.snapshot().chapters[0].title,'Nuovo capitolo');
+ assert.equal(workspace.snapshot().scenes[0].title,'Nuova scena');
+ assert.equal(calls.filter(c=>c.opts.method==='PUT').length,2);
+ assert.equal(calls.filter(c=>c.opts.method==='GET').length,6);
+});
+test('removes an unlinked Scene then its empty Chapter with verified server responses',async()=>{
+ const {fetchImpl,calls}=mock();
+ const workspace=createArubaChapterSceneWorkspace(fetchImpl,campaign);
+ await workspace.load();
+ await workspace.removeScene(sceneId);
+ await workspace.removeChapter(chapterId);
+ assert.deepEqual(workspace.snapshot().chapters,[]);
+ assert.deepEqual(workspace.snapshot().scenes,[]);
+ assert.equal(calls.filter(c=>c.opts.method==='DELETE').length,2);
+});
+test('blocks Scene deletion while another Scene links to it',async()=>{
+ const linked={...scene(secondId),nextSceneIds:[sceneId]};
+ const {fetchImpl,calls}=mock({scenes:[scene(sceneId),linked]});
+ const workspace=createArubaChapterSceneWorkspace(fetchImpl,campaign);
+ await workspace.load();
+ await assert.rejects(()=>workspace.removeScene(sceneId),/collegamenti alla scena/);
+ assert.equal(calls.filter(c=>c.opts.method==='DELETE').length,0);
+});
+test('blocks Chapter saves with dangling nextChapterIds before HTTP writes',async()=>{
+ const {fetchImpl,calls}=mock();
+ const workspace=createArubaChapterSceneWorkspace(fetchImpl,campaign);
+ await workspace.load();
+ await assert.rejects(()=>workspace.saveChapter({...chapter,nextChapterIds:[secondId]}),/Collegamento capitolo inesistente/);
+ assert.equal(calls.filter(c=>c.opts.method==='PUT').length,0);
+});
