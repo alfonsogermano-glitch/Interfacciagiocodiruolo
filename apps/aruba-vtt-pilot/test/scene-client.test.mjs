@@ -75,3 +75,15 @@ test('Scene browser adapter refuses retired Supabase URLs and oversized original
   await assert.rejects(()=>saveArubaScene(async()=>({status:200,ok:true,json:async()=>({scene:{...valid,...patch}})}),campaign,valid),/Conferma scena non valida/);
  }
 });
+
+test('Scene browser refuses invalid drafts before network or persistence',async()=>{
+ let requests=0;
+ const noFetch=()=>{requests++;throw Error('Unexpected network');};
+ for(const patch of [
+  {title:''},{status:'invalid'},{imageUrl:'https://legacy.supabase.co/storage/a.png'},
+  {nextSceneIds:[scene]},{mapRegions:null},{notes:undefined},{sortOrder:-1},
+ ]){
+  await assert.rejects(()=>saveArubaScene(noFetch,campaign,{...valid,...patch}),/Scena non valida/);
+ }
+ assert.equal(requests,0);
+});

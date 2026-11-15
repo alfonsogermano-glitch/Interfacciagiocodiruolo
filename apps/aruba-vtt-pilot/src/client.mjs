@@ -560,7 +560,10 @@ export async function listArubaScenes(fetchImpl,campaignId){
 export async function saveArubaScene(fetchImpl,campaignId,draft){
  if(!draft||typeof draft!=='object'||Array.isArray(draft)||
    !CHAPTER_UUID.test(draft.id??'')||!CHAPTER_UUID.test(draft.chapterId??'')||
-   (draft.campaignId!==undefined&&draft.campaignId!==campaignId))
+   (draft.campaignId!==undefined&&draft.campaignId!==campaignId)||
+   !validArubaScene({...draft,campaignId,
+     createdAt:draft.createdAt??'2026-01-01T00:00:00.000Z',
+     updatedAt:draft.updatedAt??'2026-01-01T00:00:00.000Z'},campaignId))
   throw Error('Scena non valida');
  const r=await fetchImpl(sceneUrl(campaignId),{
   method:'PUT',credentials:'same-origin',cache:'no-store',redirect:'error',
