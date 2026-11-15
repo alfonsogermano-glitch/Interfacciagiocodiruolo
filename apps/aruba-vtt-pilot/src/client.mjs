@@ -470,6 +470,24 @@ async function chapterResponse(response){
 /** Staging-only adapter. Do not mount original ChapterManager until its full
  * data dependencies are migrated; the UI must not fall back to Supabase. */
 const UUID_CHAPTER=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function validArubaChapter(chapter,campaignId){
+ return chapter!==null&&typeof chapter==='object'&&!Array.isArray(chapter)&&
+  UUID_CHAPTER.test(chapter.id??'')&&chapter.campaignId===campaignId&&
+  typeof chapter.title==='string'&&chapter.title.trim().length>0&&chapter.title.trim().length<=200&&
+  typeof chapter.description==='string'&&chapter.description.length<=10000&&
+  typeof chapter.notes==='string'&&chapter.notes.length<=50000&&
+  ['intro','standard','final'].includes(chapter.kind)&&typeof chapter.isActive==='boolean'&&
+  Array.isArray(chapter.nextChapterIds)&&chapter.nextChapterIds.length<=100&&
+  chapter.nextChapterIds.every(id=>typeof id==='string'&&UUID_CHAPTER.test(id)&&id!==chapter.id)&&
+  new Set(chapter.nextChapterIds).size===chapter.nextChapterIds.length&&
+  (chapter.mapUrl===null||(typeof chapter.mapUrl==='string'&&chapter.mapUrl.length<=2048&&
+   !/supabase(?:\.co|\.in)/i.test(chapter.mapUrl)))&&
+  chapter.mapMetadata!==null&&typeof chapter.mapMetadata==='object'&&!Array.isArray(chapter.mapMetadata)&&
+  chapter.locationMetadata!==null&&typeof chapter.locationMetadata==='object'&&!Array.isArray(chapter.locationMetadata)&&
+  (chapter.sourceEnvironment===undefined||chapter.sourceEnvironment===null||
+   (typeof chapter.sourceEnvironment==='object'&&!Array.isArray(chapter.sourceEnvironment)))&&
+  validSceneTimestamp(chapter.createdAt)&&validSceneTimestamp(chapter.updatedAt);
+}
 export async function listArubaChapters(fetchImpl,campaignId){
  const r=await fetchImpl(chapterUrl(campaignId),{
   method:'GET',credentials:'same-origin',cache:'no-store',redirect:'error'});
@@ -479,8 +497,7 @@ export async function listArubaChapters(fetchImpl,campaignId){
  const ids=new Set();
  for(const chapter of data.chapters){
   if(!chapter||typeof chapter!=='object'||Array.isArray(chapter)||
-   typeof chapter.id!=='string'||!UUID_CHAPTER.test(chapter.id)||
-   chapter.campaignId!==campaignId||ids.has(chapter.id))
+   !validArubaChapter(chapter,campaignId)||ids.has(chapter.id))
    throw Error('Risposta capitoli non valida');
   ids.add(chapter.id);
  }
@@ -493,9 +510,7 @@ export async function saveArubaChapter(fetchImpl,campaignId,draft){
   method:'PUT',credentials:'same-origin',cache:'no-store',redirect:'error',
   headers:{'Content-Type':'application/json'},body:JSON.stringify(draft)});
  const data=await chapterResponse(r);
- if(data?.chapter?.id!==draft.id||data.chapter.campaignId!==campaignId||
-  typeof data.chapter.title!=='string'||!data.chapter.title.trim()||
-  typeof data.chapter.createdAt!=='string'||typeof data.chapter.updatedAt!=='string')
+ if(!validArubaChapter(data?.chapter,campaignId)||data.chapter.id!==draft.id)
   throw Error('Conferma capitolo non valida');
  return data.chapter;
 }
