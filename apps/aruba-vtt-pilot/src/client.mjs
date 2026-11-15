@@ -521,6 +521,22 @@ async function sceneResponse(r){
  if(!r.ok)throw Error('Operazione scene non riuscita');
  return r.json();
 }
+function validArubaScene(scene,campaignId){
+ return scene!==null&&typeof scene==='object'&&!Array.isArray(scene)&&
+  CHAPTER_UUID.test(scene.id??'')&&scene.campaignId===campaignId&&
+  CHAPTER_UUID.test(scene.chapterId??'')&&
+  typeof scene.title==='string'&&scene.title.trim().length>0&&
+  typeof scene.description==='string'&&typeof scene.notes==='string'&&
+  ['draft','ready','completed'].includes(scene.status)&&
+  (scene.environmentId===undefined||scene.environmentId===null||CHAPTER_UUID.test(scene.environmentId))&&
+  (scene.imageUrl===null||typeof scene.imageUrl==='string')&&
+  Number.isSafeInteger(scene.sortOrder)&&scene.sortOrder>=0&&
+  Array.isArray(scene.nextSceneIds)&&scene.nextSceneIds.every(id=>typeof id==='string'&&CHAPTER_UUID.test(id))&&
+  Array.isArray(scene.mapRegions)&&scene.contextMetadata!==null&&
+  typeof scene.contextMetadata==='object'&&!Array.isArray(scene.contextMetadata)&&
+  typeof scene.createdAt==='string'&&!Number.isNaN(Date.parse(scene.createdAt))&&
+  typeof scene.updatedAt==='string'&&!Number.isNaN(Date.parse(scene.updatedAt));
+}
 export async function listArubaScenes(fetchImpl,campaignId){
  const r=await fetchImpl(sceneUrl(campaignId),{
   method:'GET',credentials:'same-origin',cache:'no-store',redirect:'error'});
@@ -529,9 +545,7 @@ export async function listArubaScenes(fetchImpl,campaignId){
   throw Error('Risposta scene non valida');
  const ids=new Set();
  for(const scene of data.scenes){
-  if(!scene||typeof scene!=='object'||Array.isArray(scene)||
-   !CHAPTER_UUID.test(scene.id??'')||scene.campaignId!==campaignId||
-   !CHAPTER_UUID.test(scene.chapterId??'')||ids.has(scene.id))
+  if(!validArubaScene(scene,campaignId)||ids.has(scene.id))
    throw Error('Risposta scene non valida');
   ids.add(scene.id);
  }
@@ -546,10 +560,8 @@ export async function saveArubaScene(fetchImpl,campaignId,draft){
   method:'PUT',credentials:'same-origin',cache:'no-store',redirect:'error',
   headers:{'Content-Type':'application/json'},body:JSON.stringify(draft)});
  const data=await sceneResponse(r);
- if(data?.scene?.id!==draft.id||data.scene.campaignId!==campaignId||
-   data.scene.chapterId!==draft.chapterId||
-   typeof data.scene.title!=='string'||!data.scene.title.trim()||
-   typeof data.scene.createdAt!=='string'||typeof data.scene.updatedAt!=='string')
+ if(!validArubaScene(data?.scene,campaignId)||data.scene.id!==draft.id||
+   data.scene.chapterId!==draft.chapterId)
   throw Error('Conferma scena non valida');
  return data.scene;
 }
