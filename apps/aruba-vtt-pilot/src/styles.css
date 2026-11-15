@@ -380,3 +380,6 @@
 .aruba-chapter-scene-detail fieldset{display:flex;flex-direction:column;gap:8px;border:1px solid var(--dash-border,#655138);padding:12px;border-radius:8px;max-height:220px;overflow:auto}
 .aruba-chapter-scene-detail .modal-actions{display:flex;gap:8px;flex-wrap:wrap}
 @media(max-width:760px){.aruba-chapter-scene-grid{grid-template-columns:minmax(0,1fr)}}
+
+.aruba-map-region{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;padding:12px;border:1px solid var(--dash-border,#655138);border-radius:8px}
+.aruba-map-region label{min-width:0}

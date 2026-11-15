@@ -4,6 +4,7 @@ import {normalizeChapterSpatialValue,normalizeSceneSpatialValue} from '../../../
 import {generateUUID} from '../../../src/lib/uuid';
 import type {Chapter} from '../../../src/types/chapter';
 import type {Scene} from '../../../src/types/scene';
+import type {SceneMapRegion,MapRect} from '../../../src/types/mapGeometry';
 import {GitBranch,Plus,Save,Trash2,ArrowUp,ArrowDown,RefreshCcw} from 'lucide-react';
 
 type Graph={chapters:Chapter[];scenes:Scene[];scenesByChapter:Record<string,Scene[]>};
@@ -20,6 +21,18 @@ const freshScene=(campaignId:string,chapterId:string,sortOrder:number):Scene=>no
  mapRegions:[],contextMetadata:{timeOfDay:'',period:'',condition:''},
  createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),
 } as Scene);
+const validMediaUrl=(url:string)=>!url||(/^https:\/\/[^\\s]+$/i.test(url)&&!/supabase(?:\\.co|\\.in)/i.test(url));
+const percent=(value:number)=>Math.max(0,Math.min(100,Number.isFinite(value)?value:0));
+const addMapRegion=(scene:Scene):Scene=>({
+ ...scene,mapRegions:[...scene.mapRegions,{
+  id:generateUUID(),label:'Area '+(scene.mapRegions.length+1),
+  color:'#d7a65b',geometry:{kind:'rect',rect:{x:10,y:10,width:20,height:20}},
+ }],
+});
+const updateRegion=(scene:Scene,id:string,patch:Partial<MapRect>):Scene=>({
+ ...scene,mapRegions:scene.mapRegions.map(region=>region.id===id&&region.geometry.kind==='rect'?
+ {...region,geometry:{kind:'rect',rect:{...region.geometry.rect,...patch}}}:region),
+});
 const message=(error:unknown)=>error instanceof Error?error.message:'Operazione non riuscita';
 export function ArubaChapterSceneEditor({campaignId,enabled}:EditorProps){
  const workspace=useMemo(()=>createArubaChapterSceneWorkspace(fetch.bind(window),campaignId),[campaignId]);
@@ -98,8 +111,15 @@ export function ArubaChapterSceneEditor({campaignId,enabled}:EditorProps){
      <label>Descrizione<textarea maxLength={10000} value={draftChapter.description} onChange={e=>setDraftChapter({...draftChapter,description:e.target.value})}/></label>
      <label>Note<textarea maxLength={50000} value={draftChapter.notes} onChange={e=>setDraftChapter({...draftChapter,notes:e.target.value})}/></label>
      <label><input type="checkbox" checked={draftChapter.isActive} onChange={e=>setDraftChapter({...draftChapter,isActive:e.target.checked})}/> Capitolo attivo</label>
+     <fieldset><legend>Mappa generale</legend>
+      <label>URL immagine mappa (HTTPS Aruba o risorsa esterna)<input type="url" maxLength={2048} value={draftChapter.mapUrl??''} onChange={e=>setDraftChapter({...draftChapter,mapUrl:e.target.value||null,mapMetadata:{...draftChapter.mapMetadata,imageUrl:e.target.value||null}})}/></label>
+      <label><input type="checkbox" checked={draftChapter.mapMetadata.gridVisible} onChange={e=>setDraftChapter({...draftChapter,mapMetadata:{...draftChapter.mapMetadata,gridVisible:e.target.checked}})}/> Griglia visibile</label>
+      <label>Colonne griglia<input type="number" min={1} max={200} value={draftChapter.mapMetadata.gridColumns} onChange={e=>setDraftChapter({...draftChapter,mapMetadata:{...draftChapter.mapMetadata,gridColumns:Math.max(1,Math.min(200,Number(e.target.value)||1))}})}/></label>
+      <label>Righe griglia<input type="number" min={1} max={200} value={draftChapter.mapMetadata.gridRows} onChange={e=>setDraftChapter({...draftChapter,mapMetadata:{...draftChapter.mapMetadata,gridRows:Math.max(1,Math.min(200,Number(e.target.value)||1))}})}/></label>
+      {draftChapter.mapUrl&&validMediaUrl(draftChapter.mapUrl)&&<img alt="Anteprima mappa capitolo" src={draftChapter.mapUrl} style={{maxWidth:'100%',maxHeight:320,objectFit:'contain'}}/>}
+     </fieldset>
      <fieldset><legend>Collegamenti ai capitoli successivi</legend>{chapters.filter(ch=>ch.id!==draftChapter.id).map(ch=><label key={ch.id}><input type="checkbox" checked={draftChapter.nextChapterIds.includes(ch.id)} onChange={e=>setDraftChapter({...draftChapter,nextChapterIds:e.target.checked?[...draftChapter.nextChapterIds,ch.id]:draftChapter.nextChapterIds.filter(id=>id!==ch.id)})}/>{ch.title}</label>)}</fieldset>
-     <div className="modal-actions"><button type="button" disabled={busy||!draftChapter.title.trim()} onClick={()=>void perform(()=>workspace.saveChapter({...draftChapter,updatedAt:new Date().toISOString()}),'Capitolo salvato')}><Save size={16}/> Salva capitolo</button>
+     <div className="modal-actions"><button type="button" disabled={busy||!draftChapter.title.trim()||!validMediaUrl(draftChapter.mapUrl??'')} onClick={()=>void perform(()=>workspace.saveChapter({...draftChapter,updatedAt:new Date().toISOString()}),'Capitolo salvato')}><Save size={16}/> Salva capitolo</button>
       <button type="button" disabled={busy} onClick={()=>{if(window.confirm('Eliminare il capitolo? Le scene devono essere eliminate prima.'))void perform(()=>workspace.removeChapter(draftChapter.id),'Capitolo eliminato',{chapter:null,scene:null});}}><Trash2 size={16}/> Elimina</button></div>
     </section>}
     {selectedChapterId&&<section aria-label="Scene del capitolo"><h2>Scene del capitolo</h2>
@@ -110,6 +130,21 @@ export function ArubaChapterSceneEditor({campaignId,enabled}:EditorProps){
       <label>Stato<select value={draftScene.status} onChange={e=>setDraftScene({...draftScene,status:e.target.value as Scene['status']})}><option value="draft">Preparazione</option><option value="ready">Pronta</option><option value="completed">Conclusa</option></select></label>
       <label>Descrizione<textarea maxLength={10000} value={draftScene.description} onChange={e=>setDraftScene({...draftScene,description:e.target.value})}/></label>
       <label>Note<textarea maxLength={50000} value={draftScene.notes} onChange={e=>setDraftScene({...draftScene,notes:e.target.value})}/></label>
+      <fieldset><legend>Contesto scena</legend>
+       <label>Momento della giornata<input maxLength={100} value={draftScene.contextMetadata.timeOfDay} onChange={e=>setDraftScene({...draftScene,contextMetadata:{...draftScene.contextMetadata,timeOfDay:e.target.value}})}/></label>
+       <label>Periodo<input maxLength={100} value={draftScene.contextMetadata.period} onChange={e=>setDraftScene({...draftScene,contextMetadata:{...draftScene.contextMetadata,period:e.target.value}})}/></label>
+       <label>Condizioni<input maxLength={100} value={draftScene.contextMetadata.condition} onChange={e=>setDraftScene({...draftScene,contextMetadata:{...draftScene.contextMetadata,condition:e.target.value}})}/></label>
+      </fieldset>
+      <fieldset><legend>Regioni della mappa</legend>
+       {draftScene.mapRegions.map((region:SceneMapRegion)=><div key={region.id} className="aruba-map-region">
+        <label>Nome area<input maxLength={100} value={region.label} onChange={e=>setDraftScene({...draftScene,mapRegions:draftScene.mapRegions.map(r=>r.id===region.id?{...r,label:e.target.value}:r)})}/></label>
+        <label>Colore<input type="color" value={region.color} onChange={e=>setDraftScene({...draftScene,mapRegions:draftScene.mapRegions.map(r=>r.id===region.id?{...r,color:e.target.value}:r)})}/></label>
+        {region.geometry.kind==='rect'&&(['x','y','width','height'] as const).map(key=><label key={key}>{key.toUpperCase()} (%)
+         <input type="number" min={0} max={100} value={region.geometry.kind==='rect'?region.geometry.rect[key]:0} onChange={e=>setDraftScene(updateRegion(draftScene,region.id,{[key]:percent(Number(e.target.value))}))}/></label>)}
+        <button type="button" onClick={()=>setDraftScene({...draftScene,mapRegions:draftScene.mapRegions.filter(r=>r.id!==region.id)})}>Rimuovi area</button>
+       </div>)}
+       <button type="button" disabled={draftScene.mapRegions.length>=1000} onClick={()=>setDraftScene(addMapRegion(draftScene))}><Plus size={16}/> Aggiungi area</button>
+      </fieldset>
       <fieldset><legend>Scene successive</legend>{(graph?.scenes??[]).filter(s=>s.id!==draftScene.id).map(s=><label key={s.id}><input type="checkbox" checked={draftScene.nextSceneIds.includes(s.id)} onChange={e=>setDraftScene({...draftScene,nextSceneIds:e.target.checked?[...draftScene.nextSceneIds,s.id]:draftScene.nextSceneIds.filter(id=>id!==s.id)})}/>{s.title}</label>)}</fieldset>
       <div className="modal-actions"><button type="button" disabled={busy||!draftScene.title.trim()} onClick={()=>void perform(()=>workspace.saveScene({...draftScene,updatedAt:new Date().toISOString()}),'Scena salvata')}><Save size={16}/> Salva scena</button>
        <button type="button" disabled={busy||scenes[0]?.id===draftScene.id} onClick={()=>void perform(()=>workspace.reorderScenes(selectedChapterId,(()=>{const ids=scenes.map(s=>s.id);const i=ids.indexOf(draftScene.id);[ids[i-1],ids[i]]=[ids[i],ids[i-1]];return ids;})()),'Ordine aggiornato')}><ArrowUp size={16}/> Indietro</button>
