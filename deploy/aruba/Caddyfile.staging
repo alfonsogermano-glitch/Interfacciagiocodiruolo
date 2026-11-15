@@ -1,0 +1,45 @@
+{
+  email admin@hollowgate.quest
+}
+
+staging.hollowgate.quest {
+  encode zstd gzip
+
+  # Diagnostic routes remain unchanged and publicly accessible.
+  @diagnostics path /health /ready
+  handle @diagnostics {
+    reverse_proxy aruba-auth-staging:3000
+  }
+
+  # Read-only visual preview. Only these five HTML routes are enabled.
+  # No /auth/* endpoint is exposed by Caddy.
+  @authPreviewPages path /login /signup /forgot-password /account/password /account/verify-email
+  handle @authPreviewPages {
+    root * /srv/auth-preview
+    rewrite * /index.html
+    file_server
+  }
+
+  # Explicit allowlist: never expose test sources or a directory listing.
+  @authPreviewAssets path /auth-ui/app.mjs /auth-ui/flow.mjs /auth-ui/styles.css
+  handle @authPreviewAssets {
+    root * /srv/auth-preview
+    uri strip_prefix /auth-ui
+    file_server
+  }
+
+  handle {
+    respond "Not Found" 404
+  }
+
+  header {
+    X-Content-Type-Options nosniff
+    Referrer-Policy no-referrer
+    X-Frame-Options DENY
+    X-Robots-Tag "noindex, nofollow, noarchive"
+    Cache-Control "no-store"
+    Content-Security-Policy "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'self'; font-src 'self'; upgrade-insecure-requests"
+    Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    -Server
+  }
+}

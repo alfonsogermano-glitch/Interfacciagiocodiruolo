@@ -40,6 +40,7 @@ import {
   DEFAULT_SESSION_GRID,
   setSessionMapCurrentUserId,
   setSessionMapReady,
+  resetSessionMapRuntime,
   type SessionGridSettings,
 } from "./mapToolStore";
 import { useActiveScene } from "./useActiveScene";
@@ -63,6 +64,7 @@ import {
   type MapObjectRef,
 } from "./mapObjectLayers";
 import { useCampaignChannel } from "../../../services/realtime/campaignChannel";
+import { publicMapTokens, publicMapDrawings, publicMapPois } from './sessionMapVisibility';
 
 type TokenPosition = { x: number; y: number };
 
@@ -140,25 +142,6 @@ function chapterPreview(
   };
 }
 
-function publicMapTokens(tokens: SessionMapToken[]) {
-  // La visibilità della scheda sorgente controlla il catalogo laterale, non
-  // il token già posizionato. Sulla mappa l'unica autorità è il comando
-  // Mostra/Nascondi del token (`visible`).
-  return tokens.filter((token) => token.visible !== false);
-}
-
-function publicMapDrawings(drawings: SessionMapDrawing[]) {
-  return drawings.filter((drawing) => drawing.visible !== false);
-}
-function publicMapPois(pois: SessionMapPoi[]) {
-  return pois
-    .filter((poi) => poi.visibleToPlayers)
-    .map((poi) => ({
-      ...poi,
-      noteId: poi.noteVisibleToPlayers ? poi.noteId : null,
-    }));
-}
-
 function reconcileOrder(order: MapObjectRef[] | undefined, drawings: SessionMapDrawing[], tokens: SessionMapToken[], pois: SessionMapPoi[]) {
   return reconcileMapObjectOrder(order, [['drawing', drawings], ['token', tokens], ['poi', pois]]);
 }
@@ -189,6 +172,16 @@ export function SessionWorkspace({
   onEndSession: () => Promise<void>;
 }) {
   setSessionMapCurrentUserId(currentUserId);
+  // Session-scoped cleanup of the ORIGINAL shared map store: campaign changes
+  // must discard callbacks and permissions even if the map renderer unmounts.
+  // Key only by campaignId: changing the active scene must not wipe a battle.
+  useEffect(() => {
+    // React StrictMode replays effect cleanup and setup: reassert the current
+    // actor after every replay, otherwise cleanup would leave the global
+    // owner pointer null despite an active authenticated workspace.
+    setSessionMapCurrentUserId(currentUserId);
+    return () => resetSessionMapRuntime();
+  }, [campaignId, currentUserId]);
   const { activeScene, channelReady, publish, publishMapPatch } = useActiveScene(campaignId);
   // Avviso di connessione persa: senza questo indicatore un giocatore il cui
   // WebSocket cade resta davanti a una mappa congelata senza capire perche'.

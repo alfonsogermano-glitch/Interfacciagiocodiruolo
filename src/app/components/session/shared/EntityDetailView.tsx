@@ -12,6 +12,7 @@ import { RichTextEditor } from './RichTextEditor';
 import { EntityDetailRail, type EntityDetailRailSection } from './EntityDetailRail';
 import { TokenStyleEditor } from '../../shared/TokenStyleEditor';
 import { EntityImageTab } from './EntityImageTab';
+import { EntityPortraitImage } from '../../shared/EntityPortraitImage';
 import type { ImageCrop } from '../../gm/monsters/monstersTypes';
 import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { FreschezzaBoxesEditor } from '../../shared/FreschezzaBoxesEditor';
@@ -172,6 +173,12 @@ interface EntityDetailViewProps {
    *  MonstersManager.tsx). Assente = nessun pulsante extra, comportamento
    *  invariato per i chiamanti esistenti. */
   monsterAudaciaExtraAction?: ReactNode;
+  /** Only for Aruba's assigned-player viewer. Avoid mounting Supabase-backed
+   *  image editors and campaign asset loaders in the read-only image tab.
+   *  Default false leaves the entire original GM workflow unchanged. */
+  arubaReadOnlyMedia?: boolean;
+  /** Optional isolated Aruba GM image editor rendered inside the original media rail. */
+  arubaPortraitEditor?: ReactNode;
 }
 
 export function EntityDetailView({
@@ -191,6 +198,8 @@ export function EntityDetailView({
   activeSection: controlledActiveSection,
   onActiveSectionChange,
   monsterAudaciaExtraAction,
+  arubaReadOnlyMedia = false,
+  arubaPortraitEditor,
 }: EntityDetailViewProps) {
   const [internalActiveSection, setInternalActiveSection] = useState<EntityDetailRailSection>('scheda');
   const activeSection = controlledActiveSection ?? internalActiveSection;
@@ -1476,6 +1485,36 @@ export function EntityDetailView({
         )}
 
         {activeSection === 'immagine' && (
+          arubaPortraitEditor !== undefined ? arubaPortraitEditor :
+          arubaReadOnlyMedia && !canEdit ? (
+            <div className="space-y-5" data-aruba-readonly-media="true">
+              <section className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-5">
+                <h3 className="mb-3 text-lg font-semibold text-[var(--dash-text-strong)]">Immagine personaggio</h3>
+                <p className="mb-4 text-sm text-[var(--dash-muted)]">Anteprima originale in sola lettura. Le immagini non ancora migrate non vengono caricate dal vecchio archivio.</p>
+                {entity.portraitImageUrl || (entity.portraitSourceImageUrl && entity.portraitCropArea) ? (
+                  <EntityPortraitImage
+                    portraitImageUrl={entity.portraitImageUrl}
+                    portraitSourceImageUrl={entity.portraitSourceImageUrl}
+                    portraitCropArea={entity.portraitCropArea}
+                    alt={'Ritratto di ' + entity.name}
+                    className="mx-auto aspect-square w-full max-w-xs rounded-xl object-cover"
+                    draggable={false}
+                  />
+                ) : (
+                  <p className="rounded-xl border border-dashed border-[var(--dash-border-soft)] px-4 py-8 text-center text-sm text-[var(--dash-muted)]">
+                    Nessuna immagine migrata disponibile.
+                  </p>
+                )}
+              </section>
+              {entity.coverImageUrl ? (
+                <section className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-5">
+                  <h3 className="mb-3 text-lg font-semibold text-[var(--dash-text-strong)]">Immagine di copertina</h3>
+                  <img src={entity.coverImageUrl} alt={'Copertina di ' + entity.name}
+                    className="w-full rounded-xl object-contain" draggable={false}/>
+                </section>
+              ) : null}
+            </div>
+          ) : (
           <>
             <EntityImageTab
               entityId={entity.id}
@@ -1502,6 +1541,7 @@ export function EntityDetailView({
               </fieldset>
             )}
           </>
+          )
         )}
 
         {activeSection === 'token' && (

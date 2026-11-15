@@ -1,0 +1,10 @@
+/* Isolated original-shell parity QA only. Do not add these utilities to
+ * the current pilot until AppShell integration has passed visual comparison.
+ * @source explicitly includes original sources outside the pilot package. */
+@import "tailwindcss";
+@source "../../../src/app/layout";
+@source "../../../src/app/components/ui";
+@source "./ArubaOriginalShellParity.tsx";
+@source "./ArubaOriginalTopBarQA.tsx";
+@source "../../../src/app/layout/TopBar.tsx";
+@import "./styles.css";

@@ -1,4 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
+import type { ComponentType } from 'react';
 import {
   Ghost,
   Swords,
@@ -15,6 +16,7 @@ import {
 interface GmSectionSidebarProps {
   activeTab: string;
   onChangeTab: (tabId: string) => void;
+  iconOverrides?: Partial<Record<string, ComponentType<{className?:string}>>>;
 }
 
 const PRIMARY_SECTIONS: { id: string; label: string; icon: LucideIcon }[] = [
@@ -41,7 +43,7 @@ function SectionButton({
   active,
   onClick,
 }: {
-  icon: LucideIcon;
+  icon: ComponentType<{className?:string}>;
   label: string;
   active: boolean;
   onClick: () => void;
@@ -63,13 +65,13 @@ function SectionButton({
   );
 }
 
-export function GmSectionSidebar({ activeTab, onChangeTab }: GmSectionSidebarProps) {
+export function GmSectionSidebar({ activeTab, onChangeTab, iconOverrides }: GmSectionSidebarProps) {
   return (
     <aside className="flex h-full w-20 shrink-0 flex-col items-center gap-1 overflow-y-auto border-l border-[var(--dash-border)] bg-[var(--dash-sidebar-bg)] py-3">
       {PRIMARY_SECTIONS.map(section => (
         <SectionButton
           key={section.id}
-          icon={section.icon}
+          icon={iconOverrides?.[section.id] ?? section.icon}
           label={section.label}
           active={activeTab === section.id}
           onClick={() => onChangeTab(section.id)}
@@ -81,7 +83,7 @@ export function GmSectionSidebar({ activeTab, onChangeTab }: GmSectionSidebarPro
       {SECONDARY_SECTIONS.map(section => (
         <SectionButton
           key={section.id}
-          icon={section.icon}
+          icon={iconOverrides?.[section.id] ?? section.icon}
           label={section.label}
           active={activeTab === section.id}
           onClick={() => onChangeTab(section.id)}

@@ -1,0 +1,5 @@
+# Optional campaign service during test DB migration only.
+services:
+  aruba-auth-staging:
+    environment:
+      AUTH_VTT_CAMPAIGNS_ENABLED: "true"

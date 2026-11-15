@@ -1,0 +1,74 @@
+import pathlib
+import unittest
+
+ROOT = pathlib.Path(__file__).resolve().parents[4]
+TURN = ROOT / "deploy" / "aruba" / "turn"
+
+class TurnStagingConfigTest(unittest.TestCase):
+    def test_compose_is_manual_only_and_isolated(self):
+        value = (TURN / "compose.turn.staging.yaml").read_text()
+        self.assertIn('profiles: ["manual-turn"]', value)
+        self.assertIn("network_mode: host", value)
+        self.assertIn('restart: "no"', value)
+        self.assertIn("read_only: true", value)
+        self.assertIn("uid=65534,gid=65534", value)
+        self.assertIn("cap_drop: [ALL]", value)
+        self.assertIn("hollowgate-coturn:4.18.0-r0-hardened", value)
+        dockerfile = (TURN / "Dockerfile").read_text()
+        self.assertIn("FROM coturn/coturn:4.18.0-r0-alpine", dockerfile)
+        self.assertIn("setcap -r /usr/bin/turnserver", dockerfile)
+        self.assertIn("USER nobody:nogroup", dockerfile)
+        self.assertNotIn("privileged: true", value)
+        self.assertNotIn("AUTH_VTT_TURN_ENABLED: true", value)
+
+    def test_secret_and_tls_mounted_not_embedded(self):
+        compose = (TURN / "compose.turn.staging.yaml").read_text()
+        script = (TURN / "start-turn.sh").read_text()
+        self.assertIn("/run/secrets/turn_shared_secret:ro", compose)
+        self.assertIn("/run/tls/turn-privkey.pem:ro", compose)
+        self.assertIn("umask 077", script)
+        smoke = (TURN / "qa" / "verify-coturn-runtime.sh").read_text()
+        self.assertIn("sudo chown 65534:65534", smoke)
+        self.assertIn("uid=65534,gid=65534", smoke)
+        self.assertIn("chmod 600", script)
+        self.assertIn("static-auth-secret=%s", script)
+        self.assertNotRegex(compose, r'(?m)^\s*static-auth-secret\s*[:=]')
+        self.assertNotIn("no-cli", script)
+        self.assertNotIn("no-dtls", script)
+        self.assertIn("use-auth-secret", script)
+        self.assertNotIn("lt-cred-mech", script)
+        self.assertIn("pidfile=/run/hollowgate/turnserver.pid", script)
+        self.assertIn("log-file=stdout", script)
+        self.assertIn("no-loopback-peers", script)
+
+    def test_relay_port_range_and_documentation(self):
+        script = (TURN / "start-turn.sh").read_text()
+        readme = (TURN / "README.md").read_text()
+        self.assertIn("min-port=49160", script)
+        self.assertIn("max-port=49200", script)
+        self.assertIn("tls-listening-port=5349", script)
+        for port in ["3478/udp", "3478/tcp", "5349/tcp", "49160-49200/udp"]:
+            self.assertIn(port, readme)
+        self.assertIn("TURN_SHARED_SECRET_FILE", readme)
+        smoke = (TURN / "qa" / "verify-coturn-runtime.sh").read_text()
+        probe = (TURN / "qa" / "turn-allocation-probe.mjs").read_text()
+        self.assertIn("turn-allocation-probe.mjs", smoke)
+        self.assertIn("TURN_TEST_HOST", smoke)
+        self.assertIn("createTurnCredentialService", probe)
+        self.assertIn("ATTR.integrity", probe)
+        self.assertIn("COTURN_ALLOCATION_SUCCESS", probe)
+        relay_script = (TURN / "qa" / "verify-browser-relay.sh").read_text()
+        self.assertIn("--network bridge", relay_script)
+        self.assertNotIn("--network host", relay_script)
+        self.assertNotIn("-p 3478", relay_script)
+        self.assertIn("--cap-drop ALL", relay_script)
+        self.assertIn("TURN_TEST_SECRET_FILE", relay_script)
+        self.assertIn("browser-webrtc-relay.mjs", relay_script)
+        external_probe = (TURN / "qa" / "external-turn-probe.mjs").read_text()
+        self.assertIn("TURN_EXTERNAL_REACHABILITY_SUCCESS", external_probe)
+        self.assertIn("rejectUnauthorized:true", external_probe)
+        self.assertNotIn("rejectUnauthorized:false", external_probe)
+        self.assertIn("parseChallenge", external_probe)
+
+if __name__ == "__main__":
+    unittest.main()

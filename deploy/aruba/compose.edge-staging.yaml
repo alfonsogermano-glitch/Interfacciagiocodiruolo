@@ -1,0 +1,31 @@
+# Dedicated HTTPS staging gateway; no changes to Vercel or hollowgate.quest.
+# DNS A/AAAA for staging.hollowgate.quest must point ONLY to this Aruba VPS
+# and port 80/443 must be accessible before activating Caddy.
+name: hollowgate-staging-edge
+services:
+  caddy:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    ports:
+      - "0.0.0.0:80:80"
+      - "0.0.0.0:443:443"
+    volumes:
+      - ./Caddyfile.staging:/etc/caddy/Caddyfile:ro
+      - ../../apps/aruba-auth-web:/srv/auth-preview:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - auth_staging
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+volumes:
+  caddy_data:
+  caddy_config:
+networks:
+  auth_staging:
+    external: true
+    name: hollowgate-auth-staging_default

@@ -1,0 +1,36 @@
+# Aruba staging only. Database secret was created by hgadmin (UID/GID 1001).
+# Run the API using the matching numeric identity so the host bind-mounted
+# 0600 secret can be read without weakening its filesystem permissions.
+services:
+  aruba-api:
+    build:
+      context: ../../apps/aruba-api
+    user: "1001:1001"
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3002:3000"
+    environment:
+      PORT: "3000"
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: hollowgate
+      PGDATABASE: hollowgate
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+    networks:
+      - hollowgate-db
+      - default
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+secrets:
+  postgres_password:
+    file: /opt/hollowgate/config/postgres_password
+
+networks:
+  hollowgate-db:
+    external: true
+    name: hollowgate-db

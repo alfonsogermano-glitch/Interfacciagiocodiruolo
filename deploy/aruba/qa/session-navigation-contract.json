@@ -1,0 +1,178 @@
+{
+  "schemaVersion": 1,
+  "releaseStatus": "blocked",
+  "basis": "original checked-in React components, not an assumed screenshot",
+  "sources": {
+    "app": "src/app/App.tsx",
+    "shell": "src/app/layout/AppShell.tsx",
+    "dashboardRail": "src/app/layout/GmSectionSidebar.tsx",
+    "sessionRail": "src/app/components/session/SessionRightSidebar.tsx",
+    "campaignHome": "src/app/campaigns/CampaignHome.tsx",
+    "pilot": "apps/aruba-vtt-pilot/src/main.tsx"
+  },
+  "originalViews": [
+    {
+      "view": "home",
+      "main": "HomeScreen",
+      "rightRail": "none",
+      "context": "unselected"
+    },
+    {
+      "view": "dashboard",
+      "main": "Dashboard",
+      "rightRail": "GmSectionSidebar except Personaggi/Campagne",
+      "context": "GM management"
+    },
+    {
+      "view": "campaign-home",
+      "main": "CampaignHome or SessionWorkspace",
+      "rightRail": "SessionRightSidebar",
+      "context": "selected campaign, GM or player"
+    }
+  ],
+  "dashboardRailIds": [
+    "chapters",
+    "scene-encounter",
+    "players",
+    "npcs",
+    "monsters",
+    "clues",
+    "equipment-catalog",
+    "map",
+    "situations",
+    "phases",
+    "combat",
+    "visual-assets"
+  ],
+  "sessionRail": {
+    "common": [
+      {
+        "id": "chat",
+        "label": "Chat",
+        "component": "CampaignChatPanel"
+      },
+      {
+        "id": "characters",
+        "label": "Schede",
+        "component": "SessionCharactersPanel"
+      },
+      {
+        "id": "notes",
+        "label": "Note",
+        "component": "SessionNotesPanel"
+      },
+      {
+        "id": "dice",
+        "label": "Dadi",
+        "component": "SessionDicePanel"
+      }
+    ],
+    "gmOnly": [
+      {
+        "id": "encounters",
+        "label": "Incontri",
+        "component": "SceneEncounterManager"
+      },
+      {
+        "id": "combat",
+        "label": "Combatti",
+        "component": "CombatTracker"
+      }
+    ],
+    "panel": "SlideOverPanel",
+    "widthPx": 80,
+    "eventDelegation": [
+      "SESSION_NOTE_OPEN_EVENT",
+      "SESSION_NOTE_PICK_EVENT"
+    ],
+    "characterOpenContract": "App.openSessionEntity -> SessionRightSidebar.openCharacterRequest -> SessionCharactersPanel.initialSelection",
+    "resizingPanels": [
+      "notes",
+      "chat",
+      "characters",
+      "dice"
+    ]
+  },
+  "transitions": [
+    {
+      "from": "home",
+      "action": "open owned/joined campaign",
+      "to": "campaign-home",
+      "preserve": "selected campaign identity"
+    },
+    {
+      "from": "dashboard",
+      "action": "open campaign",
+      "to": "campaign-home",
+      "preserve": "session role and selected campaign"
+    },
+    {
+      "from": "campaign-home",
+      "action": "return management",
+      "to": "dashboard",
+      "preserve": "GM tabs, not stale character details"
+    },
+    {
+      "from": "campaign-home",
+      "action": "start or join session",
+      "to": "SessionWorkspace",
+      "preserve": "session-state and role"
+    },
+    {
+      "from": "campaign-home",
+      "action": "open character card",
+      "to": "SessionRightSidebar.characters",
+      "preserve": "initialSelection + requestId"
+    },
+    {
+      "from": "campaign-home",
+      "action": "open or pick Note",
+      "to": "SessionRightSidebar.notes",
+      "preserve": "event detail and original SlideOverPanel"
+    }
+  ],
+  "confirmedPilotDivergences": [
+    {
+      "id": "single-right-rail",
+      "state": "partially-addressed",
+      "detail": "Pilot now renders a distinct contextual campaign session rail, but full original SessionRightSidebar and services are not migrated."
+    },
+    {
+      "id": "notes-central-route",
+      "state": "partially-addressed",
+      "detail": "Original SlideOverPanel now opens from session-specific Note icon, while CampaignHome and session state remain pending."
+    },
+    {
+      "id": "owner-only-campaign-list",
+      "state": "open",
+      "detail": "GM-only pre-made availability now persists as explicit bool on active owned PGs through opt-in migration 027, without altering ownership. Actual player claiming, joined campaign listing, role-based editing and transferring characters are still unavailable."
+    },
+    {
+      "id": "session-workspace-missing",
+      "state": "open",
+      "detail": "Pilot does not mount SessionWorkspace / CampaignHome original session state"
+    },
+    {
+      "id": "topbar-incomplete",
+      "state": "open",
+      "detail": "Pilot renders a simplified header, not the original session-aware TopBar"
+    },
+    {
+      "id": "dynamic-rail-visibility",
+      "state": "open",
+      "detail": "Original dashboard hides GM rail in Characters/Campaigns and full live session hides left sidebar; pilot does not follow both rules"
+    },
+    {
+      "id": "contextual-character-open",
+      "state": "partially-addressed",
+      "detail": "Original EntityCard PG campaign card opens session Schede with specific id and requestId (including repeated same-id opens); original detail rail used. Original CampaignHome player rows and PNG/Mostri not yet ported."
+    }
+  ],
+  "futureEvidence": {
+    "originalAndArubaVisualDiff": false,
+    "combinedBrowserRealDatabaseSession": false,
+    "playerSessionBrowser": false,
+    "desktopAndMobileViewportReview": false,
+    "crossPanelRoutingVerified": false
+  }
+}

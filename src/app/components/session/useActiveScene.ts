@@ -5,6 +5,8 @@ import {
   saveActiveScene,
 } from '../../../services/campaign/activeScene';
 import { useCampaignChannel } from '../../../services/realtime/campaignChannel';
+import { notifyCommittedMapPublication, notifyFailedMapPublication } from './activeScenePublicationObserver';
+import { mergePendingMapPublication, buildPersistedMapPublication } from './mapPublicationBatch';
 import {
   isActiveScenePublication,
   type ActiveSceneCollectionDelta,
@@ -193,7 +195,7 @@ export function useActiveScene(campaignId: string | null | undefined) {
     const next = { ...pendingValue, publishedAt: new Date(publishedAtMs).toISOString() };
     const operation = publicationQueueRef.current.then(async () => {
       const latest = latestPublicationRef.current;
-      const persisted = latest && latest.id === next.id ? { ...latest, ...pendingFields, publishedAt: next.publishedAt } : next;
+      const persisted = buildPersistedMapPublication(latest, next, pendingFields);
       const patch: ActiveSceneMapPatch = {
         id: next.id,
         campaignId: next.campaignId,
@@ -213,8 +215,17 @@ export function useActiveScene(campaignId: string | null | undefined) {
       latestPublicationRef.current = persisted;
       setActiveScene(persisted);
       await send('active_scene_map_patch', { patch });
+      // Only the settled, queued legacy publication is observable by
+      // experimental Aruba adapters. React setters and debounce alone are
+      // not evidence that the map has been persisted and broadcast.
+      notifyCommittedMapPublication(persisted);
     });
-    publicationQueueRef.current = operation.catch(() => {});
+    publicationQueueRef.current = operation.catch(error => {
+      // A failed original save or broadcast leaves the GM/client state uncertain.
+      // Experimental listeners must resnapshot, never confirm pending commands.
+      if (campaignId) notifyFailedMapPublication(campaignId);
+      console.error('Pubblicazione mappa non riuscita:', error);
+    });
     void operation;
   }, [campaignId, send]);
 
@@ -228,6 +239,9 @@ export function useActiveScene(campaignId: string | null | undefined) {
 
   const publish = useCallback(async (value: ActiveScenePublication) => {
     if (!campaignId) return;
+    // The original map debounce must settle before switching scenes, or its
+    // delayed patch could overwrite the newly published scene on the server.
+    flushPendingPublication();
     const publishedAtMs = Math.max(Date.now(), publicationClockRef.current + 1, Date.parse(value.publishedAt) || 0);
     publicationClockRef.current = publishedAtMs;
     const next = { ...value, publishedAt: new Date(publishedAtMs).toISOString() };
@@ -237,13 +251,22 @@ export function useActiveScene(campaignId: string | null | undefined) {
       setActiveScene(next);
       await send('active_scene_change', { activeScene: next });
     });
-    publicationQueueRef.current = operation.catch(() => {});
+    publicationQueueRef.current = operation.catch(error => {
+      notifyFailedMapPublication(campaignId);
+      console.error('Cambio scena non riuscito:', error);
+    });
     await operation;
-  }, [campaignId, send]);
+  }, [campaignId, send, flushPendingPublication]);
 
   const publishMapPatch = useCallback(async (value: ActiveScenePublication, fields: ActiveSceneMapFields) => {
     if (!campaignId) return;
-    publicationPendingRef.current = { value, fields };
+    const merged = mergePendingMapPublication(publicationPendingRef.current, value, fields);
+    if (merged === null) {
+      // Never silently replace a pending patch for a different scene/chapter.
+      // Flush it into the original serial queue before scheduling the next.
+      flushPendingPublication();
+    }
+    publicationPendingRef.current = merged ?? { value, fields };
     if (publicationDebounceRef.current !== null) {
       clearTimeout(publicationDebounceRef.current);
     }
@@ -255,10 +278,25 @@ export function useActiveScene(campaignId: string | null | undefined) {
 
   const clear = useCallback(async () => {
     if (!campaignId) return;
-    await clearActiveScene(campaignId);
-    latestPublicationRef.current = null;
-    setActiveScene(null);
-    await send('active_scene_change', { activeScene: null });
+    // Discard an unsent debounce and serialize clearing after in-flight saves.
+    if (publicationDebounceRef.current !== null) {
+      clearTimeout(publicationDebounceRef.current);
+      publicationDebounceRef.current = null;
+    }
+    publicationPendingRef.current = null;
+    const operation = publicationQueueRef.current.then(async () => {
+      await clearActiveScene(campaignId);
+      latestPublicationRef.current = null;
+      setActiveScene(null);
+      await send('active_scene_change', { activeScene: null });
+    });
+    // Queue the clear itself, not just the wait: a subsequent publish must
+    // not overtake the deletion while its storage request is in flight.
+    publicationQueueRef.current = operation.catch(error => {
+      notifyFailedMapPublication(campaignId);
+      console.error('Cancellazione scena non riuscita:', error);
+    });
+    await operation;
   }, [campaignId, send]);
 
   return { activeScene, loading, channelReady, publish, publishMapPatch, clear };

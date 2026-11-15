@@ -7,6 +7,10 @@ const channel = await readFile(
   new URL('../src/services/realtime/campaignChannel.ts', import.meta.url),
   'utf8',
 );
+const channelContract = await readFile(
+  new URL('../src/services/realtime/campaignChannelContract.ts', import.meta.url),
+  'utf8',
+);
 const panel = await readFile(
   new URL('../src/app/components/session/SessionChatPanel.tsx', import.meta.url),
   'utf8',
@@ -50,8 +54,9 @@ assert.match(toggleBody, /\.eq\('id', messageId\)\s*\.limit\(1\)/, 'read reazion
 assert.match(toggleBody, /\.select\('reactions'\)\s*\.limit\(1\)/, 'update reazioni senza limit(1)');
 
 // Canale: evento dedicato nel tipo e nel registro.
-assert.match(channel, /\| 'chat_reaction'/, 'BroadcastEvent senza chat_reaction');
-assert.match(channel, /'chat_reaction',/, 'KNOWN_BROADCAST_EVENTS senza chat_reaction');
+assert.match(channel, /import \{ KNOWN_BROADCAST_EVENTS, type BroadcastEvent \} from '\.\/campaignChannelContract'/, 'channel non utilizza il contratto canonico');
+assert.match(channelContract, /'chat_reaction',/, 'BroadcastEvent senza chat_reaction');
+assert.match(channelContract, /'chat_reaction',/, 'KNOWN_BROADCAST_EVENTS senza chat_reaction');
 
 // Pannello: auto-close all'invio.
 const sendStart = panel.indexOf('const handleSend');
@@ -79,7 +84,7 @@ assert.match(
   'broadcast chat_delete mancante',
 );
 assert.match(panel, /chat_delete: handleChatDeleteBroadcast/, 'listener chat_delete non registrato');
-assert.match(channel, /'chat_delete',/, 'evento chat_delete non nel canale');
+assert.match(channelContract, /'chat_delete',/, 'evento chat_delete non nel canale');
 
 // Pannello: icona Copia (animazione copy gia' in CSS/IconeCopia) + feedback.
 assert.match(panel, /copiedId === item\.key \? 'Copiato' : 'Copia'/, 'icona Copia assente');
