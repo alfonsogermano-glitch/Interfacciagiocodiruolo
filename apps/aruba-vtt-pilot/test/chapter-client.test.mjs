@@ -39,12 +39,12 @@ test('chapter list rejects cross-campaign documents, malformed IDs and duplicate
 
 test('chapter save refuses mismatched campaign in server acknowledgement',async()=>{
  const forged=async()=>({ok:true,status:200,json:async()=>({chapter:{id:chapter,campaignId:'00000000-0000-4000-8000-000000000000'}})});
- await assert.rejects(()=>saveArubaChapter(forged,campaign,{id:chapter,title:'Intro'}),/Conferma capitolo non valida/);
+ await assert.rejects(()=>saveArubaChapter(forged,campaign,valid),/Conferma capitolo non valida/);
 });
 
 test('chapter save requires original Chapter fields in server acknowledgement',async()=>{
  const partial=async()=>({ok:true,status:200,json:async()=>({chapter:{id:chapter,campaignId:campaign}})});
- await assert.rejects(()=>saveArubaChapter(partial,campaign,{id:chapter,title:'Intro'}),/Conferma capitolo non valida/);
+ await assert.rejects(()=>saveArubaChapter(partial,campaign,valid),/Conferma capitolo non valida/);
 });
 
 test('chapter responses reject incomplete models, broken graph links and legacy map assets',async()=>{
