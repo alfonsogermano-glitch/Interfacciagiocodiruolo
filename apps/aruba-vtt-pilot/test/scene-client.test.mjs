@@ -46,3 +46,17 @@ test('Scene list and save reject incomplete original Scene model',async()=>{
   await assert.rejects(()=>saveArubaScene(async()=>({status:200,ok:true,json:async()=>({scene:{...valid,...patch}})}),campaign,valid),/Conferma scena non valida/);
  }
 });
+
+test('Scene graph validation rejects self-links, duplicate edges and excessive regions',async()=>{
+ const respond=scenes=>async()=>({status:200,ok:true,json:async()=>({scenes})});
+ for(const patch of [
+  {nextSceneIds:[scene]},
+  {nextSceneIds:[chapter,chapter]},
+  {nextSceneIds:['bad']},
+  {nextSceneIds:Array(101).fill(chapter)},
+  {mapRegions:Array(1001).fill({})},
+ ]){
+  await assert.rejects(()=>listArubaScenes(respond([{...valid,...patch}]),campaign),/non valida/);
+  await assert.rejects(()=>saveArubaScene(async()=>({status:200,ok:true,json:async()=>({scene:{...valid,...patch}})}),campaign,valid),/Conferma scena non valida/);
+ }
+});
