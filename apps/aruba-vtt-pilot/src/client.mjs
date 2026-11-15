@@ -521,6 +521,10 @@ async function sceneResponse(r){
  if(!r.ok)throw Error('Operazione scene non riuscita');
  return r.json();
 }
+function validSceneTimestamp(value){
+ return typeof value==='string'&&/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/.test(value)&&
+  !Number.isNaN(Date.parse(value))&&new Date(value).toISOString()===value;
+}
 function validArubaScene(scene,campaignId){
  return scene!==null&&typeof scene==='object'&&!Array.isArray(scene)&&
   CHAPTER_UUID.test(scene.id??'')&&scene.campaignId===campaignId&&
@@ -540,8 +544,7 @@ function validArubaScene(scene,campaignId){
   new Set(scene.nextSceneIds).size===scene.nextSceneIds.length&&
   Array.isArray(scene.mapRegions)&&scene.mapRegions.length<=1000&&scene.contextMetadata!==null&&
   typeof scene.contextMetadata==='object'&&!Array.isArray(scene.contextMetadata)&&
-  typeof scene.createdAt==='string'&&!Number.isNaN(Date.parse(scene.createdAt))&&
-  typeof scene.updatedAt==='string'&&!Number.isNaN(Date.parse(scene.updatedAt));
+  validSceneTimestamp(scene.createdAt)&&validSceneTimestamp(scene.updatedAt);
 }
 export async function listArubaScenes(fetchImpl,campaignId){
  const r=await fetchImpl(sceneUrl(campaignId),{
@@ -561,9 +564,11 @@ export async function saveArubaScene(fetchImpl,campaignId,draft){
  if(!draft||typeof draft!=='object'||Array.isArray(draft)||
    !CHAPTER_UUID.test(draft.id??'')||!CHAPTER_UUID.test(draft.chapterId??'')||
    (draft.campaignId!==undefined&&draft.campaignId!==campaignId)||
+   (draft.createdAt!==undefined&&!validSceneTimestamp(draft.createdAt))||
+   (draft.updatedAt!==undefined&&!validSceneTimestamp(draft.updatedAt))||
    !validArubaScene({...draft,campaignId,
-     createdAt:draft.createdAt??'2026-01-01T00:00:00.000Z',
-     updatedAt:draft.updatedAt??'2026-01-01T00:00:00.000Z'},campaignId))
+     createdAt:draft.createdAt??new Date().toISOString(),
+     updatedAt:draft.updatedAt??new Date().toISOString()},campaignId))
   throw Error('Scena non valida');
  const r=await fetchImpl(sceneUrl(campaignId),{
   method:'PUT',credentials:'same-origin',cache:'no-store',redirect:'error',

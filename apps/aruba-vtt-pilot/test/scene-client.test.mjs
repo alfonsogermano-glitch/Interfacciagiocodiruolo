@@ -87,3 +87,22 @@ test('Scene browser refuses invalid drafts before network or persistence',async(
  }
  assert.equal(requests,0);
 });
+
+test('Scene adapter accepts omitted timestamps but rejects malformed ISO timestamps before network',async()=>{
+ const noFetch=()=>{throw Error('Unexpected network');};
+ for(const patch of [
+  {createdAt:'2026-01-01'},{updatedAt:'2026-01-01T00:00:00Z'},
+  {createdAt:null},{updatedAt:'not a date'},
+ ]){
+  await assert.rejects(()=>saveArubaScene(noFetch,campaign,{...valid,...patch}),/Scena non valida/);
+ }
+ const calls=[];
+ const draft={...valid};delete draft.createdAt;delete draft.updatedAt;
+ const saved=await saveArubaScene(async(url,opts)=>{
+  calls.push(JSON.parse(opts.body));
+  return {status:200,ok:true,json:async()=>({scene:valid})};
+ },campaign,draft);
+ assert.equal(saved.id,scene);
+ assert.equal(Object.hasOwn(calls[0],'createdAt'),false);
+ assert.equal(Object.hasOwn(calls[0],'updatedAt'),false);
+});
