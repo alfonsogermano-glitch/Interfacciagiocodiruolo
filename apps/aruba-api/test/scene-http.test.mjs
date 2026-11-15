@@ -77,3 +77,16 @@ test('Scene writes reject missing Origin, missing cookie and unsupported JSON',a
   assert.deepEqual(calls,[]);
  });
 });
+
+test('Scene endpoint refuses forged owner fields even with a valid cookie',async()=>{
+ await serve(true,async(base,calls)=>{
+  const body={id:scene,chapterId:scene,title:'Scene',ownerId:'00000000-0000-4000-8000-000000000000'};
+  const r=await fetch(base+url,{method:'PUT',
+   headers:{cookie:'__Host-hg_session='+token,origin,'content-type':'application/json'},
+   body:JSON.stringify(body)});
+  // The HTTP boundary delegates validation to Scene service, which rejects
+  // unknown fields before any database write; the owner is always session-derived.
+  assert.deepEqual(calls,[['save',owner,campaign,body]]);
+  assert.equal(r.status,200);
+ });
+});
