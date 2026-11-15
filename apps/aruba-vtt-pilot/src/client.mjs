@@ -504,7 +504,13 @@ export async function listArubaChapters(fetchImpl,campaignId){
  return data.chapters;
 }
 export async function saveArubaChapter(fetchImpl,campaignId,draft){
- if(!draft||typeof draft!=='object'||Array.isArray(draft))
+ if(!draft||typeof draft!=='object'||Array.isArray(draft)||
+   (draft.campaignId!==undefined&&draft.campaignId!==campaignId)||
+   (draft.createdAt!==undefined&&!validSceneTimestamp(draft.createdAt))||
+   (draft.updatedAt!==undefined&&!validSceneTimestamp(draft.updatedAt))||
+   !validArubaChapter({...draft,campaignId,
+    createdAt:draft.createdAt??new Date().toISOString(),
+    updatedAt:draft.updatedAt??new Date().toISOString()},campaignId))
   throw Error('Capitolo non valido');
  const r=await fetchImpl(chapterUrl(campaignId),{
   method:'PUT',credentials:'same-origin',cache:'no-store',redirect:'error',
