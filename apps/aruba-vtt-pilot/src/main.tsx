@@ -15,6 +15,7 @@ import {ArubaCampaignCharacterCards,type SessionEntityOpenRequest} from './Aruba
 import {ArubaCampaignPlayerRows} from './ArubaCampaignPlayerRows';
 import {ArubaAssignedCharacterPanel} from './ArubaAssignedCharacterPanel';
 import {ArubaGmSectionSidebar} from './ArubaGmSectionSidebar';
+import {ArubaChapterSceneEditor} from './ArubaChapterSceneEditor';
 import {LeftSidebar} from '../../../src/app/layout/LeftSidebar';
 import {TopBar} from '../../../src/app/layout/TopBar';
 import {ArubaTopBarQaIdentity} from './ArubaOriginalTopBarAdapter';
