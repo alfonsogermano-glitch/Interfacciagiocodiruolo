@@ -3,12 +3,15 @@ import assert from 'node:assert/strict';
 import {listArubaChapters,saveArubaChapter,deleteArubaChapter} from '../src/client.mjs';
 const campaign='be2f1a87-b8ee-4b34-9da0-07efda11379a';
 const chapter='4b2c4c0b-4b67-45c2-901a-2b4d3f7c8c42';
+const valid={id:chapter,campaignId:campaign,title:'Intro',description:'',notes:'',
+ kind:'standard',isActive:false,nextChapterIds:[],mapUrl:null,mapMetadata:{},
+ locationMetadata:{},createdAt:'2026-01-02T03:04:05.000Z',updatedAt:'2026-01-02T03:04:05.000Z'};
 test('Aruba chapter client uses same-origin cookie session for read and write',async()=>{
  const calls=[];
  const fetchImpl=async(url,opts)=>{
   calls.push({url,opts});
   return {ok:true,status:200,json:async()=>opts.method==='GET'?{chapters:[]}:
-   opts.method==='PUT'?{chapter:{id:chapter,campaignId:campaign,title:'Intro',createdAt:'2026-01-02T03:04:05.000Z',updatedAt:'2026-01-02T03:04:05.000Z'}}:{deleted:true}};
+   opts.method==='PUT'?{chapter:valid}:{deleted:true}};
  };
  assert.deepEqual(await listArubaChapters(fetchImpl,campaign),[]);
  await saveArubaChapter(fetchImpl,campaign,{id:chapter,title:'Intro'});
@@ -30,8 +33,8 @@ test('chapter list rejects cross-campaign documents, malformed IDs and duplicate
  const respond=chapters=>async()=>({status:200,ok:true,json:async()=>({chapters})});
  await assert.rejects(()=>listArubaChapters(respond([{id:chapter,campaignId:'00000000-0000-4000-8000-000000000000'}]),campaign),/non valida/);
  await assert.rejects(()=>listArubaChapters(respond([{id:'bad',campaignId:campaign}]),campaign),/non valida/);
- await assert.rejects(()=>listArubaChapters(respond([{id:chapter,campaignId:campaign},{id:chapter,campaignId:campaign}]),campaign),/non valida/);
- assert.equal((await listArubaChapters(respond([{id:chapter,campaignId:campaign}]),campaign)).length,1);
+ await assert.rejects(()=>listArubaChapters(respond([valid,valid]),campaign),/non valida/);
+ assert.equal((await listArubaChapters(respond([valid]),campaign)).length,1);
 });
 
 test('chapter save refuses mismatched campaign in server acknowledgement',async()=>{
@@ -42,4 +45,19 @@ test('chapter save refuses mismatched campaign in server acknowledgement',async(
 test('chapter save requires original Chapter fields in server acknowledgement',async()=>{
  const partial=async()=>({ok:true,status:200,json:async()=>({chapter:{id:chapter,campaignId:campaign}})});
  await assert.rejects(()=>saveArubaChapter(partial,campaign,{id:chapter,title:'Intro'}),/Conferma capitolo non valida/);
+});
+
+test('chapter responses reject incomplete models, broken graph links and legacy map assets',async()=>{
+ const respond=chapters=>async()=>({status:200,ok:true,json:async()=>({chapters})});
+ for(const patch of [
+  {kind:'invalid'},{description:undefined},{mapMetadata:[]},
+  {nextChapterIds:[chapter]},{nextChapterIds:['bad']},
+  {nextChapterIds:Array(101).fill(chapter)},
+  {mapUrl:'https://old.supabase.co/storage/v1/object/public/map.webp'},
+  {createdAt:'2026-01-02'},{locationMetadata:null},
+ ]){
+  const malformed={...valid,...patch};
+  await assert.rejects(()=>listArubaChapters(respond([malformed]),campaign),/Risposta capitoli non valida/);
+  await assert.rejects(()=>saveArubaChapter(async()=>({status:200,ok:true,json:async()=>({chapter:malformed})}),campaign,valid),/Conferma capitolo non valida/);
+ }
 });
