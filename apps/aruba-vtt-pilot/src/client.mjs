@@ -522,7 +522,7 @@ async function sceneResponse(r){
  return r.json();
 }
 function validSceneTimestamp(value){
- return typeof value==='string'&&/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/.test(value)&&
+ return typeof value==='string'&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)&&
   !Number.isNaN(Date.parse(value))&&new Date(value).toISOString()===value;
 }
 function validArubaScene(scene,campaignId){
