@@ -531,7 +531,7 @@ function validArubaScene(scene,campaignId){
   ['draft','ready','completed'].includes(scene.status)&&
   (scene.environmentId===undefined||scene.environmentId===null||CHAPTER_UUID.test(scene.environmentId))&&
   (scene.imageUrl===null||(typeof scene.imageUrl==='string'&&scene.imageUrl.length<=2048&&
-   !/supabase(?:\\.co|\\.in)/i.test(scene.imageUrl)))&&
+   !/supabase(?:\.co|\.in)/i.test(scene.imageUrl)))&&
   (scene.sourceEnvironment===undefined||scene.sourceEnvironment===null||
    (typeof scene.sourceEnvironment==='object'&&!Array.isArray(scene.sourceEnvironment)))&&
   Number.isSafeInteger(scene.sortOrder)&&scene.sortOrder>=0&&
