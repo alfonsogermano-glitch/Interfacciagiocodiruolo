@@ -525,11 +525,15 @@ function validArubaScene(scene,campaignId){
  return scene!==null&&typeof scene==='object'&&!Array.isArray(scene)&&
   CHAPTER_UUID.test(scene.id??'')&&scene.campaignId===campaignId&&
   CHAPTER_UUID.test(scene.chapterId??'')&&
-  typeof scene.title==='string'&&scene.title.trim().length>0&&
-  typeof scene.description==='string'&&typeof scene.notes==='string'&&
+  typeof scene.title==='string'&&scene.title.trim().length>0&&scene.title.trim().length<=200&&
+  typeof scene.description==='string'&&scene.description.length<=10000&&
+  typeof scene.notes==='string'&&scene.notes.length<=50000&&
   ['draft','ready','completed'].includes(scene.status)&&
   (scene.environmentId===undefined||scene.environmentId===null||CHAPTER_UUID.test(scene.environmentId))&&
-  (scene.imageUrl===null||typeof scene.imageUrl==='string')&&
+  (scene.imageUrl===null||(typeof scene.imageUrl==='string'&&scene.imageUrl.length<=2048&&
+   !/supabase(?:\\.co|\\.in)/i.test(scene.imageUrl)))&&
+  (scene.sourceEnvironment===undefined||scene.sourceEnvironment===null||
+   (typeof scene.sourceEnvironment==='object'&&!Array.isArray(scene.sourceEnvironment)))&&
   Number.isSafeInteger(scene.sortOrder)&&scene.sortOrder>=0&&
   Array.isArray(scene.nextSceneIds)&&scene.nextSceneIds.length<=100&&
   scene.nextSceneIds.every(id=>typeof id==='string'&&CHAPTER_UUID.test(id)&&id!==scene.id)&&

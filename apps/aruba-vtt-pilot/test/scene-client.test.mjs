@@ -60,3 +60,18 @@ test('Scene graph validation rejects self-links, duplicate edges and excessive r
   await assert.rejects(()=>saveArubaScene(async()=>({status:200,ok:true,json:async()=>({scene:{...valid,...patch}})}),campaign,valid),/Conferma scena non valida/);
  }
 });
+
+test('Scene browser adapter refuses retired Supabase URLs and oversized original fields',async()=>{
+ const respond=scenes=>async()=>({status:200,ok:true,json:async()=>({scenes})});
+ for(const patch of [
+  {imageUrl:'https://old.supabase.co/storage/v1/object/public/scene.png'},
+  {imageUrl:'x'.repeat(2049)},
+  {title:'x'.repeat(201)},
+  {description:'x'.repeat(10001)},
+  {notes:'x'.repeat(50001)},
+  {sourceEnvironment:[]},
+ ]){
+  await assert.rejects(()=>listArubaScenes(respond([{...valid,...patch}]),campaign),/non valida/);
+  await assert.rejects(()=>saveArubaScene(async()=>({status:200,ok:true,json:async()=>({scene:{...valid,...patch}})}),campaign,valid),/Conferma scena non valida/);
+ }
+});
