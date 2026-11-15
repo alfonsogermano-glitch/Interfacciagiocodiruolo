@@ -15,6 +15,12 @@ export function validateBootstrap(data){
   if(!c||typeof c.campaigns?.read!=='boolean'||c.campaigns.read!==c.campaigns.write||
     typeof c.characters?.read!=='boolean'||c.characters.read!==c.characters.write||
     (c.characters.read&&!c.campaigns.read)||
+    (c.chapters!==undefined&&(typeof c.chapters.read!=='boolean'||
+      c.chapters.read!==c.chapters.write||
+      (c.chapters.read&&!c.campaigns.read)))||
+    (c.scenes!==undefined&&(typeof c.scenes.read!=='boolean'||
+      c.scenes.read!==c.scenes.write||
+      (c.scenes.read&&c.chapters?.read!==true)))||
     (c.characterAvailability!==undefined&&(
      typeof c.characterAvailability.read!=='boolean'||
      c.characterAvailability.read!==c.characterAvailability.write||
@@ -67,6 +73,7 @@ export function validateBootstrap(data){
     gameSessionEnabled:c.gameSession,campaignMemberships:Object.freeze(memberships),
     id:data.user.id,email:data.user.email,displayName:data.user.displayName,role:data.user.role,
     campaignsEnabled:c.campaigns.read,charactersEnabled:c.characters.read,
+    chaptersEnabled:c.chapters?.read===true,scenesEnabled:c.scenes?.read===true,
     characterAvailabilityEnabled:c.characterAvailability?.read===true,
     characterAssignmentsEnabled:c.characterAssignments?.read===true,
     playerCharactersEnabled:c.playerCharacters?.read===true,

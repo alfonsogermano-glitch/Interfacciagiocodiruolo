@@ -626,6 +626,8 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
           backend:'aruba-staging',
           capabilities:{
             campaigns:{read:!!campaigns,write:!!campaigns},
+            chapters:{read:!!chapters,write:!!chapters},
+            scenes:{read:!!scenes,write:!!scenes},
             campaignRoster:{read:!!campaignRoster,write:false},
             characters:{read:!!characters,write:!!characters},
             characterAvailability:{read:!!characterAvailability,write:!!characterAvailability},
