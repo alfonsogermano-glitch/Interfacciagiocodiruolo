@@ -61,7 +61,7 @@ export function createCharacterPortraitService({pool}){
     throw new CampaignRejected('Dati ritratto non validi',400);
    const binary=image(body.mimeType,body.dataBase64);
    const {rows}=await pool.query(
-    'SELECT hollowgate_vtt.save_owned_character_portrait($1,$2,$3,$4,$5) AS saved',
+     'SELECT hollowgate_vtt.save_authorized_character_portrait($1,$2,$3,$4,$5) AS saved',
     [ownerId,campaignId,characterId,body.mimeType,binary]);
    if(rows[0]?.saved!==true)throw new CampaignRejected('Personaggio non autorizzato',404);
    return {characterId,stored:true};

@@ -14,7 +14,7 @@ export function canonicalEmail(email) {
 // PostgreSQL counters before doing expensive account/password operations.
 export function rateLimitSubjectDigest({ secret, action, category, value }) {
   if (!Buffer.isBuffer(secret) || secret.length < 32) throw new TypeError('HMAC key too short');
-  if (!['login', 'signup', 'password_reset', 'password_setup'].includes(action)) {
+  if (!['login', 'signup', 'password_reset', 'password_setup', 'oauth_start'].includes(action)) {
     throw new TypeError('Invalid action');
   }
   if (!['account', 'network'].includes(category)) throw new TypeError('Invalid category');

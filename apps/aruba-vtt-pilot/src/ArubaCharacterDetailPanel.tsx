@@ -5,7 +5,7 @@ import {EntityDetailRail,type EntityDetailRailSection} from '../../../src/app/co
 import {SlideOverPanel} from '../../../src/app/components/session/SlideOverPanel';
 import {EntityDetailView} from '../../../src/app/components/session/shared/EntityDetailView';
 import {ArubaNotesProvider} from './ArubaNotesCapability';
-import {ArubaGMCharacterPortrait} from './ArubaGMCharacterPortrait';
+import {ArubaCharacterImageEditor} from './ArubaCharacterImageEditor';
 import {readCharacterPortrait} from './client.mjs';
 import {awaitArubaNoteWrites,subscribeArubaNoteError} from './ArubaNotesWriteRegistry.mjs';
 import type {Character} from '../../../src/types/character';
@@ -13,8 +13,8 @@ import type {Character} from '../../../src/types/character';
 type HscCharacter=Character & {player:string;notes:string};
 type Draft={id:string;campaignId:string;ownerId:string;name:string;status:'draft'|'active';sheetData:Record<string,unknown>};
 
-export function ArubaCharacterDetailPanel({characterId,campaignId,ownerId,notesEnabled,portraitsEnabled,onClose,onChanged,onArchived}:{
- characterId:string;campaignId:string;ownerId:string;notesEnabled:boolean;portraitsEnabled:boolean;
+export function ArubaCharacterDetailPanel({characterId,campaignId,ownerId,notesEnabled,portraitsEnabled,visualAssetsEnabled,onClose,onChanged,onArchived}:{
+ characterId:string;campaignId:string;ownerId:string;notesEnabled:boolean;portraitsEnabled:boolean;visualAssetsEnabled:boolean;
  onClose:()=>void;onChanged:()=>void;onArchived:()=>void;
 }){
  const [draft,setDraft]=useState<Draft|null>(null);
@@ -59,7 +59,8 @@ export function ArubaCharacterDetailPanel({characterId,campaignId,ownerId,notesE
       {loading?<p>Caricamento della scheda da Aruba…</p>:
        error?<p role="alert" className="error">{error}</p>:
        draft?<ArubaPersistedSheet draft={draft} ownerId={ownerId} onChanged={onChanged} onArchived={onArchived}
-        registerCloseGuard={registerCloseGuard} section={section} portraitsEnabled={portraitsEnabled}/>:null}
+        registerCloseGuard={registerCloseGuard} section={section} portraitsEnabled={portraitsEnabled}
+        visualAssetsEnabled={visualAssetsEnabled}/>:null}
      </div>
     </div>
   </SlideOverPanel>
@@ -71,9 +72,9 @@ export function ArubaCharacterDetailPanel({characterId,campaignId,ownerId,notesE
 /* Staging: ORIGINAL EntityDetailView base HSC tabs (summary, conditions,
  * equipment, origins, storia). Backend-dependent custom notes are disabled
  * until the Aruba notes API and permissions are ready. */
-function ArubaPersistedSheet({draft,ownerId,onChanged,onArchived,registerCloseGuard,section,portraitsEnabled}:{
+function ArubaPersistedSheet({draft,ownerId,onChanged,onArchived,registerCloseGuard,section,portraitsEnabled,visualAssetsEnabled}:{
  draft:Draft;ownerId:string;onChanged:()=>void;onArchived:()=>void;
- registerCloseGuard:(guard:()=>Promise<void>)=>void;section:EntityDetailRailSection;portraitsEnabled:boolean;
+ registerCloseGuard:(guard:()=>Promise<void>)=>void;section:EntityDetailRailSection;portraitsEnabled:boolean;visualAssetsEnabled:boolean;
 }){
  const campaignId=draft.campaignId;
  const [working,setWorking]=useState<HscCharacter>(()=>({
@@ -134,10 +135,14 @@ function ArubaPersistedSheet({draft,ownerId,onChanged,onArchived,registerCloseGu
     campaignId={campaignId} accessToken={null} isHSC={true}
     showOwnerRow={false} showRail={false}
     activeSection={section}
-    arubaPortraitEditor={portraitsEnabled?
-     <ArubaGMCharacterPortrait campaignId={campaignId} characterId={draft.id} name={working.name}
-      onSaved={setPortrait}/>:
-     <p className="muted" role="status">Archivio ritratti Aruba non abilitato. Nessuna modifica alle immagini è consentita.</p>}
+    arubaPortraitEditor={visualAssetsEnabled?
+     <ArubaCharacterImageEditor entity={{...working,
+       portraitImageUrl:portrait??undefined,portraitSourceImageUrl:undefined,portraitCropArea:null}}
+      campaignId={campaignId} characterId={draft.id} name={working.name}
+      portraitsEnabled={portraitsEnabled} onUpdate={update} onPortraitSaved={setPortrait}/>:
+     portraitsEnabled?
+      <p className="muted" role="status">Asset grafici Aruba non abilitati: cornici e copertine non sono modificabili.</p>:
+      <p className="muted" role="status">Archivio ritratti Aruba non abilitato. Nessuna modifica alle immagini è consentita.</p>}
    />
   {archiving&&<p>Archiviazione in corso…</p>}
  </section>;

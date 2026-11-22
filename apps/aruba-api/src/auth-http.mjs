@@ -7,11 +7,18 @@ import { PasswordActionRejected } from './password-reset-service.mjs';
 import { SignupRejected } from './signup-service.mjs';
 import { CampaignRejected } from './campaign-service.mjs';
 import { ChapterRejected } from './chapter-contract.mjs';
+import { NarrativeContentRejected } from './narrative-content-contract.mjs';
+import { EquipmentCatalogRejected } from './equipment-catalog-contract.mjs';
+import { CampaignDocumentRejected } from './campaign-document-contract.mjs';
+import { VisualAssetRejected } from './visual-asset-contract.mjs';
 
 const COOKIE = '__Host-hg_session';
 const COOKIE_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 const LOGOUT_COOKIE = `${COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0`;
+const OAUTH_COOKIE='__Host-hg_oauth';
+const CLEAR_OAUTH=`${OAUTH_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`;
 const MAX_BODY = 4096;
+const MAX_NOTE_BODY = 1100000;
 
 function response(res, status, data, cookie) {
   const headers = {
@@ -25,6 +32,18 @@ function response(res, status, data, cookie) {
   res.end(JSON.stringify(data));
 }
 
+function binaryResponse(res, status, mimeType, bytes) {
+  const headers = {
+    'content-type': mimeType,
+    'content-length': String(bytes.length),
+    'cache-control': 'private, max-age=300',
+    'x-content-type-options': 'nosniff',
+    'referrer-policy': 'no-referrer',
+  };
+  res.writeHead(status, headers);
+  res.end(Buffer.from(bytes));
+}
+
 function extractSession(req) {
   const cookies = req.headers.cookie;
   if (typeof cookies !== 'string') return null;
@@ -32,6 +51,22 @@ function extractSession(req) {
   if (matches.length !== 1) return null;
   const value = matches[0].slice(COOKIE.length + 1);
   return COOKIE_PATTERN.test(value) ? value : null;
+}
+
+function extractOAuthBrowser(req){
+  const cookies=req.headers.cookie;
+  if(typeof cookies!=='string')return null;
+  const matches=cookies.split(';').map(s=>s.trim()).filter(s=>s.startsWith(OAUTH_COOKIE+'='));
+  if(matches.length!==1)return null;
+  const value=matches[0].slice(OAUTH_COOKIE.length+1);
+  return COOKIE_PATTERN.test(value)?value:null;
+}
+
+function oauthRedirect(res,location,cookies){
+  res.writeHead(303,{'location':location,'set-cookie':cookies,'cache-control':'no-store',
+    'referrer-policy':'no-referrer','x-content-type-options':'nosniff',
+    'content-security-policy':"default-src 'none'; frame-ancestors 'none'"});
+  res.end();
 }
 
 async function readJson(req,maxBody=MAX_BODY) {
@@ -65,7 +100,7 @@ class HttpProblem extends Error {
   }
 }
 
-export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, passwordReset = null, signupService = null, campaigns = null,chapters = null,scenes = null,characters = null,entityNotes = null,campaignNotes = null,campaignFolders = null,notesPanelEnabled = false,campaignRoster = null,characterAvailability = null,characterAssignments = null,playerCharacters = null,characterPortraits = null, turnCredentials = null, gameSessionBootstrap = null }) {
+export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, oauth = null, passwordReset = null, signupService = null, campaigns = null,campaignInvites = null,chapters = null,scenes = null,narrativeContent = null,equipmentCatalog = null,campaignDocuments = null,campaignChat = null,diceFormulas = null,visualAssets = null,characters = null,entityNotes = null,narrativeEntityNotes = null,campaignNotes = null,campaignFolders = null,notesPanelEnabled = false,campaignRoster = null,characterAvailability = null,characterAssignments = null,playerCharacters = null,characterClaims = null,characterPortraits = null, turnCredentials = null, gameSessionBootstrap = null }) {
   if(typeof notesPanelEnabled!=='boolean'||(notesPanelEnabled&&(!campaignNotes||!campaignFolders)))
     throw new TypeError('Original Notes panel requires both authenticated Notes and folders');
   const allowedOrigin = new URL(origin);
@@ -82,12 +117,21 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
   if (signupService !== null && (typeof signupService.signup !== 'function' || typeof signupService.verify !== 'function')) {
     throw new TypeError('Invalid signupService');
   }
+  if(oauth!==null&&(!oauth.start||!oauth.finish))throw new TypeError('Invalid OAuth service');
   if (campaigns !== null && (typeof campaigns.list !== 'function' || typeof campaigns.create !== 'function' || typeof campaigns.update !== 'function'))
     throw new TypeError('Invalid campaign service');
+  if(campaignInvites!==null&&(!campaigns||['rotate','preview','join'].some(key=>typeof campaignInvites[key]!=='function')))
+    throw new TypeError('Campaign invites require campaigns and a valid invite service');
   if(chapters!==null&&(!campaigns||['list','save','remove'].some(k=>typeof chapters[k]!=='function')))
     throw new TypeError('Chapter endpoints require campaigns and a valid chapter service');
   if(scenes!==null&&(!chapters||['list','save','remove'].some(k=>typeof scenes[k]!=='function')))
     throw new TypeError('Scene endpoints require chapters and a valid scene service');
+  if(narrativeContent!==null&&(!scenes||['list','save','remove'].some(k=>typeof narrativeContent[k]!=='function')))
+    throw new TypeError('Narrative content endpoints require scenes and a valid service');
+  if(campaignChat!==null&&(!campaigns||['list','send','remove','clear','react','participants','privateList','privateSend','privateRemove','privateClear','saveAttachment','readAttachment','removeAttachment'].some(k=>typeof campaignChat[k]!=='function')))
+    throw new TypeError('Campaign chat endpoints require campaigns and a valid service');
+  if(diceFormulas!==null&&(!campaigns||['list','create','update','remove','reorder'].some(k=>typeof diceFormulas[k]!=='function')))
+    throw new TypeError('Dice formula endpoints require campaigns and a valid service');
   if(characterPortraits!==null&&(!characters||typeof characterPortraits.save!=='function'||typeof characterPortraits.read!=='function'||typeof characterPortraits.readSource!=='function'||typeof characterPortraits.saveSource!=='function'))
     throw new TypeError('Portrait service requires characters');
   if(characterAvailability!==null&&(!characters||
@@ -98,13 +142,19 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
   if(characterAssignments!==null&&(!characters||!campaignRoster||!characterAvailability||
       typeof characterAssignments.list!=='function'||typeof characterAssignments.set!=='function'))
     throw new TypeError('Character assignments require characters, roster and availability');
+  if(characterClaims!==null&&(!playerCharacters||!characterAssignments||typeof characterClaims.list!=='function'||typeof characterClaims.current!=='function'||typeof characterClaims.owned!=='function'||
+      typeof characterClaims.claim!=='function'||typeof characterClaims.release!=='function'||typeof characterClaims.save!=='function'))
+    throw new TypeError('Character claims require player reads and assignments');
   if(campaignRoster!==null&&(!campaigns||typeof campaignRoster.list!=='function'))
     throw new TypeError('Invalid campaign roster service');
   if(characters!==null && (typeof characters.list!=='function'||typeof characters.create!=='function'||typeof characters.save!=='function'||typeof characters.archive!=='function'||!campaigns))
     throw new TypeError('Invalid character service');
   if(entityNotes!==null && (!characters ||
-   ['list','create','save','archive'].some(k=>typeof entityNotes[k]!=='function')))
+    ['list','create','save','archive'].some(k=>typeof entityNotes[k]!=='function')))
     throw new TypeError('Invalid entity notes service');
+  if(narrativeEntityNotes!==null && (!narrativeContent ||
+    ['list','create','save','archive','setSubtabOrder'].some(k=>typeof narrativeEntityNotes[k]!=='function')))
+    throw new TypeError('Invalid narrative entity notes service');
   if(campaignNotes!==null && (!campaigns ||
    ['listForMember','create','save','archive'].some(key=>typeof campaignNotes[key]!=='function')))
     throw new TypeError('Invalid campaign notes service');
@@ -113,6 +163,55 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
     throw new TypeError('Invalid campaign folders service');
   return async (req, res) => {
     try {
+      if(req.url==='/auth/oauth/complete'&&req.method==='GET'){
+        // A same-origin document navigation makes the Strict session cookie
+        // available to the VTT after the cross-site provider redirect. Never
+        // put the authorization code or session token in this URL or page.
+        res.writeHead(200,{'content-type':'text/html; charset=utf-8',
+          'cache-control':'no-store','referrer-policy':'no-referrer',
+          'x-content-type-options':'nosniff',
+          'content-security-policy':"default-src 'none'; base-uri 'none'; frame-ancestors 'none'"});
+        return res.end('<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><meta http-equiv="refresh" content="0;url=/vtt/"><title>Hollowgate</title></head><body><a href="/vtt/">Entra in Hollowgate</a></body></html>');
+      }
+      if(req.url==='/auth/oauth/providers'&&req.method==='GET')
+        return response(res,200,{providers:oauth?['google','discord']:[]});
+      if(oauth&&['GET','POST'].includes(req.method)&&typeof req.url==='string'&&req.url.length<=4096){
+        const match=/^\/auth\/oauth\/(google|discord)\/(start|callback)(?:\?|$)/.exec(req.url);
+        if(match){
+          const [,provider,action]=match;
+          const url=new URL(req.url,origin);
+          if(action==='start'){
+            if([...url.searchParams.keys()].some(key=>key!=='link')||
+              url.searchParams.getAll('link').length>1||
+              (url.searchParams.has('link')&&url.searchParams.get('link')!=='1'))
+              return response(res,400,{error:'Richiesta OAuth non valida'});
+            const link=url.searchParams.get('link')==='1';
+            if(link?(req.method!=='POST'||req.headers.origin!==origin):req.method!=='GET')
+              return response(res,405,{error:'Metodo OAuth non consentito'});
+            if(link&&!extractSession(req))return response(res,401,{error:'Non autenticato'});
+            const result=await oauth.start({provider,networkSubject:req.socket.remoteAddress,
+              linkSession:link?extractSession(req):null,requireLink:link});
+            const cookie=`${OAUTH_COOKIE}=${result.browser}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=600`;
+            return link?response(res,200,{url:result.url},cookie):oauthRedirect(res,result.url,cookie);
+          }
+          if(req.method!=='GET')return response(res,405,{error:'Metodo OAuth non consentito'});
+          try{
+            // Google may append these informational fields to a successful
+            // authorization-code redirect. Never use them for identity or state.
+            const allowed=provider==='google'
+              ?['code','state','iss','error','scope','authuser','prompt']
+              :['code','state','iss','error'];
+            if([...url.searchParams.keys()].some(key=>!allowed.includes(key))||
+              allowed.some(key=>url.searchParams.getAll(key).length>1)||
+              url.searchParams.has('error'))throw new Error('OAuth callback rejected');
+            const result=await oauth.finish({provider,state:url.searchParams.get('state'),
+              code:url.searchParams.get('code'),issuer:url.searchParams.get('iss'),
+              browser:extractOAuthBrowser(req)});
+            return oauthRedirect(res,'/auth/oauth/complete',[CLEAR_OAUTH,
+              `${COOKIE}=${result.token}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=43200`]);
+          }catch{return oauthRedirect(res,'/login?oauth=failed',CLEAR_OAUTH);}
+        }
+      }
       // Staging-only, authenticated and same-origin. No persistent TURN secret
       // or browser-supplied identity is accepted. Do not cache credentials.
       if(turnCredentials&&req.url==='/vtt/ice-credentials'&&req.method==='POST'){
@@ -209,6 +308,125 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         if(req.method==='DELETE')return response(res,200,await scenes.remove(user.id,match[1],match[2]));
         return response(res,200,await scenes.save(user.id,match[1],await readJson(req,100000)));
       }
+      // Original NPC, Monster, Clue and Situation documents. Explicit staging opt-in only.
+      if(narrativeContent&&/^\/vtt\/campaigns\/[^/]+\/narrative\/(?:npcs|monsters|clues|events)(?:\/[^/]+)?$/.test(req.url??'')){
+        const match=/^\/vtt\/campaigns\/([0-9a-f-]{36})\/narrative\/(npcs|monsters|clues|events)(?:\/([0-9a-f-]{36}))?$/i.exec(req.url);
+        if(!match)throw new HttpProblem(400,'Percorso contenuti non valido');
+        if(!['GET','PUT','DELETE'].includes(req.method)||req.method==='GET'&&match[3]||req.method==='PUT'&&match[3]||req.method==='DELETE'&&!match[3])
+          throw new HttpProblem(405,'Metodo non consentito');
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.method==='GET')return response(res,200,await narrativeContent.list(user.id,match[1],match[2]));
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        if(req.method==='DELETE')return response(res,200,await narrativeContent.remove(user.id,match[1],match[2],match[3]));
+        return response(res,200,await narrativeContent.save(user.id,match[1],match[2],await readJson(req,100000)));
+      }
+      if(campaignChat&&/^\/vtt\/campaigns\/[0-9a-f-]{36}\/chat\/participants$/i.test(req.url??'')){
+        if(req.method!=='GET')throw new HttpProblem(405,'Metodo non consentito');const match=/^\/vtt\/campaigns\/([0-9a-f-]{36})\/chat\/participants$/i.exec(req.url);
+        const token=extractSession(req);if(!token)return response(res,401,{error:'Non autenticato'});const user=await getSessionUser(token);if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        return response(res,200,await campaignChat.participants(user.id,match[1]));
+      }
+      if(campaignChat&&/^\/vtt\/campaigns\/[0-9a-f-]{36}\/chat\/attachments(?:\/[0-9a-f-]{36})?$/i.test(req.url??'')){
+        const match=/^\/vtt\/campaigns\/([0-9a-f-]{36})\/chat\/attachments(?:\/([0-9a-f-]{36}))?$/i.exec(req.url);if(!['GET','POST','DELETE'].includes(req.method))throw new HttpProblem(405,'Metodo non consentito');
+        const token=extractSession(req);if(!token)return response(res,401,{error:'Non autenticato'});const user=await getSessionUser(token);if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.method==='GET'&&match[2]){const file=await campaignChat.readAttachment(user.id,match[1],match[2]);return binaryResponse(res,200,file.mimeType,file.bytes);}
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        if(req.method==='POST'&&!match[2])return response(res,201,await campaignChat.saveAttachment(user.id,match[1],await readJson(req,70000000)));
+        if(req.method==='DELETE'&&match[2])return response(res,200,await campaignChat.removeAttachment(user.id,match[1],match[2]));
+        throw new HttpProblem(405,'Metodo non consentito');
+      }
+      if(campaignChat&&/^\/vtt\/campaigns\/[0-9a-f-]{36}\/chat\/private(?:\/[0-9a-f-]{36})?$/i.test(req.url??'')){
+        const match=/^\/vtt\/campaigns\/([0-9a-f-]{36})\/chat\/private(?:\/([0-9a-f-]{36}))?$/i.exec(req.url);if(!['GET','POST','DELETE'].includes(req.method))throw new HttpProblem(405,'Metodo non consentito');
+        const token=extractSession(req);if(!token)return response(res,401,{error:'Non autenticato'});const user=await getSessionUser(token);if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.method==='GET')return response(res,200,await campaignChat.privateList(user.id,match[1],match[2]??null));
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        if(req.method==='POST'&&!match[2])return response(res,201,await campaignChat.privateSend(user.id,match[1],await readJson(req,100000)));
+        if(req.method==='DELETE'&&match[2])return response(res,200,await campaignChat.privateRemove(user.id,match[1],match[2]));
+        throw new HttpProblem(405,'Metodo non consentito');
+      }
+      if(campaignChat&&/^\/vtt\/campaigns\/[0-9a-f-]{36}\/chat\/private-clear\/[0-9a-f-]{36}$/i.test(req.url??'')){
+        if(req.method!=='DELETE')throw new HttpProblem(405,'Metodo non consentito');const match=/^\/vtt\/campaigns\/([0-9a-f-]{36})\/chat\/private-clear\/([0-9a-f-]{36})$/i.exec(req.url);
+        const token=extractSession(req);if(!token)return response(res,401,{error:'Non autenticato'});const user=await getSessionUser(token);if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');return response(res,200,await campaignChat.privateClear(user.id,match[1],match[2]));
+      }
+      if(campaignChat&&/^\/vtt\/campaigns\/[0-9a-f-]{36}\/chat\/[0-9a-f-]{36}\/reaction$/i.test(req.url??'')){
+        if(req.method!=='PUT')throw new HttpProblem(405,'Metodo non consentito');const match=/^\/vtt\/campaigns\/([0-9a-f-]{36})\/chat\/([0-9a-f-]{36})\/reaction$/i.exec(req.url);
+        const token=extractSession(req);if(!token)return response(res,401,{error:'Non autenticato'});const user=await getSessionUser(token);if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');const body=await readJson(req);if(Object.keys(body).join(',')!=='char')throw new HttpProblem(400,'Reazione non valida');return response(res,200,await campaignChat.react(user.id,match[1],match[2],body.char));
+      }
+      if(campaignChat&&/^\/vtt\/campaigns\/[^/]+\/chat(?:\/[^/]+)?$/.test(req.url??'')){
+        const match=/^\/vtt\/campaigns\/([0-9a-f-]{36})\/chat(?:\/([0-9a-f-]{36}))?$/i.exec(req.url);
+        if(!match||!['GET','POST','DELETE'].includes(req.method)||req.method==='GET'&&match[2]||req.method==='POST'&&match[2])throw new HttpProblem(405,'Metodo non consentito');
+        const token=extractSession(req);if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.method==='GET')return response(res,200,await campaignChat.list(user.id,match[1]));
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        if(req.method==='POST')return response(res,201,await campaignChat.send(user.id,match[1],await readJson(req,100000)));
+        if(match[2])return response(res,200,await campaignChat.remove(user.id,match[1],match[2]));
+        return response(res,200,await campaignChat.clear(user.id,match[1]));
+      }
+      if(diceFormulas&&/^\/vtt\/campaigns\/[0-9a-f-]{36}\/dice-formulas(?:\/[0-9a-f-]{36})?$/i.test(req.url??'')){
+        const match=/^\/vtt\/campaigns\/([0-9a-f-]{36})\/dice-formulas(?:\/([0-9a-f-]{36}))?$/i.exec(req.url);
+        if(!['GET','POST','PUT','PATCH','DELETE'].includes(req.method))throw new HttpProblem(405,'Metodo non consentito');
+        const token=extractSession(req);if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.method==='GET'&&!match[2])return response(res,200,await diceFormulas.list(user.id,match[1]));
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        if(req.method==='POST'&&!match[2])return response(res,201,await diceFormulas.create(user.id,match[1],await readJson(req)));
+        if((req.method==='PUT'||req.method==='PATCH')&&match[2])return response(res,200,await diceFormulas.update(user.id,match[2],await readJson(req)));
+        if(req.method==='DELETE'&&match[2])return response(res,200,await diceFormulas.remove(user.id,match[2]));
+        throw new HttpProblem(405,'Metodo non consentito');
+      }
+      if(diceFormulas&&/^\/vtt\/campaigns\/[0-9a-f-]{36}\/dice-formulas\/reorder$/i.test(req.url??'')){
+        if(req.method!=='POST')throw new HttpProblem(405,'Metodo non consentito');
+        const match=/^\/vtt\/campaigns\/([0-9a-f-]{36})\/dice-formulas\/reorder$/i.exec(req.url);
+        const token=extractSession(req);if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        const body=await readJson(req);if(!Array.isArray(body.ids))throw new HttpProblem(400,'Lista ordinamento non valida');
+        return response(res,200,await diceFormulas.reorder(user.id,match[1],body.ids));
+      }
+      if(equipmentCatalog&&/^\/vtt\/campaigns\/[^/]+\/equipment(?:\/[^/]+)?$/.test(req.url??'')){
+        const match=/^\/vtt\/campaigns\/([0-9a-f-]{36})\/equipment(?:\/([0-9a-f-]{36}))?$/i.exec(req.url);
+        if(!match)throw new HttpProblem(400,'Percorso oggetti non valido');
+        if(!['GET','PUT','DELETE'].includes(req.method)||req.method==='GET'&&match[2]||req.method==='PUT'&&match[2]||req.method==='DELETE'&&!match[2])throw new HttpProblem(405,'Metodo non consentito');
+        const token=extractSession(req);if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.method==='GET')return response(res,200,await equipmentCatalog.list(user.id,match[1]));
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        if(req.method==='DELETE')return response(res,200,await equipmentCatalog.remove(user.id,match[1],match[2]));
+        return response(res,200,await equipmentCatalog.save(user.id,match[1],await readJson(req,100000)));
+      }
+      if(campaignDocuments&&/^\/vtt\/campaigns\/[^/]+\/documents\/[^/]+$/.test(req.url??'')){
+        const match=/^\/vtt\/campaigns\/([0-9a-f-]{36})\/documents\/([a-z-]+)$/i.exec(req.url);
+        if(!match)throw new HttpProblem(400,'Percorso documento non valido');
+        if(!['GET','PUT','DELETE'].includes(req.method))throw new HttpProblem(405,'Metodo non consentito');
+        const token=extractSession(req);if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.method==='GET')return response(res,200,await campaignDocuments.read(user.id,match[1],match[2]));
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        if(req.method==='DELETE')return response(res,200,await campaignDocuments.remove(user.id,match[1],match[2]));
+        const body=await readJson(req,510000);return response(res,200,await campaignDocuments.save(user.id,match[1],match[2],body.value));
+      }
+      if(visualAssets&&/^\/vtt\/campaigns\/[^/]+\/visual-assets\/[^/]+\/content$/.test(req.url??'')){
+        const match=/^\/vtt\/campaigns\/([0-9a-f-]{36})\/visual-assets\/([0-9a-f-]{36})\/content$/i.exec(req.url);
+        if(!match||req.method!=='GET')throw new HttpProblem(405,'Metodo non consentito');
+        const token=extractSession(req);if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        const asset=await visualAssets.read(user.id,match[1],match[2]);
+        return binaryResponse(res,200,asset.mimeType,asset.bytes);
+      }
+      if(visualAssets&&/^\/vtt\/campaigns\/[^/]+\/visual-assets(?:\/[^/]+)?$/.test(req.url??'')){
+        const match=/^\/vtt\/campaigns\/([0-9a-f-]{36})\/visual-assets(?:\/([0-9a-f-]{36}))?$/i.exec(req.url);
+        if(!match)throw new HttpProblem(400,'Percorso asset non valido');
+        if(!['GET','PUT','DELETE'].includes(req.method)||req.method==='GET'&&match[2]||req.method==='PUT'&&match[2]||req.method==='DELETE'&&!match[2])throw new HttpProblem(405,'Metodo non consentito');
+        const token=extractSession(req);if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.method==='GET')return response(res,200,await visualAssets.list(user.id,match[1]));
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        if(req.method==='DELETE')return response(res,200,await visualAssets.remove(user.id,match[1],match[2]));
+        return response(res,200,await visualAssets.save(user.id,match[1],await readJson(req,9*1024*1024)));
+      }
       // Read-only roster. No membership changes or email addresses in the response.
       if(campaignRoster && req.method==='GET' &&
          req.url?.startsWith('/vtt/campaigns/') &&
@@ -231,6 +449,44 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         const body=await readJson(req);
         return response(res,200,await campaigns.update(user.id,campaignId,body));
       }
+      // Campaign logo/cover references. Same-origin, cookie-only owner write;
+      // the SQL routine also verifies that each asset belongs to the campaign.
+      if(campaigns && typeof campaigns.setBranding==='function' && req.method==='PUT' &&
+         /^\/vtt\/campaigns\/[0-9a-f-]{36}\/branding$/i.test(req.url??'')){
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        const campaignId=req.url.slice('/vtt/campaigns/'.length,-'/branding'.length);
+        return response(res,200,await campaigns.setBranding(user.id,campaignId,await readJson(req)));
+      }
+      if(campaignInvites&&req.method==='POST'&&
+         /^\/vtt\/campaigns\/[0-9a-f-]{36}\/invite-code$/i.test(req.url??'')){
+        const token=extractSession(req);if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        const campaignId=req.url.slice('/vtt/campaigns/'.length,-'/invite-code'.length);
+        return response(res,200,await campaignInvites.rotate(user.id,campaignId));
+      }
+      if(campaignInvites&&req.method==='GET'&&req.url?.startsWith('/vtt/campaign-invites/preview?')){
+        const token=extractSession(req);if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        const url=new URL(req.url,origin);
+        if(url.pathname!=='/vtt/campaign-invites/preview'||
+           [...url.searchParams.keys()].join(',')!=='code'||url.searchParams.getAll('code').length!==1)
+          throw new HttpProblem(400,'Query invito non valida');
+        return response(res,200,await campaignInvites.preview(user.id,url.searchParams.get('code')));
+      }
+      if(campaignInvites&&req.method==='POST'&&req.url==='/vtt/campaign-invites/join'){
+        const token=extractSession(req);if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        const body=await readJson(req);
+        if(Object.keys(body).join(',')!=='code'||typeof body.code!=='string')
+          throw new HttpProblem(400,'Codice invito non valido');
+        return response(res,200,await campaignInvites.join(user.id,body.code));
+      }
       // Current player memberships are queried independently from GM-owned campaigns.
       if(playerCharacters&&req.method==='GET'&&req.url==='/vtt/player-campaigns'){
         const token=extractSession(req);
@@ -238,6 +494,17 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         const user=await getSessionUser(token);
         if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
         return response(res,200,await playerCharacters.listCampaigns(user.id));
+      }
+      // Read-only player access to visual assets CURRENTLY referenced by the
+      // player's assigned sheets. Owner list/save/remove stay on /vtt/campaigns.
+      if(visualAssets&&playerCharacters&&req.method==='GET'&&
+         /^\/vtt\/player-campaigns\/[0-9a-f-]{36}\/visual-assets$/.test(req.url??'')){
+        const match=/^\/vtt\/player-campaigns\/([0-9a-f-]{36})\/visual-assets$/i.exec(req.url);
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        return response(res,200,await visualAssets.listForPlayer(user.id,match[1]));
       }
       // Read-only player access to CURRENTLY assigned sheets; no owner write API.
       // The SQL function checks the logged-in player, membership and campaign.
@@ -315,6 +582,53 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         return response(res,200,await characterAssignments.set(user.id,
           body.campaignId,charId,body.playerId));
       }
+      if(characterClaims&&req.method==='POST'){
+        const match=/^\/vtt\/player-characters\/([0-9a-f-]{36})\/(claim|release)$/i.exec(req.url??'');
+        if(match){
+          const token=extractSession(req);
+          if(!token)return response(res,401,{error:'Non autenticato'});
+          const user=await getSessionUser(token);
+          if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+          if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+          if(req.headers['transfer-encoding']||(req.headers['content-length']&&req.headers['content-length']!=='0'))
+            throw new HttpProblem(400,'Il claim non accetta dati client');
+          return response(res,200,await characterClaims[match[2].toLowerCase()](user.id,match[1]));
+        }
+      }
+      if(characterClaims&&req.method==='PUT'){
+        const match=/^\/vtt\/player-characters\/([0-9a-f-]{36})$/i.exec(req.url??'');
+        if(match){
+          const token=extractSession(req);if(!token)return response(res,401,{error:'Non autenticato'});
+          const user=await getSessionUser(token);if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+          if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+          const body=await readJson(req);
+          return response(res,200,await characterClaims.save(user.id,body.campaignId,match[1],body));
+        }
+      }
+      if(characterClaims&&req.method==='GET'&&req.url?.startsWith('/vtt/player-character-claims?')){
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        const url=new URL(req.url,origin);
+        if(url.pathname!=='/vtt/player-character-claims'||[...url.searchParams.keys()].join(',')!=='campaignId'||url.searchParams.getAll('campaignId').length!==1)
+          throw new HttpProblem(400,'Query non valida');
+        return response(res,200,await characterClaims.list(user.id,url.searchParams.get('campaignId')));
+      }
+      if(characterClaims&&req.method==='GET'&&req.url?.startsWith('/vtt/player-character-claim?')){
+        const token=extractSession(req);if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        const url=new URL(req.url,origin);
+        if(url.pathname!=='/vtt/player-character-claim'||[...url.searchParams.keys()].join(',')!=='campaignId'||url.searchParams.getAll('campaignId').length!==1)throw new HttpProblem(400,'Query non valida');
+        return response(res,200,await characterClaims.current(user.id,url.searchParams.get('campaignId')));
+      }
+      if(characterClaims&&req.method==='GET'&&req.url?.startsWith('/vtt/owned-character-claims?')){
+        const token=extractSession(req);if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        const url=new URL(req.url,origin);
+        if(url.pathname!=='/vtt/owned-character-claims'||[...url.searchParams.keys()].join(',')!=='campaignId'||url.searchParams.getAll('campaignId').length!==1)throw new HttpProblem(400,'Query non valida');
+        return response(res,200,await characterClaims.owned(user.id,url.searchParams.get('campaignId')));
+      }
       // Availability is a GM-only preparatory flag; it never assigns a PG.
       if(characterAvailability&&req.method==='GET'&&
          req.url?.startsWith('/vtt/character-availability?')){
@@ -390,6 +704,52 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
           throw new HttpProblem(400,'Dati cancellazione non validi');
         return response(res,200,await characters.archive(user.id,body.campaignId,characterId));
       }
+      // Original custom tabs for Aruba-native PNG and Monster documents.
+      if(narrativeEntityNotes&&req.url?.startsWith('/vtt/narrative-entity-notes')&&
+       ['GET','POST','PATCH','DELETE'].includes(req.method)){
+        const token=extractSession(req);if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.method!=='GET'&&req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        if(req.method==='GET'){
+          const url=new URL(req.url,origin);
+          if(url.pathname!=='/vtt/narrative-entity-notes'||
+           !['campaignId,entityId,kind','campaignId,entityId,kind,parentId'].includes([...url.searchParams.keys()].sort().join(','))||
+           ['campaignId','entityId','kind'].some(key=>url.searchParams.getAll(key).length!==1)||url.searchParams.getAll('parentId').length>1)
+            throw new HttpProblem(400,'Query note narrative non valida');
+          const args=[user.id,url.searchParams.get('campaignId'),url.searchParams.get('kind'),url.searchParams.get('entityId')];
+          const parentId=url.searchParams.get('parentId');
+          return response(res,200,parentId===null?await narrativeEntityNotes.list(...args):await narrativeEntityNotes.list(...args,parentId));
+        }
+        const body=await readJson(req,MAX_NOTE_BODY);
+        if(typeof body.campaignId!=='string'||typeof body.kind!=='string'||typeof body.entityId!=='string')
+          throw new HttpProblem(400,'Identità nota narrativa non valida');
+        const scope=[user.id,body.campaignId,body.kind,body.entityId];
+        if(req.method==='POST'){
+          if(req.url!=='/vtt/narrative-entity-notes'||
+           !['campaignId,entityId,kind,tabName','campaignId,entityId,kind,parentId,tabName'].includes(Object.keys(body).sort().join(',')))
+            throw new HttpProblem(400,'Dati creazione nota narrativa non validi');
+          return response(res,201,await narrativeEntityNotes.create(...scope,
+           body.parentId===undefined?{tabName:body.tabName}:{tabName:body.tabName,parentId:body.parentId}));
+        }
+        if(req.method==='PATCH'&&req.url?.startsWith('/vtt/narrative-entity-notes/order/')){
+          const parentId=req.url.slice('/vtt/narrative-entity-notes/order/'.length);
+          if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(parentId)||
+           Object.keys(body).sort().join(',')!=='campaignId,entityId,kind,tabOrder')
+            throw new HttpProblem(400,'Ordine sottoschede narrative non valido');
+          return response(res,200,await narrativeEntityNotes.setSubtabOrder(...scope,parentId,body.tabOrder));
+        }
+        const noteId=req.url?.startsWith('/vtt/narrative-entity-notes/')?req.url.slice('/vtt/narrative-entity-notes/'.length):'';
+        if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(noteId))
+          throw new HttpProblem(400,'Nota narrativa non valida');
+        if(req.method==='PATCH'){
+          if(Object.keys(body).sort().join(',')!=='campaignId,content,contentRich,entityId,hidden,kind,position,tabName,visibility')
+            throw new HttpProblem(400,'Dati aggiornamento nota narrativa non validi');
+          const {campaignId,kind,entityId,...changes}=body;
+          return response(res,200,await narrativeEntityNotes.save(user.id,campaignId,kind,entityId,noteId,changes));
+        }
+        if(Object.keys(body).sort().join(',')!=='campaignId,entityId,kind')throw new HttpProblem(400,'Dati archivio nota narrativa non validi');
+        return response(res,200,await narrativeEntityNotes.archive(...scope,noteId));
+      }
       // Original character custom tabs: isolated staging-only notes.
       // Exact URL patterns; query cannot smuggle owner or role.
       if(entityNotes && req.url?.startsWith('/vtt/entity-notes') &&
@@ -415,7 +775,7 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
             await entityNotes.list(user.id,campaignId,characterId):
             await entityNotes.list(user.id,campaignId,characterId,parentId));
         }
-        const body=await readJson(req,65536);
+        const body=await readJson(req,MAX_NOTE_BODY);
         if(typeof body.campaignId!=='string'||typeof body.characterId!=='string')
           throw new HttpProblem(400,'Identità nota non valida');
         if(req.method==='POST'){
@@ -479,7 +839,7 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
             url.searchParams.get('campaignId'),url.searchParams.get('parentId')));
         }
         if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
-        const body=await readJson(req,65536);
+        const body=await readJson(req,MAX_NOTE_BODY);
         if(req.method==='POST'){
           if(req.url==='/vtt/campaign-notes/trash/restore'){
             if(Object.keys(body).sort().join(',')!=='campaignId,itemId,kind'||
@@ -616,7 +976,7 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         if(memberships!==null){
           const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
           if(!Array.isArray(memberships)||memberships.length>100||
-            !memberships.every(m=>m&&m.userId===user.id&&uuid.test(m.campaignId??'')&&m.role==='gm')||
+            !memberships.every(m=>m&&m.userId===user.id&&uuid.test(m.campaignId??'')&&['gm','player'].includes(m.role))||
             new Set(memberships.map(m=>m.campaignId)).size!==memberships.length)
             throw new Error('Invalid game session memberships');
         }
@@ -626,15 +986,24 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
           backend:'aruba-staging',
           capabilities:{
             campaigns:{read:!!campaigns,write:!!campaigns},
+            campaignInvites:{read:!!campaignInvites,write:!!campaignInvites},
             chapters:{read:!!chapters,write:!!chapters},
             scenes:{read:!!scenes,write:!!scenes},
+            narrativeContent:{read:!!narrativeContent,write:!!narrativeContent},
+            equipmentCatalog:{read:!!equipmentCatalog,write:!!equipmentCatalog},
+            campaignDocuments:{read:!!campaignDocuments,write:!!campaignDocuments},
+            campaignChat:{read:!!campaignChat,write:!!campaignChat},
+            diceFormulas:{read:!!diceFormulas,write:!!diceFormulas},
+            visualAssets:{read:!!visualAssets,write:!!visualAssets},
             campaignRoster:{read:!!campaignRoster,write:false},
             characters:{read:!!characters,write:!!characters},
             characterAvailability:{read:!!characterAvailability,write:!!characterAvailability},
             characterAssignments:{read:!!characterAssignments,write:!!characterAssignments},
             playerCharacters:{read:!!playerCharacters,write:false},
+            characterClaims:{read:!!characterClaims,write:!!characterClaims},
             characterPortraits:{read:!!characterPortraits,write:!!characterPortraits},
             entityNotes:{read:!!entityNotes,write:!!entityNotes},
+            narrativeEntityNotes:{read:!!narrativeEntityNotes,write:!!narrativeEntityNotes},
             campaignNotes:{read:!!campaignNotes,write:!!campaignNotes},
             campaignNoteFolders:{read:!!campaignFolders,write:!!campaignFolders},
             originalNotesPanel:{read:notesPanelEnabled,write:notesPanelEnabled},
@@ -657,6 +1026,10 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
       }
       return response(res, 404, { error: 'Not found' });
     } catch (error) {
+      if (error instanceof VisualAssetRejected) return response(res,error.status,{error:error.message});
+      if (error instanceof CampaignDocumentRejected) return response(res,error.status,{error:error.message});
+      if (error instanceof EquipmentCatalogRejected) return response(res,error.status,{error:error.message});
+      if (error instanceof NarrativeContentRejected) return response(res,error.status,{error:error.message});
       if (error instanceof ChapterRejected) return response(res,error.status,{error:error.message});
       if (error instanceof CampaignRejected) {
         return response(res,error.status,{error:error.message});

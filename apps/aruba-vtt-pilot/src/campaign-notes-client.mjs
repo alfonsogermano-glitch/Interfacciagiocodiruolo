@@ -71,7 +71,7 @@ export async function saveArubaCampaignNote(fetcher,campaignId,note){
  if(typeof note.title!=='string'||!note.title.trim()||note.title.trim().length>120||
   !rich(note.contentRich)||!Number.isInteger(note.position)||note.position<0||
   note.position>10000||!['all','private'].includes(note.visibility)||
-  (note.contentRich!==null&&new TextEncoder().encode(JSON.stringify(note.contentRich)).length>49152))
+   (note.contentRich!==null&&new TextEncoder().encode(JSON.stringify(note.contentRich)).length>1024*1024))
   throw Error('Dati Nota non validi');
  const data=await json(await fetcher('/vtt/campaign-notes/'+note.id,opts('PATCH',
   {campaignId,title:note.title.trim(),contentRich:note.contentRich,position:note.position,visibility:note.visibility})));

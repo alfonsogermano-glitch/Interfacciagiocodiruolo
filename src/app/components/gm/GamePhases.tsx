@@ -1,5 +1,5 @@
-import { useState } from 'react';
 import { Play, Pause, RotateCcw, CheckCircle } from 'lucide-react';
+import { useCampaignDocument } from '../shared/useCampaignDocument';
 
 interface Phase {
   id: string;
@@ -9,21 +9,19 @@ interface Phase {
 }
 
 export function GamePhases() {
-  const [phases, setPhases] = useState<Phase[]>([
+  const [state, setState] = useCampaignDocument<{phases:Phase[];currentPhase:number;sessionNotes:string}>('phases', {phases:[
     { id: '1', name: 'Introduzione', description: 'Presentazione dell\'ambientazione e dei personaggi', completed: false },
     { id: '2', name: 'Investigazione', description: 'I personaggi raccolgono indizi e esplorano', completed: false },
     { id: '3', name: 'Rivelazione', description: 'Gli indizi iniziano a formare un quadro', completed: false },
     { id: '4', name: 'Confronto', description: 'I personaggi affrontano la minaccia', completed: false },
     { id: '5', name: 'Epilogo', description: 'Conseguenze delle azioni dei personaggi', completed: false }
-  ]);
-
-  const [currentPhase, setCurrentPhase] = useState(0);
-  const [sessionNotes, setSessionNotes] = useState('');
+  ],currentPhase:0,sessionNotes:''});
+  const {phases,currentPhase,sessionNotes}=state;
 
   const togglePhaseComplete = (id: string) => {
-    setPhases(prev => prev.map(phase =>
+    setState(prev => ({...prev,phases:prev.phases.map(phase =>
       phase.id === id ? { ...phase, completed: !phase.completed } : phase
-    ));
+    )}));
   };
 
   return (
@@ -34,13 +32,13 @@ export function GamePhases() {
           <h2 className="text-[#e8d4b8]">Fase Corrente</h2>
           <div className="flex gap-2">
             <button
-              onClick={() => setCurrentPhase(Math.max(0, currentPhase - 1))}
+              onClick={() => setState(prev=>({...prev,currentPhase:Math.max(0, prev.currentPhase - 1)}))}
               className="bg-[#4a0e0e] border border-[#6b1515] rounded px-3 py-1 text-[#e8d4b8] hover:bg-[#6b1515] transition-colors"
             >
               Precedente
             </button>
             <button
-              onClick={() => setCurrentPhase(Math.min(phases.length - 1, currentPhase + 1))}
+              onClick={() => setState(prev=>({...prev,currentPhase:Math.min(prev.phases.length - 1, prev.currentPhase + 1)}))}
               className="bg-[#4a0e0e] border border-[#6b1515] rounded px-3 py-1 text-[#e8d4b8] hover:bg-[#6b1515] transition-colors"
             >
               Successiva
@@ -97,7 +95,7 @@ export function GamePhases() {
         <h2 className="text-[#e8d4b8] mb-4">Note di Sessione</h2>
         <textarea
           value={sessionNotes}
-          onChange={(e) => setSessionNotes(e.target.value)}
+          onChange={(e) => setState(prev=>({...prev,sessionNotes:e.target.value}))}
           placeholder="Annotazioni sulla sessione di gioco..."
           className="w-full h-48 bg-[#2a0e0e] text-[#e8d4b8] border-2 border-[#4a0e0e] rounded-lg p-4 resize-none focus:border-[#6b1515] outline-none"
         />

@@ -5,6 +5,8 @@ const map=row=>({
  name:row.name,sheetData:row.sheet_data,status:row.status,
  createdAt:row.created_at,updatedAt:row.updated_at,
 });
+const assetUrl=(campaignId,assetId)=>assetId
+ ?`/vtt/campaigns/${campaignId}/visual-assets/${assetId}/content`:null;
 export function createPlayerCharacterService({pool}){
  if(typeof pool?.query!=='function')throw new TypeError('PostgreSQL pool required');
  return {
@@ -16,6 +18,8 @@ export function createPlayerCharacterService({pool}){
    return {campaigns:rows.map(r=>({
     id:r.id,ownerId:r.owner_id,name:r.name,description:r.description,
     ruleset:r.ruleset,createdAt:r.created_at,
+    logoUrl:assetUrl(r.id,r.logo_asset_id),
+    coverImageUrl:assetUrl(r.id,r.cover_asset_id),
    }))};
   },
   async list(playerId,campaignId){

@@ -1,0 +1,22 @@
+# Opt-in for OAuth on the isolated staging API only. Combine with
+# compose.auth-staging.yaml, compose.auth-trial.yaml and the mandatory
+# compose.staging-db-role.yaml after applying 036 and 037 to
+# hollowgate_auth_test and verifying HTTPS + protected callbacks.
+# Never add this overlay to the public/production API compose project.
+services:
+  aruba-auth-staging:
+    environment:
+      AUTH_OAUTH_ENABLED: "true"
+      GOOGLE_OAUTH_CLIENT_ID: ${HG_STAGING_GOOGLE_CLIENT_ID:?Set the staging Google client ID privately on the VPS}
+      DISCORD_OAUTH_CLIENT_ID: ${HG_STAGING_DISCORD_CLIENT_ID:?Set the staging Discord client ID privately on the VPS}
+      GOOGLE_OAUTH_CLIENT_SECRET_FILE: /run/secrets/staging_google_oauth_secret
+      DISCORD_OAUTH_CLIENT_SECRET_FILE: /run/secrets/staging_discord_oauth_secret
+    secrets:
+      - staging_google_oauth_secret
+      - staging_discord_oauth_secret
+
+secrets:
+  staging_google_oauth_secret:
+    file: /opt/hollowgate/config/staging_google_oauth_secret
+  staging_discord_oauth_secret:
+    file: /opt/hollowgate/config/staging_discord_oauth_secret

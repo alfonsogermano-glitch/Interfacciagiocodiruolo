@@ -1,5 +1,6 @@
 import {CampaignRejected} from './campaign-service.mjs';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MAX_RICH_CONTENT_BYTES=1024*1024;
 const safeId=(id,field)=>{if(typeof id!=='string'||!UUID.test(id))throw new CampaignRejected(field+' non valido',400);return id;};
 const mapped=row=>({
  id:row.id,tab_name:row.tab_name,content:row.content,content_rich:row.content_rich,
@@ -38,7 +39,7 @@ export function createEntityNotesService({pool}){
    typeof body.tabName!=='string'||body.tabName.trim().length<1||body.tabName.trim().length>120||
    typeof body.content!=='string'||Buffer.byteLength(body.content,'utf8')>32768||
    (body.contentRich!==null&&(typeof body.contentRich!=='object'||Array.isArray(body.contentRich)||
-     Buffer.byteLength(JSON.stringify(body.contentRich),'utf8')>49152))||
+      Buffer.byteLength(JSON.stringify(body.contentRich),'utf8')>MAX_RICH_CONTENT_BYTES))||
    !Number.isInteger(body.position)||body.position<0||body.position>10000||
    typeof body.hidden!=='boolean'||!['all','private'].includes(body.visibility))
    throw new CampaignRejected('Dati nota non validi',400);

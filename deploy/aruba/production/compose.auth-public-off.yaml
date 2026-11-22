@@ -1,0 +1,7 @@
+# Phase-2 runtime rollback: preserve production core image and Caddy network.
+# Does not undo SQL or accounts already created while public signup was on.
+services:
+  aruba-api:
+    environment:
+      AUTH_SIGNUP_ENABLED: "false"
+      AUTH_OAUTH_ENABLED: "false"

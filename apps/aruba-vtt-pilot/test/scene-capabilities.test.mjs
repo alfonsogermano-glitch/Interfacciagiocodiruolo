@@ -8,20 +8,25 @@ test('original Chapters and Scenes capabilities are exposed only when backend au
  const data=payload();
  data.capabilities.chapters={read:true,write:true};
  data.capabilities.scenes={read:true,write:true};
+ data.capabilities.narrativeContent={read:true,write:true};
  const user=validateBootstrap(data);
  assert.equal(user.chaptersEnabled,true);
  assert.equal(user.scenesEnabled,true);
+ assert.equal(user.narrativeContentEnabled,true);
 });
 test('Scenes cannot be advertised without Chapters and both require campaigns',()=>{
  for(const mutate of [
   d=>{d.capabilities.scenes={read:true,write:true};},
   d=>{d.capabilities.chapters={read:true,write:false};},
   d=>{d.capabilities.chapters={read:true,write:true};d.capabilities.campaigns={read:false,write:false};},
-  d=>{d.capabilities.chapters={read:true,write:true};d.capabilities.scenes={read:true,write:false};},
+   d=>{d.capabilities.chapters={read:true,write:true};d.capabilities.scenes={read:true,write:false};},
+   d=>{d.capabilities.narrativeContent={read:true,write:true};},
+   d=>{d.capabilities.chapters={read:true,write:true};d.capabilities.scenes={read:true,write:true};d.capabilities.narrativeContent={read:true,write:false};},
  ]){const data=payload();mutate(data);assert.throws(()=>validateBootstrap(data),/Funzionalità non autorizzate/);}
 });
 test('legacy staging bootstrap remains explicitly disabled for both features',()=>{
  const user=validateBootstrap(payload());
  assert.equal(user.chaptersEnabled,false);
  assert.equal(user.scenesEnabled,false);
+ assert.equal(user.narrativeContentEnabled,false);
 });

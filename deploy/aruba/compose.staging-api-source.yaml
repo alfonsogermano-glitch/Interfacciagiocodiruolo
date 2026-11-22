@@ -1,0 +1,10 @@
+# Build only the disposable staging API from an isolated source bundle.
+# Never replace /opt/hollowgate/aruba-source: the current Caddyfile and
+# auth-web files in that tree also serve the production hostnames.
+services:
+  aruba-auth-staging:
+    build:
+      context: /opt/hollowgate/staging-trial/api
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m

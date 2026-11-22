@@ -6,14 +6,16 @@ import {
  type QuickRollEntry,
 } from '../../../src/app/components/session/dice/diceQuickRollState.ts';
 import type {RollResult} from '../../../src/app/components/session/dice/diceTypes.ts';
+import {publishArubaRoll} from './ArubaChatDiceSession';
+import {saveRollEntry} from './ArubaChatService';
 
 const SIDES=[4,6,8,10,12,20,100] as const;
 const MAX_SELECTED=1000;
 
 /** Real legacy game rule engine; private browser-session preview until host transport is ready.
  * No fabricated server history or shared roll announcements. */
-export function ArubaQuickDice({campaignId,userId,rollerName}:{
- campaignId:string;userId:string;rollerName:string;
+export function ArubaQuickDice({campaignId,userId,rollerName,chatEnabled}:{
+ campaignId:string;userId:string;rollerName:string;chatEnabled:boolean;
 }){
  const [entries,setEntries]=useState<QuickRollEntry[]>([]);
  const [paletteOpen,setPaletteOpen]=useState(false);
@@ -47,7 +49,9 @@ export function ArubaQuickDice({campaignId,userId,rollerName}:{
     identity:{campaignId,rollerId:userId,rollerName},
     request:{items:buildQuickRollItems(entries,[]),formulaName:'',visibility:'public'},
    });
-   setHistory(current=>[result,...current].slice(0,20));
+    setHistory(current=>[result,...current].slice(0,20));
+    publishArubaRoll(result);
+    if(chatEnabled)void saveRollEntry(result);
    if(!historyOpen)setUnread(true);
    setEntries(clearQuickRoll());
    setPaletteOpen(false);

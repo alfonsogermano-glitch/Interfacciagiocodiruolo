@@ -113,7 +113,7 @@ test('original SessionWorkspace revokes shared map state when campaign context u
  assert.match(original,/return \(\) => resetSessionMapRuntime\(\)/);
  assert.match(original,/\[campaignId, currentUserId\]/);
  assert.match(original,/setSessionMapCurrentUserId\(currentUserId\)/);
- assert.match(original,/useActiveScene\(campaignId\)/);
+  assert.match(original,/useActiveScene\(campaignId, \{ owner: isOwner \}\)/);
  assert.match(original,/useCampaignChannel\(campaignId/);
  assert.match(store,/export function resetSessionMapRuntime\(\)/);
 });
@@ -163,7 +163,7 @@ test('shipping original Noir navigation has generated utilities, scoped tokens a
  assert.match(css,/\.workspace\[data-dashboard-palette="noir"\]/);
  assert.match(css,/--dash-sidebar-bg:#10100e/);
  assert.match(css,/height:100vh;min-height:0;overflow:hidden/);
- assert.match(main,/className="workspace" data-dashboard-palette="noir"/);
+ assert.match(main,/<AppShell className="workspace" settings=\{\{language:'it',palette:'noir',saveMode:'cloud'\}\}/);
  assert.match(main,/<LeftSidebar/);
  assert.match(main,/<ArubaGmSectionSidebar/);
 });
@@ -175,11 +175,37 @@ test('shipping original TopBar is isolated from Supabase and uses real Aruba ide
  assert.match(main,/<ArubaTopBarQaIdentity user=\{\{id:user.id/);
  assert.match(main,/<TopBar activeSection=\{section\}/);
  assert.match(main,/onLogout=\{\(\)=>\{if\(!closing\)void logout\(\);\}\}/);
- assert.match(main,/onOpenSettings=\{\(\)=>setTopbarNotice/);
+  assert.match(main,/onOpenSettings=\{\(\)=>\{void openAccountSettings\(\);\}\}/);
  assert.match(vite,/aruba-original-topbar-production-isolation/);
  for(const dependency of ['AuthContext','NotificationsContext','CampaignContext','charactersService'])
   assert.ok(vite.includes(dependency));
  assert.doesNotMatch(main,/<header className="topbar">/);
+});
+
+test('shipping map tools activate only for owner SessionWorkspace with Aruba documents',()=>{
+ const main=read('../src/main.tsx');
+ const shell=read('../../../src/app/layout/AppShell.tsx');
+ const workspace=read('../src/ArubaOriginalSessionWorkspace.tsx');
+ const channel=read('../src/ArubaSessionCampaignChannel.ts');
+ assert.match(main,/const ownerSessionWorkspaceActive=section==='map'&&activeCampaignOwned&&user\.campaignDocumentsEnabled;/);
+ assert.match(main,/contentAsMain=\{!ownerSessionWorkspaceActive\}/);
+ assert.match(main,/contentAsMain=\{!ownerSessionWorkspaceActive\} stableContentNode/);
+ assert.match(main,/sessionWorkspaceActive=\{ownerSessionWorkspaceActive\}/);
+ assert.match(main,/activeCampaignOwned&&user\.campaignDocumentsEnabled&&\s*<ArubaOriginalSessionWorkspace/);
+ assert.match(workspace,/<SessionWorkspace/);
+ assert.match(workspace,/isOwner currentUserId=\{userId\}/);
+  assert.match(channel,/subscribeCampaignChannel\(campaignId/);
+  assert.match(channel,/setIsReady\(false\)/);
+ assert.doesNotMatch(channel,/WebSocket|supabase|localStorage/i);
+});
+
+test('AppShell keeps a single main landmark when the mounted session owns it',()=>{
+ const shell=read('../../../src/app/layout/AppShell.tsx');
+ assert.match(shell,/contentAsMain\?: boolean/);
+ assert.match(shell,/contentAsMain = true/);
+ assert.ok(shell.includes('contentAsMain ? ('));
+ assert.ok(shell.includes('<main className={`flex-1 overflow-y-auto bg-[var(--dash-bg)] ${contentClassName}`.trim()}>{children}</main>'));
+ assert.ok(shell.includes('<div className={`flex-1 overflow-y-auto bg-[var(--dash-bg)] ${contentClassName}`.trim()}>{children}</div>'));
 });
 
 test('production Vite TopBar isolation plugin remains valid JavaScript',async()=>{

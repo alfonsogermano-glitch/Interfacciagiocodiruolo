@@ -1,0 +1,20 @@
+# Cloudflare outbound connector for the production public hostnames.
+# The token is provisioned out-of-band and must never enter the repository.
+name: hollowgate-cloudflare
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: hollowgate-cloudflared
+    restart: unless-stopped
+    network_mode: host
+    user: "0:0"
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - /opt/hollowgate/cloudflared/token:/run/secrets/cloudflare-tunnel-token:ro
+    command:
+      - tunnel
+      - --no-autoupdate
+      - run
+      - --token-file
+      - /run/secrets/cloudflare-tunnel-token

@@ -14,7 +14,7 @@ export class PasswordActionRejected extends Error {
 }
 
 export function createPasswordResetService({
-  pool, mailer, hmacKey, now = () => new Date(),
+  pool, mailer, hmacKey, baseUrl = 'https://staging.hollowgate.quest', now = () => new Date(),
   issueToken = () => randomBytes(32).toString('base64url'),
   hashNewPassword = hashPassword,
 }) {
@@ -51,17 +51,18 @@ export function createPasswordResetService({
     if (limited) return ACK;
 
     const found = await pool.query(
-      "SELECT id FROM hollowgate_auth.users WHERE email=$1 AND status='active' AND email_verified_at IS NOT NULL",
+      "SELECT id,status FROM hollowgate_auth.users WHERE email=$1 AND ((status='active' AND email_verified_at IS NOT NULL) OR status='pending_reset')",
       [address]);
     if (found.rowCount !== 1) return ACK;
     const token = issueToken();
     if (!TOKEN_REGEX.test(token)) throw new TypeError('Invalid token generator');
     const digest = createHash('sha256').update(token).digest();
+    const purpose=found.rows[0]?.status==='pending_reset'?'password_setup':'password_reset';
     await pool.query(
       "INSERT INTO hollowgate_auth.password_actions (user_id,purpose,token_hash,expires_at) " +
-      "VALUES ($1,'password_reset',$2,$3)",
-      [found.rows[0].id,digest,new Date(now().getTime()+30*60*1000)]);
-    const body = createPasswordActionEmail({purpose:'password_reset',token});
+      "VALUES ($1,$2,$3,$4)",
+      [found.rows[0].id,purpose,digest,new Date(now().getTime()+30*60*1000)]);
+    const body = createPasswordActionEmail({purpose,token,baseUrl});
     try {
       await mailer.send({to:address,subject:body.subject,text:body.text,
         idempotencyKey:'pwreset_'+randomUUID().replaceAll('-','')});
@@ -82,10 +83,11 @@ export function createPasswordResetService({
       await client.query('BEGIN');
       const claim = await client.query(
         "UPDATE hollowgate_auth.password_actions p SET consumed_at=now() " +
-        "WHERE p.token_hash=$1 AND p.purpose='password_reset' AND p.consumed_at IS NULL " +
+        "WHERE p.token_hash=$1 AND p.purpose IN ('password_reset','password_setup') AND p.consumed_at IS NULL " +
         "AND p.expires_at > now() AND EXISTS " +
         "(SELECT 1 FROM hollowgate_auth.users u WHERE u.id=p.user_id " +
-        "AND u.status='active' AND u.email_verified_at IS NOT NULL) RETURNING p.user_id",
+        "AND ((p.purpose='password_reset' AND u.status='active' AND u.email_verified_at IS NOT NULL) " +
+        "OR (p.purpose='password_setup' AND u.status='pending_reset'))) RETURNING p.user_id,p.purpose",
         [digest]);
       if (claim.rowCount !== 1) throw new PasswordActionRejected();
       const id=claim.rows[0].user_id;
@@ -93,6 +95,8 @@ export function createPasswordResetService({
         "INSERT INTO hollowgate_auth.password_credentials (user_id,password_hash) VALUES ($1,$2) " +
         "ON CONFLICT (user_id) DO UPDATE SET password_hash=EXCLUDED.password_hash,changed_at=now()",
         [id,encoded]);
+      if(claim.rows[0].purpose==='password_setup')await client.query(
+        "SELECT hollowgate_auth.activate_pending_reset_user($1)",[id]);
       await client.query(
         "UPDATE hollowgate_auth.sessions SET revoked_at=now() WHERE user_id=$1 AND revoked_at IS NULL",
         [id]);

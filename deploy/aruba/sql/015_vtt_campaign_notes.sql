@@ -8,7 +8,7 @@ CREATE TABLE hollowgate_vtt.campaign_notes (
  parent_note_id uuid REFERENCES hollowgate_vtt.campaign_notes(id) ON DELETE RESTRICT,
  title text NOT NULL CHECK(length(btrim(title)) BETWEEN 1 AND 120),
  content_rich jsonb CHECK(content_rich IS NULL OR
-  (jsonb_typeof(content_rich)='object' AND octet_length(content_rich::text)<=49152)),
+  (jsonb_typeof(content_rich)='object' AND octet_length(content_rich::text)<=1048576)),
  position integer NOT NULL DEFAULT 0 CHECK(position BETWEEN 0 AND 10000),
  visibility text NOT NULL DEFAULT 'private' CHECK(visibility IN ('private','all')),
  status text NOT NULL DEFAULT 'active' CHECK(status IN ('active','archived')),
@@ -63,7 +63,7 @@ RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_tem
 DECLARE v_id uuid;
 BEGIN
  IF p_title IS NULL OR length(btrim(p_title)) NOT BETWEEN 1 AND 120
- OR (p_rich IS NOT NULL AND (jsonb_typeof(p_rich)<>'object' OR octet_length(p_rich::text)>49152))
+  OR (p_rich IS NOT NULL AND (jsonb_typeof(p_rich)<>'object' OR octet_length(p_rich::text)>1048576))
  OR p_position IS NULL OR p_position NOT BETWEEN 0 AND 10000
  OR p_visibility IS NULL OR p_visibility NOT IN ('private','all') THEN
   RAISE EXCEPTION 'Invalid campaign note' USING ERRCODE='22023';END IF;

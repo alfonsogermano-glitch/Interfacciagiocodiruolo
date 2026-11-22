@@ -65,6 +65,24 @@ test('static pages are self-contained, accessible and scrub URL token',()=>{
   assert.doesNotMatch(app,/localStorage|sessionStorage|console\.log|innerHTML/);
 });
 
+test('successful email verification keeps its action disabled and returns to login',()=>{
+  const app=readFileSync(new URL('../app.mjs',import.meta.url),'utf8');
+  assert.match(app,/await api\.verify\(route\.token\);\s*route\.token=null;\s*forms\.verify\.dataset\.completed='true'/);
+  assert.match(app,/finally\{button\.disabled=form\.dataset\.completed==='true';\}/);
+  assert.match(app,/notify\('Indirizzo email confermato\. Verrai reindirizzato al login\.'\)/);
+  assert.match(app,/window\.setTimeout\(\(\)=>window\.location\.replace\('\/login'\),2000\)/);
+});
+
+test('trial social buttons keep accessible labels with decorative provider icons',()=>{
+  const html=readFileSync(new URL('../index.trial.html',import.meta.url),'utf8');
+  const css=readFileSync(new URL('../styles.css',import.meta.url),'utf8');
+  for(const provider of ['google','discord']){
+    assert.match(html,new RegExp(`data-oauth-provider="${provider}"[^>]*><svg class="provider-icon ${provider}-icon"[^>]*aria-hidden="true"[^>]*>`));
+    assert.match(html,new RegExp(`<span>Continua con ${provider==='google'?'Google':'Discord'}</span></button>`));
+  }
+  assert.match(css,/\.social-auth button\{display:inline-flex;align-items:center/);
+});
+
 test('static staging preview cannot send browser API requests',()=>{
   const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
   const app=readFileSync(new URL('../app.mjs',import.meta.url),'utf8');

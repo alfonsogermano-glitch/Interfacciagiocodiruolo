@@ -1,0 +1,2 @@
+import {VisualAssetsManager} from '../../../src/app/components/gm/VisualAssetsManager';
+export function ArubaOriginalVisualAssets({campaignId,enabled}:{campaignId:string;enabled:boolean}){if(!enabled)return <div className="placeholder"><span className="placeholder-mark">✧</span><h2>Asset Grafici non disponibili</h2><p>Lo storage media Aruba è disabilitato; IndexedDB e Supabase non vengono utilizzati.</p></div>;return <section aria-label="Asset Grafici Aruba"><VisualAssetsManager campaignId={campaignId}/></section>;}

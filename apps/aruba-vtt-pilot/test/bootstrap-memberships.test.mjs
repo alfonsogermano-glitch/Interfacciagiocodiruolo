@@ -10,8 +10,12 @@ test('verified GM bootstrap is immutable and enables only owned campaign session
  assert.deepEqual(session.campaignMemberships,[{userId,campaignId,role:'gm'}]);
  assert.equal(Object.isFrozen(session.campaignMemberships),true);
 });
-test('malformed, duplicated and player-authored bootstrap memberships fail closed',()=>{
- for(const campaignMemberships of [undefined,[],[{userId,campaignId,role:'player'}],
+test('verified player bootstrap is accepted for joined campaign sessions',()=>{
+ const session=validateBootstrap({...data,campaignMemberships:[{userId,campaignId,role:'player'}]});
+ assert.deepEqual(session.campaignMemberships,[{userId,campaignId,role:'player'}]);
+});
+test('malformed, duplicated and unsupported bootstrap memberships fail closed',()=>{
+ for(const campaignMemberships of [undefined,[],[{userId,campaignId,role:'owner'}],
   [{userId:'00000000-0000-4000-8000-000000000003',campaignId,role:'gm'}],
   [data.campaignMemberships[0],data.campaignMemberships[0]]]){
   const candidate={...data,campaignMemberships};

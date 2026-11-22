@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "status": "verified",
+  "source": {
+    "npc": "src/services/supabase/entitiesService.ts",
+    "monster": "src/app/components/gm/monsters/monstersTypes.ts",
+    "view": "src/app/components/session/shared/EntityDetailView.tsx",
+    "arubaValidation": "apps/aruba-api/src/narrative-content-contract.mjs",
+    "arubaView": "apps/aruba-vtt-pilot/src/ArubaNarrativeDetailPanel.tsx"
+  },
+  "payloadRoundTrip": {
+    "storage": "narrative_content_documents.payload jsonb",
+    "npcFields": [
+      "id", "campaignId", "ruleset", "name", "role", "description", "personality", "secrets", "location",
+      "environmentId", "chapterId", "sceneId", "mapLocationId", "customLocationName", "freschezza", "maxFreschezza",
+      "caselleFrischezzaCruciali", "attacco", "difesa", "tratti", "trattiPersonalizzati", "azioniSpeciali",
+      "azioniSpecialiPersonalizzate", "puntoDebole", "d20Stats", "tags", "notes", "visibleToPlayers", "requestable",
+      "tokenColor", "tokenBackgroundColor", "tokenBorderStyle", "tokenBorderThickness", "tokenBorderLabel", "tokenBorderVisible",
+      "portraitAssetId", "portraitFrameAssetId", "portraitFrameRotationDegrees", "portraitFrameOffsetX", "portraitFrameOffsetY",
+      "portraitFrameScaleX", "portraitFrameScaleY", "coverImageScale", "coverCrop", "coverRotationDegrees", "frameRotation",
+      "frameRotationDegrees", "coverFrameOffsetX", "coverFrameOffsetY", "coverFrameScaleX", "coverFrameScaleY", "coverFrameAssetId",
+      "tabOrder", "createdAt", "updatedAt", "ownerProfileId", "folderId"
+    ],
+    "monsterFields": [
+      "id", "campaignId", "ruleset", "baseMonsterId", "chapterId", "environmentId", "mapLocationId", "customLocationName",
+      "name", "description", "portraitAssetId", "tokenColor", "tokenBackgroundColor", "tokenBorderStyle", "tokenBorderThickness",
+      "tokenBorderLabel", "tokenBorderVisible", "portraitCrop", "portraitFrameAssetId", "portraitFrameRotationDegrees",
+      "portraitFrameOffsetX", "portraitFrameOffsetY", "portraitFrameScaleX", "portraitFrameScaleY", "portraitRotationDegrees",
+      "coverImageScale", "coverCrop", "coverRotationDegrees", "frameRotation", "frameRotationDegrees", "coverFrameOffsetX",
+      "coverFrameOffsetY", "coverFrameScaleX", "coverFrameScaleY", "coverFrameAssetId", "freschezza", "maxFreschezza", "audacia",
+      "caselleFreschezzaCritiche", "attacco", "difesa", "tiroFollia", "traitIds", "customTraits", "specialActionIds",
+      "customSpecialActions", "puntoDebole", "notes", "isCustom", "d20Stats", "ownerProfileId", "createdAt", "updatedAt"
+    ]
+  },
+  "blockedWriteBoundaries": [
+    {
+      "id": "binary-images",
+      "state": "browser-postgres-http-verified",
+      "fields": ["portraitImageUrl", "portraitSourceImageUrl", "coverImageUrl", "imageUrl"],
+      "reason": "The API accepts only same-campaign authenticated visual-asset content URLs; SQL resolves every URL to an existing Aruba visual asset and rejects inline, remote, missing or cross-campaign media. Real Chromium through the shipping PNG and Monster details uploads separate source, cropped portrait and cover assets, persists authenticated references, closes, reopens and renders from PostgreSQL."
+    },
+    {
+      "id": "referenced-visual-assets",
+      "state": "browser-postgres-http-verified",
+      "fields": ["portraitAssetId", "portraitFrameAssetId", "coverFrameAssetId"],
+      "reason": "SQL requires portrait/frame IDs in the same campaign visual-assets table and a trigger blocks deletion while any narrative payload references the asset. Real Chromium verifies PNG and Monster portraitAssetId plus portrait and cover frame selection, close and PostgreSQL reload."
+    },
+    {
+      "id": "custom-entity-notes",
+      "state": "browser-postgres-http-verified",
+      "fields": ["tabOrder"],
+      "reason": "Dedicated owner-scoped PostgreSQL persistence and a default-off authenticated capability cover PNG/Monster root tabs, one nested subtab level, TipTap JSON, ordering, visibility, serialized writes and reversible archive. Disposable PostgreSQL 17 plus real HTTP handler/client transport verifies reload, owner/player isolation and CSRF; real Chromium through the shipping Vite pilot verifies PNG detail, tab creation, TipTap save, close, reopen and persisted content. Aruba staging evidence remains missing."
+    },
+    {
+      "id": "chapter-scene-placement",
+      "state": "browser-postgres-http-verified",
+      "fields": ["chapterId", "sceneId"],
+      "reason": "The API rejects malformed placement, requires a Chapter for every Scene, and PostgreSQL verifies same-campaign Chapter/Scene ownership, cross-Chapter Scene rejection and referenced deletion protection. Real Chromium through the shipping PNG detail selects and persists a same-campaign Chapter, closes, reopens and reloads it from PostgreSQL. Real Chromium through the original Chapter/Scene content surface assigns a Monster to a real Scene, reads the exact chapterId/sceneId back from PostgreSQL, survives a full browser reload and returns the entity to Chapter scope on removal."
+    },
+    {
+      "id": "semantic-field-validation",
+      "state": "browser-postgres-http-verified",
+      "fields": ["d20Stats", "customTraits", "customSpecialActions", "coverCrop", "portraitCrop"],
+      "reason": "The API validates original UUID references, rulesets, scalar types and bounds, difficulties, freshness boxes, string arrays, d20 stats, crop objects and custom monster entries before SQL. Real Chromium through the shipping detail verifies a serialized original PNG role-field write, close and PostgreSQL-backed reload together with TipTap persistence; a real dnd5e campaign proves the original D20 block edit and reload; monster custom trait and custom special action entries persist through the original editors; a real cover drag persists coverCrop while a pre-existing portraitCrop survives the browser round-trip. All five complex semantic fields now have browser round-trip coverage."
+    }
+  ],
+  "failClosedReferences": {
+    "fields": ["environmentId", "mapLocationId", "folderId"],
+    "evidence": "Aruba has no authoritative Environment, map-location or narrative-folder table. The narrative API rejects any non-null value with 'Collocazione non ancora supportata su Aruba', SQL rejects the same references, and the isolated detail renders the Luogo selector disabled with an explicit unavailable message. No write path accepts these fields."
+  },
+  "activationPolicy": {
+    "allowWrite": true,
+    "requiresAllBlockedBoundariesResolved": true,
+    "requiresRealPostgres": true,
+    "requiresBrowserRoundTrip": true
+  }
+}

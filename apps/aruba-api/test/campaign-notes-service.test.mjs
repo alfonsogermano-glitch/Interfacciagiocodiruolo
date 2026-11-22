@@ -39,7 +39,7 @@ test('campaign notes reject malformed identity, injected fields, oversized TipTa
  await assert.rejects(()=>notes.create(owner,campaign,{title:'OK',parentId:null}),e=>e.status===404);
  const payload={title:'OK',contentRich:{type:'doc'},position:0,visibility:'private'};
  await assert.rejects(()=>notes.save(owner,campaign,child,{...payload,ownerId:owner}),e=>e.status===400);
- await assert.rejects(()=>notes.save(owner,campaign,child,{...payload,contentRich:{text:'x'.repeat(50000)}}),e=>e.status===400);
+  await assert.rejects(()=>notes.save(owner,campaign,child,{...payload,contentRich:{text:'x'.repeat(1024*1024+1)}}),e=>e.status===400);
  await assert.rejects(()=>notes.save(owner,campaign,child,payload),e=>e.status===404);
  await assert.rejects(()=>notes.archive(owner,campaign,child),e=>e.status===404);
 });

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {loadPilotSession,logoutPilot,validateBootstrap,validateCampaign,listOwnedCampaigns,createOwnedCampaign,updateOwnedCampaign,listCharacterDrafts,createCharacterDraft,validateCharacterDraft,saveFullCharacterSheet,archiveOwnedCharacter} from '../src/client.mjs';
+import {loadPilotSession,logoutPilot,validateBootstrap,validateCampaign,listOwnedCampaigns,createOwnedCampaign,updateOwnedCampaign,setCampaignBranding,listCharacterDrafts,createCharacterDraft,validateCharacterDraft,saveFullCharacterSheet,archiveOwnedCharacter} from '../src/client.mjs';
 const user={id:'971e26ae-eecb-4f37-ad03-56b0c3000789',email:'tester@example.org',displayName:'Tester',role:'standard'};
 const caps=enabled=>({campaigns:{read:enabled,write:enabled},characters:{read:false,write:false},gameSession:false});
 const sample={id:'be2f1a87-b8ee-4b34-9da0-07efda11379a',ownerId:user.id,name:'Storia',description:'',ruleset:'hsc',createdAt:'2026-11-11'};
@@ -85,18 +85,21 @@ test('Aruba pilot preserves the original Hollowgate left/right rail positions',(
  assert.match(code,/id:'monsters',label:'Mostri',Icon:GhostIcon/);
  assert.match(code,/<LeftSidebar/);
  assert.match(code,/<ArubaGmSectionSidebar/);
- assert.ok(code.indexOf('<LeftSidebar')<code.indexOf('className="main-area"'));
- assert.ok(code.indexOf('className="main-area"')<code.indexOf('<ArubaGmSectionSidebar'));
+ assert.match(code,/<AppShell className="workspace"/);
+ assert.match(code,/mainAreaClassName="main-area" workspaceRowClassName="main-workspace-row"/);
+ assert.ok(code.indexOf('<LeftSidebar')<code.indexOf('<ArubaGmSectionSidebar'));
  assert.match(css,/\.primary-sidebar\{width:100px/);
  assert.match(css,/\.gm-sidebar\{width:80px/);
  assert.doesNotMatch(code,/from ['"](?:@supabase\/supabase-js|lucide-react)['"]/);
 });
 
-test('campaign selection is only offered for Aruba-owned campaigns already returned by the API',()=>{
+test('campaign selection is only offered for Aruba-authorized owned or joined campaigns',()=>{
  const code=readFileSync(new URL('../src/main.tsx',import.meta.url),'utf8');
- assert.match(code,/campaigns\.some\(c=>c\.id===id&&c\.ownerId===user\.id\)/);
- assert.match(code,/activeCampaign=user\?\.campaignsEnabled\?campaigns\.find\(c=>c\.id===activeCampaignId&&c\.ownerId===user\.id\)/);
- assert.match(code,/setActiveCampaignId\(id=>result\.some\(c=>c\.id===id\)\?id:null\)/);
+ assert.match(code,/availableCampaigns\.some\(c=>c\.id===id\)/);
+ assert.match(code,/listJoinedPlayerCampaigns\(fetcher\)/);
+ assert.match(code,/availableCampaigns\.find\(c=>c\.id===activeCampaignId\)/);
+ assert.match(code,/setActiveCampaignId\(id=>\[\.\.\.owned,\.\.\.joined\]\.some\(c=>c\.id===id\)\?id:null\)/);
+ assert.match(code,/activeCampaignOwned=!!\(user&&activeCampaign&&activeCampaign\.ownerId===user\.id/);
  assert.match(code,/onSelectCampaign=\{campaign=>openCampaign\(campaign\.id\)\}/);
  assert.match(code,/onSelectCampaign=\{campaign=>openCampaign\(campaign\.id\)\}/);
  assert.doesNotMatch(code,/localStorage|sessionStorage/);
@@ -117,18 +120,34 @@ test('campaign edit calls PATCH with only editable fields and rejects forged res
   sample.id,{name:'X',description:''},user.id),/autorizzata/);
 });
 
+test('home overview follows the original HomeScreen geometry without an empty right rail',()=>{
+ const code=readFileSync(new URL('../src/main.tsx',import.meta.url),'utf8');
+ const css=readFileSync(new URL('../src/styles.css',import.meta.url),'utf8');
+ const vite=readFileSync(new URL('../vite.config.mjs',import.meta.url),'utf8');
+ assert.match(code,/contentClassName=\{`content\$\{section==='home'\?' home-content':''\}`\}/);
+ assert.match(vite,/src="\/vtt\/hollowgate-logo\.png"/);
+ assert.match(vite,/src="\/vtt\/icon-source-1024\.png"/);
+ assert.match(code,/className="home-hero"/);
+ assert.match(code,/className="home-section-heading"/);
+ assert.match(code,/import \{CampaignBannerDisplay\} from '\.\.\/\.\.\/\.\.\/src\/app\/components\/shared\/CampaignBannerDisplay'/);
+ assert.match(code,/<CampaignBannerDisplay campaign=\{recent\} size="compact"\/>/);
+ assert.match(code,/campaign=\{availableCampaigns\[0\]\?\?null\}/);
+ assert.match(css,/\.home-content>\.home-section\{margin-top:56px\}/);
+ assert.match(css,/\.home-content \.quick-card h3\{[^}]*font-size:18px/);
+ assert.match(css,/\.home-content \.quick-card-icon\{[^}]*width:36px;height:36px;margin-bottom:16px/);
+ assert.match(css,/@media\(max-width:639px\)\{[\s\S]*\.home-content \.quick-grid\{grid-template-columns:1fr\}/);
+ assert.match(code,/activeCampaignOwned&&\(gmMenu\.some\(item=>item\.id===section\)\|\|section==='campaigns'\)/);
+ assert.doesNotMatch(code,/section!=='characters'&&<ArubaGmSectionSidebar/);
+});
+
 test('right GM sidebar starts beneath the full-width top bar, as in original AppShell',()=>{
  const code=readFileSync(new URL('../src/main.tsx',import.meta.url),'utf8');
  const css=readFileSync(new URL('../src/styles.css',import.meta.url),'utf8');
  const shell=readFileSync(new URL('../../../src/app/layout/AppShell.tsx',import.meta.url),'utf8');
- assert.match(shell,/\{topbar\}[\s\S]*className="flex flex-1 overflow-hidden"[\s\S]*\{rightSidebar\}/);
- const mainStart=code.indexOf('<div className="main-area">');
- const header=code.indexOf('<TopBar activeSection={section}',mainStart);
- const row=code.indexOf('<div className="main-workspace-row">',header);
- const content=code.indexOf('<main className="content">',row);
- const sidebar=code.indexOf('<ArubaGmSectionSidebar',content);
- assert.ok(mainStart>=0&&header>mainStart&&row>header&&content>row&&sidebar>content);
- assert.ok(code.indexOf('</ArubaTopBarQaIdentity>',header)<row);
+  assert.match(shell,/\{topbar\}[\s\S]*workspaceRowClassName[\s\S]*\{rightSidebar\}/);
+  assert.match(code,/mainAreaClassName="main-area" workspaceRowClassName="main-workspace-row"/);
+  assert.match(code,/contentClassName=\{`content\$\{section==='home'\?' home-content':''\}`\}/);
+  assert.ok(code.indexOf('topbar={<')<code.indexOf('rightSidebar={'));
  assert.match(css,/\.main-area\{[^}]*display:flex;flex-direction:column/);
  assert.match(css,/\.main-workspace-row\{[^}]*display:flex;flex:1/);
  assert.match(css,/\.main-workspace-row>\.gm-sidebar\{height:100%/);
@@ -140,7 +159,7 @@ test('Aruba session reuses the ORIGINAL dice game engine and quick-roll state wi
  const main=readFileSync(new URL('../src/main.tsx',import.meta.url),'utf8');
  const src=readFileSync(new URL('../src/ArubaQuickDice.tsx',import.meta.url),'utf8');
  const engine=readFileSync(new URL('../../../src/app/components/session/dice/diceEngine.ts',import.meta.url),'utf8');
- assert.match(main,/section==='session'&&activeCampaign&&<ArubaQuickDice key=\{activeCampaign\.id\+':'\+user\.id\} campaignId=\{activeCampaign\.id\} userId=\{user\.id\}/);
+  assert.match(main,/\(section==='session'\|\|section==='map'\)&&activeCampaign&&<ArubaQuickDice key=\{activeCampaign\.id\+':'\+user\.id\} campaignId=\{activeCampaign\.id\} userId=\{user\.id\}/);
  assert.match(src,/import \{rollDiceFormula\} from '\.\.\/\.\.\/\.\.\/src\/app\/components\/session\/dice\/diceEngine\.ts'/);
  assert.match(src,/addStandardQuickDie,buildQuickRollItems,clearQuickRoll,decrementQuickDie/);
  assert.match(src,/identity:\{campaignId,rollerId:userId,rollerName\}/);
@@ -258,7 +277,7 @@ test('global character entry respects original three tabs and invokes wizard wit
  assert.match(character,/onClick=\{\(\)=>\{setError\(null\);setEditingId\(null\);setCreating\(true\);\}\}/);
  assert.doesNotMatch(character,/name="name" required maxLength=\{120\}/);
  assert.match(character,/createCharacterDraft\(fetch,campaignId,character\.name,ownerId\)/);
- assert.match(layout,/section!=='characters'&&<ArubaGmSectionSidebar/);
+  assert.match(layout,/activeCampaignOwned&&\(gmMenu\.some\(item=>item\.id===section\)\|\|section==='campaigns'\)\?<ArubaGmSectionSidebar/);
  assert.match(styles,/main-workspace-row>\.content:has\(\.aruba-character-library\)/);
 });
 
@@ -404,4 +423,80 @@ test('the original character detail keeps direct RichTextEditor tabs, not Campai
  assert.match(campaignNotes,/entityType: 'note'/);
  assert.doesNotMatch(vite,/code\.replace\(fromRich,replacement\)/);
  assert.doesNotMatch(vite,/import \{NoteSubTabs\} from '\.\/NoteSubTabs'/);
+});
+
+test('equipment catalog item images use the Aruba visual-asset store and stay capability gated',()=>{
+ const page=readFileSync(new URL('../src/ArubaEquipmentCatalog.tsx',import.meta.url),'utf8');
+ const main=readFileSync(new URL('../src/main.tsx',import.meta.url),'utf8');
+ assert.match(main,/<ArubaEquipmentCatalog key=\{activeCampaign\.id\} campaignId=\{activeCampaign\.id\} enabled=\{user\.equipmentCatalogEnabled\} assetsEnabled=\{user\.visualAssetsEnabled\}\/>/);
+ assert.match(page,/loadVisualAssetPreviews\(campaignId\)/);
+ assert.match(page,/asset\.type==='item-image'/);
+ assert.match(page,/visualAssetsStorage\.upsert\(asset\)/);
+ assert.match(page,/update\('imageAssetId',asset\.id\)/);
+ assert.doesNotMatch(page,/supabase|indexedDB|localStorage/i);
+});
+
+test('character image tab reuses original frames/cover UI with Aruba-only cover storage',()=>{
+ const page=readFileSync(new URL('../src/ArubaCharacterImageEditor.tsx',import.meta.url),'utf8');
+ const bridge=readFileSync(new URL('../src/ArubaCharacterDetailPanel.tsx',import.meta.url),'utf8');
+ const main=readFileSync(new URL('../src/main.tsx',import.meta.url),'utf8');
+ const vite=readFileSync(new URL('../vite.config.mjs',import.meta.url),'utf8');
+ const runtime=readFileSync(new URL('../src/ArubaImageRuntime.ts',import.meta.url),'utf8');
+ assert.match(page,/import \{EntityImageExtras\} from '\.\.\/\.\.\/\.\.\/src\/app\/components\/session\/shared\/EntityImageExtras'/);
+ assert.match(page,/<EntityImageExtras entity=\{visible\} campaignId=\{campaignId\} entityType="character"/);
+ assert.match(page,/DATA_IMAGE/);
+ assert.match(page,/type:'other'/);
+ assert.match(page,/visualAssetsStorage\.upsert\(asset\)/);
+ assert.match(page,/coverImageUrl:saved\.imageDataUrl/);
+ assert.doesNotMatch(page,/createClient|supabase\.from|indexedDB|localStorage/i);
+ assert.match(vite,/'\.\.\/\.\.\/\.\.\/auth\/AuthContext':entityImageRuntime/);
+ assert.match(vite,/'\.\.\/\.\.\/\.\.\/\.\.\/services\/storage\/visualAssetsStorage':'ArubaVisualAssetsStorage\.ts'/);
+ assert.match(vite,/'\.\.\/\.\.\/\.\.\/\.\.\/services\/storage\/contentAssets':entityImageRuntime/);
+ assert.match(bridge,/visualAssetsEnabled:boolean/);
+ assert.match(bridge,/<ArubaCharacterImageEditor entity=/);
+ assert.equal((main.match(/visualAssetsEnabled=\{user\.visualAssetsEnabled\}/g)??[]).length>=2,true);
+ assert.match(runtime,/export const isSupabaseConfigured = false/);
+ assert.match(runtime,/export const supabase = null/);
+ assert.match(runtime,/Archivio immagini legacy disabilitato su Aruba/);
+});
+
+test('campaigns page mirrors the original layout with Aruba data and disabled logo upload',()=>{
+ const page=readFileSync(new URL('../src/ArubaCampaignsPage.tsx',import.meta.url),'utf8');
+ const main=readFileSync(new URL('../src/main.tsx',import.meta.url),'utf8');
+ const css=readFileSync(new URL('../src/styles.css',import.meta.url),'utf8');
+ assert.match(main,/<ArubaCampaignsPage campaigns=\{availableCampaigns\} loading=\{campaignLoading\}/);
+ assert.doesNotMatch(main,/function CampaignList/);
+ assert.doesNotMatch(main,/Le tue campagne/);
+ assert.match(page,/h-\[156px\]/);
+ assert.match(page,/w-\[154px\]/);
+ assert.match(page,/import \{RulesetTag\} from '\.\.\/\.\.\/\.\.\/src\/app\/components\/shared\/RulesetTag'/);
+ assert.match(page,/VISIBLE_RULESETS/);
+ assert.match(page,/listOwnedCampaignRoster/);
+ assert.match(page,/listCharacterDrafts/);
+ assert.match(page,/listAssignedPlayerCharacters/);
+ assert.doesNotMatch(page,/onLogoUnavailable/);
+ assert.match(page,/disabled=\{!brandingEnabled\}/);
+ assert.doesNotMatch(page,/supabase|indexedDB|localStorage/i);
+ assert.match(css,/:has\(\.aruba-campaigns-page\)\{padding:24px\}/);
+});
+
+test('campaign branding validation accepts only same-campaign authenticated content URLs',async()=>{
+ const asset='12345678-1234-4123-8123-123456789abd';
+ const branded={id:'12345678-1234-4123-8123-123456789abc',ownerId:'12345678-1234-4123-8123-123456789abc',name:'Campaign',description:'',ruleset:'hsc',createdAt:'2026-11-14',logoUrl:'/vtt/campaigns/12345678-1234-4123-8123-123456789abc/visual-assets/'+asset+'/content',coverImageUrl:null};
+ assert.equal(validateCampaign(branded).logoUrl,'/vtt/campaigns/12345678-1234-4123-8123-123456789abc/visual-assets/'+asset+'/content');
+ assert.equal(validateCampaign(branded).coverImageUrl,null);
+ assert.throws(()=>validateCampaign({...branded,logoUrl:'https://evil.supabase.co/vtt/campaigns/x/visual-assets/y/content'}),/copertina/i);
+ assert.throws(()=>validateCampaign({...branded,coverImageUrl:'/vtt/campaigns/98765432-9876-4987-8987-987654321abc/visual-assets/'+asset+'/content'}),/copertina/i);
+});
+
+test('campaign branding update targets the owner-only Aruba branding endpoint',async()=>{
+ const id='12345678-1234-4123-8123-123456789abc';
+ const asset='12345678-1234-4123-8123-123456789abd';
+ const branded={id,ownerId:id,name:'Campaign',description:'',ruleset:'hsc',createdAt:'2026-11-14',logoUrl:'/vtt/campaigns/'+id+'/visual-assets/'+asset+'/content',coverImageUrl:null};
+ let sent;
+ const result=await setCampaignBranding(async(path,options)=>{sent={path,options};return {ok:true,json:async()=>({campaign:branded})};},id,{logoAssetId:asset,coverAssetId:null},id);
+ assert.equal(sent.path,'/vtt/campaigns/'+id+'/branding');
+ assert.equal(sent.options.method,'PUT');
+ assert.deepEqual(JSON.parse(sent.options.body),{logoAssetId:asset,coverAssetId:null});
+ assert.equal(result.id,id);
 });

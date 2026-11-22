@@ -52,6 +52,16 @@ export type InvitePreview = { campaignId: string; campaignName: string; ruleset:
 
 const CampaignContext = createContext<CampaignContextValue | null>(null);
 
+export function CampaignScopeOverride({campaign,children}:{campaign:Campaign;children:React.ReactNode}) {
+  const unavailable=async()=>{throw new Error('Operazione campagna non disponibile in questo contesto');};
+  const value=useMemo<CampaignContextValue>(()=>({campaigns:[campaign],joinedCampaigns:[],activeCampaign:campaign,
+   activeCampaignId:campaign.id,selectedCampaignId:campaign.id,isLoading:false,setActiveCampaign:()=>{},
+   createCampaign:unavailable,updateCampaign:unavailable,getCampaignEntityCounts:async()=>null,deleteCampaign:unavailable,
+   refreshCampaigns:async()=>{},refreshJoinedCampaigns:async()=>[],joinCampaignByCode:unavailable,
+   previewInviteCode:unavailable,generateInviteCode:unavailable,inviteByName:unavailable}),[campaign]);
+  return <CampaignContext.Provider value={value}>{children}</CampaignContext.Provider>;
+}
+
 // Fallback per retrocompatibilità con dati esistenti
 const LEGACY_CAMPAIGN_ID = '10000000-0000-0000-0000-000000000001';
 

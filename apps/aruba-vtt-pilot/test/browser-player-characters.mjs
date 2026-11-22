@@ -7,9 +7,17 @@ const campaign='f24f6bdd-a5f7-4521-aa16-bc0854dc5841';
 const owner='4a3465ec-47d7-4021-9f0d-e70da8cbd001';
 const player='4a3465ec-47d7-4021-9f0d-e70da8cbd002';
 const charId='d2344aae-20d0-4395-8039-49d0aa3657f9';
+const portraitFrameId='e2244c0b-4b67-45c2-901a-2b4d3f7c8c01';
+const coverFrameId='e2244c0b-4b67-45c2-901a-2b4d3f7c8c02';
+const coverAssetId='e2244c0b-4b67-45c2-901a-2b4d3f7c8c03';
+const coverUrl='/vtt/campaigns/'+campaign+'/visual-assets/'+coverAssetId+'/content';
+const thumbnail='data:image/png;base64,iVBORw0KGgo=';
+const pngPixel=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==','base64');
 const fixture={id:charId,campaignId:campaign,ownerId:owner,name:'Mara',
  status:'active',sheetData:{name:'Mara',style:'Jock',viaggio:'Campione',
  description:'Personaggio assegnato',
+ portraitFrameAssetId:portraitFrameId,coverFrameAssetId:coverFrameId,
+ coverImageUrl:coverUrl,
  ambiti:{Fisico:2,Scuola:1,Carisma:1,Strada:1},
  abilita:{Muscoli:1,Sport:1,Acrobatica:1,Resistenza:1,Freddezza:1,
  Cultura:1,Tecnologia:1,Studio:1,'Pronto Soccorso':1,Scienze:1,
@@ -23,6 +31,7 @@ const capabilities={
  characterAvailability:{read:true,write:true},
  characterAssignments:{read:true,write:true},
  playerCharacters:{read:true,write:false},
+ visualAssets:{read:true,write:true},
  entityNotes:{read:false,write:false},
  campaignNotes:{read:false,write:false},
  campaignNoteFolders:{read:false,write:false},
@@ -31,7 +40,8 @@ const capabilities={
 };
 let assigned=true;
 const portraitBase64=Buffer.from([255,216,255,224,0,16,74,70,73,70,0,1,255,217]).toString('base64');
-const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
+const browser=await chromium.launch({headless:true,args:['--no-sandbox'],
+ ...(process.env.HG_BROWSER_EXECUTABLE?{executablePath:process.env.HG_BROWSER_EXECUTABLE}:{})});
 try{
  const page=await browser.newPage({viewport:{width:1440,height:900}});
  const errors=[],requests=[];
@@ -50,6 +60,23 @@ try{
   else if(path==='/vtt/player-campaigns')payload={campaigns:[{
    id:campaign,ownerId:owner,name:'Campagna di prova',description:'Test giocatore',
    ruleset:'hsc',createdAt:'2026-11-12T00:00:00.000Z'}]};
+  else if(path==='/vtt/player-campaigns/'+campaign+'/visual-assets')
+   payload={items:assigned?[
+    {id:portraitFrameId,campaignId:campaign,name:'Cornice ritratto',type:'portrait-frame',
+     imageDataUrl:'',thumbnailDataUrl:thumbnail,createdAt:'2026-11-16T00:00:00.000Z'},
+    {id:coverFrameId,campaignId:campaign,name:'Cornice cover',type:'frame',
+     imageDataUrl:'',thumbnailDataUrl:thumbnail,createdAt:'2026-11-16T00:00:00.000Z'},
+    {id:coverAssetId,campaignId:campaign,name:'Copertina',type:'other',
+     imageDataUrl:'',thumbnailDataUrl:thumbnail,createdAt:'2026-11-16T00:00:00.000Z'},
+   ]:[]};
+  else if(path==='/vtt/campaigns/'+campaign+'/visual-assets/'+portraitFrameId+'/content'||
+          path==='/vtt/campaigns/'+campaign+'/visual-assets/'+coverFrameId+'/content'||
+          path==='/vtt/campaigns/'+campaign+'/visual-assets/'+coverAssetId+'/content'){
+   if(assigned)return route.fulfill({status:200,contentType:'image/png',
+    headers:{'cache-control':'private, max-age=300'},body:pngPixel});
+   return route.fulfill({status:404,contentType:'application/json',
+    headers:{'cache-control':'no-store'},body:JSON.stringify({error:'Revoked'})});
+  }
   else if(path==='/vtt/player-characters'&&url.searchParams.get('campaignId')===campaign)
    payload={characters:assigned?[fixture]:[]};
   else if(path==='/vtt/character-portrait/'+charId&&url.searchParams.get('campaignId')===campaign){
@@ -114,6 +141,19 @@ try{
  await image.getByRole('img',{name:'Ritratto di Mara'}).waitFor();
  assert.ok((await image.locator('img').first().getAttribute('src')).startsWith('data:image/jpeg;base64,'),
   'Original image display must use the current authenticated Aruba portrait');
+ // Referenced visual assets: the original portrait frame and CoverFrame are
+ // rendered read-only through authenticated content URLs, never bundled data.
+ const portraitFrame=image.locator('[data-aruba-readonly-frame="portrait"]');
+ await portraitFrame.waitFor();
+ assert.equal(await portraitFrame.getAttribute('src'),
+  '/vtt/campaigns/'+campaign+'/visual-assets/'+portraitFrameId+'/content');
+ const cover=image.locator('[data-aruba-readonly-cover-frame="true"]');
+ await cover.waitFor();
+ assert.equal(await cover.locator('img').count(),2,
+  'CoverFrame must render the cover image plus its authorized frame');
+ assert.equal(await cover.locator('img[alt="Illustrazione di Mara"]').getAttribute('src'),coverUrl);
+ assert.equal(await cover.locator('img[alt=""]').count(),1,
+  'Cover frame itself is decorative and unnamed');
  assert.equal(await image.locator('input, button, select, textarea').count(),0,
   'Player image preview must contain no editor controls');
  await rail.getByRole('button',{name:'Token'}).click();
@@ -135,6 +175,13 @@ try{
  await page.locator('[data-tab-id="summary"] button').first().click();
  assert.equal(requests.filter(x=>x.path==='/vtt/character-portrait/'+charId).length,1,
   'Exactly one read-only authorized portrait fetch per selected character');
+ assert.equal(requests.filter(x=>x.path==='/vtt/player-campaigns/'+campaign+'/visual-assets').length,1,
+  'Exactly one player-scoped referenced asset metadata fetch');
+ for(const id of [portraitFrameId,coverFrameId,coverAssetId])
+  assert.equal(requests.filter(x=>x.path==='/vtt/campaigns/'+campaign+'/visual-assets/'+id+'/content').length,1,
+   'Exactly one authenticated content read for referenced asset '+id);
+ assert.equal(requests.some(x=>x.path==='/vtt/campaigns/'+campaign+'/visual-assets'),false,
+  'Player must never query the owner visual asset list');
  assert.equal(requests.some(x=>x.path==='/vtt/characters'),false,
   'Player sheet must not use the GM character API');
  assert.equal(requests.some(x=>x.path.startsWith('/vtt/character-assignments')),false,
@@ -149,6 +196,8 @@ try{
  await page.locator('[data-entity-context="player-assigned-detail"]').waitFor({state:'detached'});
  assert.equal(await page.locator('img[src^="data:image/jpeg"]').count(),0,
   'Revoked media must not remain visible after the player panel closes');
+ assert.equal(await page.locator('[data-aruba-readonly-frame], [data-aruba-readonly-cover-frame]').count(),0,
+  'Revoked referenced frame assets must not remain in the DOM');
  assert.equal(await region.getByRole('button',{name:'Apri scheda assegnata di Mara'}).count(),0);
  // Revocation was read through a fresh player-only GET; never a GM endpoint.
  assert.ok(requests.filter(x=>x.path==='/vtt/player-characters').length>=3);

@@ -12,6 +12,10 @@ import {createCharacterService} from '../src/character-service.mjs';
 import {createCharacterAvailabilityService} from '../src/character-availability-service.mjs';
 import {createCampaignNotesService} from '../src/campaign-notes-service.mjs';
 import {createCampaignFoldersService} from '../src/campaign-folders-service.mjs';
+import {createChapterService} from '../src/chapter-service.mjs';
+import {createSceneService} from '../src/scene-service.mjs';
+import {createNarrativeContentService} from '../src/narrative-content-service.mjs';
+import {createNarrativeEntityNotesService} from '../src/narrative-entity-notes-service.mjs';
 import {
  listArubaCampaignNotes,createArubaCampaignNote,saveArubaCampaignNote,
  archiveArubaCampaignNote,listArubaCampaignTrash,restoreArubaCampaignTrashItem,
@@ -19,6 +23,10 @@ import {
 } from '../../aruba-vtt-pilot/src/campaign-notes-client.mjs';
 import {listArubaCampaignFolders,createArubaCampaignFolder}
  from '../../aruba-vtt-pilot/src/campaign-folders-client.mjs';
+import {saveArubaNarrativeContent} from '../../aruba-vtt-pilot/src/client.mjs';
+import {listArubaNarrativeEntityNotes,createArubaNarrativeEntityNote,
+ saveArubaNarrativeEntityNote,archiveArubaNarrativeEntityNote,setArubaNarrativeSubtabOrder}
+ from '../../aruba-vtt-pilot/src/entity-notes-client.mjs';
 
 const owner='4a3465ec-47d7-4021-9f0d-e70da8cbd001';
 const player='4a3465ec-47d7-4021-9f0d-e70da8cbd002';
@@ -51,6 +59,10 @@ try{
  const campaignRoster=createCampaignRosterService({pool});
  const notes=createCampaignNotesService({pool});
  const folders=createCampaignFoldersService({pool});
+ const chapters=createChapterService({pool});
+ const scenes=createSceneService({pool,chapters});
+ const narrativeContent=createNarrativeContentService({pool});
+ const narrativeEntityNotes=createNarrativeEntityNotesService({pool});
  server=createApp({checkDatabase:()=>runtime.query('SELECT 1'),
   authHandler:createAuthHttpHandler({
    origin:ORIGIN,login:async()=>{throw Error('Login fixture prohibited')},
@@ -58,7 +70,7 @@ try{
     const id=TOKENS.get(token);
     return id?{id,email:'qa@example.invalid',displayName:'QA'}:null;
    },revokeSession:async()=>{},campaigns,campaignRoster,characters,characterAvailability,campaignNotes:notes,
-   campaignFolders:folders,notesPanelEnabled:true,
+    campaignFolders:folders,notesPanelEnabled:true,chapters,scenes,narrativeContent,narrativeEntityNotes,
   })});
  server.listen(0,'127.0.0.1');
  await once(server,'listening');
@@ -80,6 +92,26 @@ try{
  }));
  const campaign=created.campaign.id;
  assert.match(campaign,/^[0-9a-f-]{36}$/);
+  assert.equal(bootstrap.capabilities.narrativeEntityNotes.read,true);
+  const npcId=crypto.randomUUID();
+  await saveArubaNarrativeContent(ownerFetch,campaign,'npcs',{id:npcId,campaignId:campaign,name:'Custode HTTP'});
+  const rootNarrative=await createArubaNarrativeEntityNote(ownerFetch,campaign,'npcs',npcId,'Segreti');
+  const childNarrative=await createArubaNarrativeEntityNote(ownerFetch,campaign,'npcs',npcId,'Dettaglio',rootNarrative.id);
+  const narrativeRich={type:'doc',content:[{type:'paragraph',content:[{type:'text',text:'PostgreSQL narrativo reale'}]}]};
+  await saveArubaNarrativeEntityNote(ownerFetch,campaign,'npcs',npcId,childNarrative.id,
+   {...childNarrative,content:'PostgreSQL narrativo reale',content_rich:narrativeRich});
+  const narrativeReload=await listArubaNarrativeEntityNotes(ownerFetch,campaign,'npcs',npcId,rootNarrative.id);
+  assert.deepEqual(narrativeReload[0].content_rich,narrativeRich);
+  await setArubaNarrativeSubtabOrder(ownerFetch,campaign,'npcs',npcId,rootNarrative.id,[childNarrative.id]);
+  const playerNarrative=await playerFetch('/vtt/narrative-entity-notes?'+new URLSearchParams({campaignId:campaign,kind:'npcs',entityId:npcId}));
+  assert.equal(playerNarrative.status,200);
+  assert.deepEqual((await playerNarrative.json()).notes,[]);
+  const narrativeCsrf=await fetch(base+'/vtt/narrative-entity-notes/'+childNarrative.id,{method:'DELETE',headers:{
+   'content-type':'application/json',cookie:'__Host-hg_session='+'A'.repeat(43),origin:'https://evil.invalid'},
+   body:JSON.stringify({campaignId:campaign,kind:'npcs',entityId:npcId})});
+  assert.equal(narrativeCsrf.status,403);
+  await archiveArubaNarrativeEntityNote(ownerFetch,campaign,'npcs',npcId,rootNarrative.id);
+  assert.equal((await listArubaNarrativeEntityNotes(ownerFetch,campaign,'npcs',npcId)).length,0);
  await admin.query('SELECT hollowgate_vtt.set_campaign_membership($1,$2,$3,$4,true)',
   [owner,campaign,player,'player']);
  // Real read-only roster over restricted SQL service/HTTP. No browser
@@ -200,7 +232,7 @@ try{
  assert.equal(forged.status,403);
  await changeArubaCampaignNoteScope(ownerFetch,campaign,root.id,'gm');
  assert.equal((await listArubaCampaignNotes(playerFetch,campaign)).some(n=>n.id===root.id),false);
- console.log('LIVE_PG_HTTP_NOTES_OK: roster SQL isolation, owner-only availability toggles, native API, persisted TipTap after reload, child and folder, restore private, GM/player isolation, CSRF.');
+  console.log('LIVE_PG_HTTP_NOTES_OK: narrative PNG tabs + roster SQL isolation, owner-only availability toggles, native API, persisted TipTap after reload, child and folder, restore private, GM/player isolation, CSRF.');
 }finally{
  if(server)await new Promise(resolve=>server.close(resolve));
  await runtime.end().catch(()=>{});

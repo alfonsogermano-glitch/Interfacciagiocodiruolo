@@ -1,0 +1,6 @@
+# Temporary opt-in for the isolated auth staging DB only, after SQL 033 + 037.
+# Never merge with the production Compose project.
+services:
+  aruba-auth-staging:
+    environment:
+      AUTH_VTT_CAMPAIGN_INVITES_ENABLED: "true"

@@ -4,6 +4,8 @@ import { readFileSync } from 'node:fs';
 
 const index = readFileSync(new URL('../src/index.mjs', import.meta.url),'utf8');
 const compose = readFileSync(new URL('../../../deploy/aruba/compose.auth-staging.yaml', import.meta.url),'utf8');
+const isolatedCompose=readFileSync(new URL('../../../deploy/aruba/compose.staging-db-role.yaml',import.meta.url),'utf8');
+const isolatedSql=readFileSync(new URL('../../../deploy/aruba/sql/037_staging_database_role.sql',import.meta.url),'utf8');
 
 test('only dedicated restricted staging user and database can enable auth',()=>{
   assert.match(index, /process\.env\.PGDATABASE !== 'hollowgate_auth_test'/);
@@ -11,6 +13,18 @@ test('only dedicated restricted staging user and database can enable auth',()=>{
   assert.match(index, /AUTH_STAGING_ENABLED === 'true'/);
   assert.match(index, /createAuthHttpHandler\(/);
   assert.match(index, /AUTH_RATE_LIMIT_KEY_FILE/);
+});
+test('staging-only login receives database-local grants without shared production membership',()=>{
+  assert.match(index,/PGUSER !== 'hollowgate_auth_staging_app'/);
+  assert.match(index,/OAuth staging requires its isolated database login/);
+  assert.match(isolatedCompose,/PGUSER: hollowgate_auth_staging_app/);
+  assert.match(isolatedCompose,/auth_staging_db_password/);
+  assert.match(isolatedSql,/current_database\(\) <> 'hollowgate_auth_test'/);
+  assert.match(isolatedSql,/CREATE ROLE hollowgate_auth_staging_app LOGIN NOINHERIT/);
+  assert.match(isolatedSql,/pg_auth_members/);
+  assert.match(isolatedSql,/aclexplode/);
+  assert.doesNotMatch(isolatedSql,/GRANT hollowgate_api_runtime TO hollowgate_auth_staging_app/);
+  assert.doesNotMatch(isolatedSql,/ALTER ROLE hollowgate_auth_app/);
 });
 test('staging API is localhost-only with separate secrets',()=>{
   assert.match(compose, /127\.0\.0\.1:3003:3000/);

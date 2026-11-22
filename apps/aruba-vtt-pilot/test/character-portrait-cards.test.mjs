@@ -19,9 +19,11 @@ test('original card is reused with a current authorized portrait, no stale image
 test('GM sheet image and token use only in-memory Aruba portrait and original detail component',()=>{
  const sheet=read('ArubaCharacterDetailPanel.tsx');
  const editor=read('ArubaGMCharacterPortrait.tsx');
+ const imageEditor=read('ArubaCharacterImageEditor.tsx');
  assert.match(sheet,/readCharacterPortrait\(fetch,campaignId,draft\.id\)/);
  assert.match(sheet,/portraitImageUrl:portrait\?\?undefined,portraitSourceImageUrl:undefined,portraitCropArea:null/);
- assert.match(sheet,/onSaved=\{setPortrait\}/);
+ assert.match(sheet,/onPortraitSaved=\{setPortrait\}/);
+ assert.match(imageEditor,/onSaved=\{onPortraitSaved\}/);
  assert.match(editor,/onUploaded=\{\(url,extra\)=>\{setPreview\(url\)/);
  assert.match(editor,/if\(extra\?\.sourceUrl\)setSource\(extra.sourceUrl\)/);
  assert.match(editor,/onSaved\?\.\(url\)/);

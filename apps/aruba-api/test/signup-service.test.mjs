@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import {createSignupService,SignupRejected} from '../src/signup-service.mjs';
 const TOKEN='V'.repeat(43);
-function fixture({created=true,confirm=true,failMail=false,limit=false}={}) {
+function fixture({created=true,confirm=true,failMail=false,limit=false,baseUrl='https://www.hollowgate.quest'}={}) {
   const calls=[],sent=[];
   const pool={
     connect:async()=>({query:async sql=>{
@@ -18,7 +18,7 @@ function fixture({created=true,confirm=true,failMail=false,limit=false}={}) {
       throw new Error('Unexpected query');
     },
   };
-  const svc=createSignupService({pool,hmacKey:Buffer.alloc(32,9),
+  const svc=createSignupService({pool,hmacKey:Buffer.alloc(32,9),baseUrl,
     mailer:{send:async x=>{sent.push(x);if(failMail)throw new Error('secret diagnostics');}},
     now:()=>new Date('2026-11-11T17:00:00Z'),issueToken:()=>TOKEN,
     hashNewPassword:async p=>'$argon2id$mock-'+p});
@@ -35,7 +35,15 @@ test('signup stores only token digest and emails complete verification link',asy
   assert.deepEqual(insert.args[3],createHash('sha256').update(TOKEN).digest());
   assert.equal(f.sent.length,1);
   assert.match(f.sent[0].text,/verify-email\?token=/);
+  assert.match(f.sent[0].text,/https:\/\/www\.hollowgate\.quest\/account\/verify-email/);
   assert.ok(!JSON.stringify(f.calls).includes(TOKEN));
+});
+test('verification link follows the configured exact HTTPS origin',async()=>{
+  const staging=fixture({baseUrl:'https://staging.hollowgate.quest'});
+  await staging.svc.signup(data);
+  assert.match(staging.sent[0].text,/https:\/\/staging\.hollowgate\.quest\/account\/verify-email/);
+  assert.throws(()=>fixture({baseUrl:'http://localhost:5173'}),/HTTPS/);
+  assert.throws(()=>fixture({baseUrl:'https://www.hollowgate.quest/other'}),/HTTPS/);
 });
 test('existing identity receives same response, never gets another mail',async()=>{
   const yes=fixture(),duplicate=fixture({created:false});

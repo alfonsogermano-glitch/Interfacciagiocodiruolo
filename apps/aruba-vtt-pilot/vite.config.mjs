@@ -3,12 +3,36 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import {fileURLToPath} from 'node:url';
 import {resolve,dirname} from 'node:path';
+import {readFileSync} from 'node:fs';
 import {maskArubaTrashRow,maskArubaSessionNotesTrashHeader,maskArubaTrashItemPreview} from './src/ArubaSafeNotesTransforms.mjs';
+import {localLandingPlugin} from './local-landing-plugin.mjs';
 const root=dirname(fileURLToPath(import.meta.url));
+const localHttps=process.env.HG_LOCAL_HTTPS==='1'?{
+  key:readFileSync(resolve(root,'../../certs/local/localhost-key.pem')),
+  cert:readFileSync(resolve(root,'../../certs/local/localhost-cert.pem')),
+}:false;
+const bypassVttFrontend=(req)=>{
+  if(req.method!=='GET')return;
+  const url=req.url||'';
+  const accept=String(req.headers.accept||'');
+  if(url==='/vtt/'||url==='/vtt'||accept.includes('text/html'))return '/index.html';
+  if(url.startsWith('/vtt/@')||url.startsWith('/vtt/src/')||
+    /\.[a-z0-9]+(?:\?|$)/i.test(url)) return url.replace(/^\/vtt/,'');
+};
 // Isolate the original TopBar's legacy services in the actual Aruba pilot.
 // The visual component is unchanged; unsupported actions remain fail-closed.
 const originalTopbarSource='/src/app/layout/TopBar.tsx';
 const originalTopbarAdapter=resolve(root,'src/ArubaOriginalTopBarAdapter.tsx');
+// The ORIGINAL EntityImageExtras/PortraitCropEditor UI is reused verbatim.
+// Their legacy data transports are inert; covers and frames persist only in
+// the Aruba visual-asset store through the authenticated content endpoint.
+const entityImageRuntime='ArubaImageRuntime.ts';
+const entityImageImports={
+  '../../../auth/AuthContext':entityImageRuntime,
+  '../../../../lib/supabaseClient':entityImageRuntime,
+  '../../../../services/storage/contentAssets':entityImageRuntime,
+  '../../../../services/storage/visualAssetsStorage':'ArubaVisualAssetsStorage.ts',
+};
 const legacyTopbarImports=new Set([
  '../auth/AuthContext','../notifications/NotificationsContext',
  '../campaigns/CampaignContext','../../services/supabase/charactersService',
@@ -16,9 +40,77 @@ const legacyTopbarImports=new Set([
 ]);
 export default defineConfig({
   root,
+  publicDir:resolve(root,'../../public'),
   // Keep the ORIGINAL 8-step HSC wizard source unmodified; only replace its
   // Supabase-dependent image picker until Aruba image storage is available.
-  plugins:[{
+  plugins:[...(process.env.HG_LOCAL_FULL==='1'?[localLandingPlugin({root})]:[]),{
+    name:'aruba-original-game-map-isolation',
+    enforce:'pre',
+    resolveId(id,importer){
+      if(importer?.includes('/src/app/components/session/')&&id.endsWith('/DiceAppearanceContext'))return resolve(root,'src/ArubaDiceAppearanceContext.tsx');
+      if((importer?.includes('/src/app/')||importer?.includes('/src/services/'))&&/(?:\.\.\/)+(?:app\/)?auth\/AuthContext$/.test(id))return resolve(root,'src/ArubaOriginalTopBarAdapter.tsx');
+      if(importer?.includes('/src/app/')&&/(?:\.\.\/)+campaigns\/CampaignContext$/.test(id))return resolve(root,'src/ArubaCampaignScopeContext.tsx');
+      if((importer?.endsWith('/src/app/components/gm/GameMap.tsx')||importer?.endsWith('/src/app/components/shared/useCampaignDocument.ts'))&&id==='../../campaigns/CampaignContext')return resolve(root,'src/ArubaCampaignScopeContext.tsx');
+      if(importer?.endsWith('/src/app/components/session/shared/EntityImageExtras.tsx')&&Object.hasOwn(entityImageImports,id))return resolve(root,'src/'+entityImageImports[id]);
+      if(importer?.endsWith('/src/app/components/shared/PortraitCropEditor.tsx')&&id==='../../../services/storage/visualAssetsStorage')return resolve(root,'src/ArubaVisualAssetsStorage.ts');
+      if(importer?.endsWith('/src/app/components/gm/CombatTracker.tsx')&&id==='../../campaigns/CampaignContext')return resolve(root,'src/ArubaCampaignScopeContext.tsx');
+      if(importer?.endsWith('/src/app/components/gm/CombatTracker.tsx')&&id==='../../../services/supabase/entitiesService')return resolve(root,'src/ArubaCombatEntitiesService.ts');
+      if(importer?.endsWith('/src/app/components/gm/SceneEncounterManager.tsx')){
+        if(id==='../../campaigns/CampaignContext')return resolve(root,'src/ArubaCampaignScopeContext.tsx');
+        if(id==='../../../services/supabase/entitiesService')return resolve(root,'src/ArubaEncounterEntitiesService.ts');
+        if(id==='../../../services/storage/persistenceMode')return resolve(root,'src/ArubaEncounterPersistenceMode.ts');
+        if(id==='../../../lib/supabaseClient')return resolve(root,'src/ArubaEncounterNarrativeClient.ts');
+        if(id==='../session/useActiveScene')return resolve(root,'src/ArubaEncounterActiveScene.ts');
+      }
+      if(importer?.includes('/src/app/components/session/')&&/(?:CampaignChatPanel|SessionChatPanel|PrivateChatPanel|ChatImageAttachment)\.tsx$/.test(importer)){
+        if(id==='../../auth/AuthContext'||id==='../../../auth/AuthContext')return resolve(root,'src/ArubaOriginalTopBarAdapter.tsx');
+        if(id==='../../campaigns/CampaignContext')return resolve(root,'src/ArubaCampaignScopeContext.tsx');
+        if(id==='../../../services/realtime/campaignChannel')return resolve(root,'src/ArubaSessionCampaignChannel.ts');
+        if(id==='../../../services/storage/persistenceMode')return resolve(root,'src/ArubaChatPersistenceMode.ts');
+        if(id==='../../../services/supabase/chatService')return resolve(root,'src/ArubaChatService.ts');
+        if(id==='../../../services/supabase/privateChatService')return resolve(root,'src/ArubaPrivateChatService.ts');
+        if(id==='./chatAttachments')return resolve(root,'src/ArubaChatAttachments.ts');
+        if(id==='../../../services/storage/contentAssets')return resolve(root,'src/ArubaChatContentAssets.ts');
+        if(id==='./dice/DiceSessionContext')return resolve(root,'src/ArubaChatDiceSession.ts');
+        if(id==='../../../../services/supabase/diceFormulasService')return resolve(root,'src/ArubaDiceFormulasService.ts');
+        if(id==='../../../../services/supabase/diceFormulaFoldersService')return resolve(root,'src/ArubaNoteRuntime.tsx');
+        if(id==='../../../../services/supabase/diceCustomDiceService')return resolve(root,'src/ArubaNoteRuntime.tsx');
+      }
+      if(importer?.endsWith('/src/app/components/session/SessionWorkspace.tsx')){
+        if(id==='../../../services/supabase/entitiesService')return resolve(root,'src/ArubaSessionEntitiesService.ts');
+        if(id==='../../../services/realtime/campaignChannel')return resolve(root,'src/ArubaSessionCampaignChannel.ts');
+        if(id==='./useActiveScene')return resolve(root,'src/ArubaSessionActiveScene.ts');
+      }
+      if(importer?.endsWith('/src/app/components/session/MapViewport.tsx')){
+        if(id==='../../../services/realtime/campaignChannel')return resolve(root,'src/ArubaSessionCampaignChannel.ts');
+        if(id==='/utils/supabase/info')return resolve(root,'src/ArubaNoSupabaseInfo.ts');
+      }
+      if(importer?.endsWith('/src/app/components/gm/VisualAssetsManager.tsx')&&id==='../../../services/storage/visualAssetsStorage')return resolve(root,'src/ArubaVisualAssetsStorage.ts');
+      if(importer?.endsWith('/src/app/components/gm/VisualAssetsManager.tsx')&&id==='../../../lib/supabaseClient')return resolve(root,'src/ArubaVisualAssetsSupabase.ts');
+      if(importer?.endsWith('/src/app/components/gm/VisualAssetsManager.tsx')&&id==='../../auth/AuthContext')return resolve(root,'src/ArubaVisualAssetsAuth.ts');
+      if(importer?.endsWith('/src/app/components/shared/useCampaignDocument.ts')&&id==='../../../services/storage/campaignDocuments')return resolve(root,'src/ArubaCampaignDocuments.ts');
+      return null;
+    },
+  },{
+    name:'aruba-original-shell-assets',
+    enforce:'pre',
+    transform(code,id){
+      if(id.endsWith('/src/app/layout/LeftSidebar.tsx')){
+        if(!code.includes('src="/hollowgate-logo.png"'))throw Error('Original LeftSidebar logo contract changed');
+        if(!code.includes('src="/icon-source-1024.png"'))throw Error('Original LeftSidebar campaign icon contract changed');
+        return code
+          .replace('src="/hollowgate-logo.png"','src="/vtt/hollowgate-logo.png"')
+          .replace('src="/icon-source-1024.png"','src="/vtt/icon-source-1024.png"');
+      }
+      if(id.endsWith('/src/app/components/shared/CampaignBannerDisplay.tsx')){
+        if(!code.includes('src="/icon-source-1024.png"'))throw Error('Original CampaignBannerDisplay logo contract changed');
+        return code.replace('src="/icon-source-1024.png"','src="/vtt/icon-source-1024.png"');
+      }
+      if(id.includes('/src/app/')&&code.includes('src="/icon-source-1024.png"'))
+        return code.replaceAll('src="/icon-source-1024.png"','src="/vtt/icon-source-1024.png"');
+      return null;
+    },
+  },{
     name:'aruba-original-topbar-production-isolation',
     enforce:'pre',
     resolveId(id,importer){
@@ -123,11 +215,6 @@ export default defineConfig({
           '../../../../services/supabase/entitiesService':'ArubaEntityDependencies.tsx',
           '../../../../services/supabase/charactersService':'ArubaEntityDependencies.tsx',
           '../../../../services/campaign/entityReferenceService':'ArubaEntityDependencies.tsx',
-          '../../gm/monsters/MonsterFreschezzaComponents':'ArubaEntityDependencies.tsx',
-          '../../gm/monsters/MonsterCatalogComponents':'ArubaEntityDependencies.tsx',
-          '../../gm/monsters/monstersUtils':'ArubaEntityDependencies.tsx',
-          '../../../../data/monsterTraitsCatalog':'ArubaEntityDependencies.tsx',
-          '../../../../data/monsterSpecialActionsCatalog':'ArubaEntityDependencies.tsx',
           './DraggablePortrait':'ArubaPortraitPending.tsx',
         };
         if(Object.hasOwn(map,id))return resolve(root,'src/'+map[id]);
@@ -139,6 +226,8 @@ export default defineConfig({
       if(id==='../../ui/tooltip' && importer?.endsWith('/src/app/components/session/shared/EntityTabBar.tsx'))
         return resolve(root,'src/ArubaTooltip.tsx');
       if(id==='../ui/tooltip' && importer?.endsWith('/src/app/components/shared/TokenStyleEditor.tsx'))
+        return resolve(root,'src/ArubaTooltip.tsx');
+      if(id==='../../ui/tooltip' && importer?.endsWith('/src/app/components/gm/monsters/MonsterFreschezzaComponents.tsx'))
         return resolve(root,'src/ArubaTooltip.tsx');
       // EntityCard uses the ORIGINAL local image/token renderer now that
       // portraits are loaded from authenticated Aruba (no Supabase I/O).
@@ -193,10 +282,20 @@ export default defineConfig({
     '@':resolve(root,'../../src'),
     '@aruba-notes':resolve(root,'src'),
   }},
-  base:'/vtt/',
+  base:localHttps?'/':'/vtt/',
   build:{
     outDir:resolve(root,'../../deploy/aruba/dist/vtt-pilot'),
     emptyOutDir:true,
     target:'es2022',
+  },
+  server:{
+    host:'127.0.0.1',
+    port:5173,
+    strictPort:true,
+    https:localHttps,
+    proxy:{
+      '/vtt':{ target:'http://localhost:3000', changeOrigin:true, bypass:bypassVttFrontend },
+      '/auth':{ target:'http://localhost:3000', changeOrigin:true },
+    },
   },
 });

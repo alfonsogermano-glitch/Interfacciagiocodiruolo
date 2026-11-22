@@ -7,23 +7,53 @@
   <meta name="robots" content="noindex,nofollow,noarchive">
   <meta name="color-scheme" content="dark">
   <title>Hollowgate · Accesso</title>
-  <link rel="stylesheet" href="/auth-ui/styles.css">
-  <script type="module" src="/auth-ui/app.mjs"></script>
+  <link rel="stylesheet" href="/auth-ui/styles.css?v=13">
+  <script type="module" src="/auth-ui/app.mjs?v=12"></script>
 </head>
 <body>
-  <main class="shell">
-    <header class="brand">
-      <div class="brand-symbol" aria-hidden="true">✧</div>
-      <div class="brand-title">HOLLOWGATE</div>
-      <div class="brand-caption">PORTALE DI ACCESSO · AMBIENTE DI PROVA</div>
+  <main class="landing" id="landing">
+    <header class="landing-header">
+      <nav class="landing-actions" aria-label="Azioni iniziali">
+        <button class="ghost-button" type="button" disabled title="Presentazione non ancora disponibile">Scopri di più</button>
+        <button class="ghost-button" id="open-auth" type="button">Accedi/Registrati</button>
+      </nav>
     </header>
-    <section class="panel" aria-labelledby="page-title">
-      <div class="eyebrow">Il varco ti attende</div>
+    <section class="landing-hero">
+      <img class="eye eye-human" data-animation="/eye-anim/eye_human.webp" alt="">
+      <img class="eye eye-monster" data-animation="/eye-anim/eye_monster.webp" alt="">
+      <div class="landing-content">
+        <div class="landing-titles">
+          <img src="/title-main.png" alt="Varca la Soglia">
+          <img src="/title-sub.png" alt="Il Virtual Tabletop per le tue campagne horror">
+        </div>
+        <div class="landing-logo-stage">
+          <img class="landing-logo" src="/hollowgate-logo.png" alt="Hollowgate">
+        </div>
+        <div class="feature-grid">
+          <article><svg class="feature-icon" viewBox="0 0 256 256" aria-hidden="true"><path d="M160 72v144l-64-32V40Z" opacity=".2"/><path d="M229 50a8 8 0 0 0-7-2l-61 16-61-31a8 8 0 0 0-6-1L30 48a8 8 0 0 0-6 8v144a8 8 0 0 0 10 8l61-16 61 31a8 8 0 0 0 6 1l64-16a8 8 0 0 0 6-8V56a8 8 0 0 0-3-6ZM104 53l48 24v126l-48-24ZM40 62l48-12v128l-48 12Zm176 132-48 12V78l48-12Z"/></svg><div><h2>Gestisci Campagne</h2><p>Organizza capitoli, elementi di gioco e scenari in un unico posto.</p></div></article>
+          <article><svg class="feature-icon" viewBox="0 0 256 256" aria-hidden="true"><path d="M168 144a40 40 0 1 1-40-40 40 40 0 0 1 40 40ZM64 56a32 32 0 1 0 32 32 32 32 0 0 0-32-32Zm128 0a32 32 0 1 0 32 32 32 32 0 0 0-32-32Z" opacity=".2"/><path d="M191 212a8 8 0 0 1-14 8 57 57 0 0 0-98 0 8 8 0 1 1-14-8 72 72 0 0 1 34-30 48 48 0 1 1 58 0 72 72 0 0 1 34 30Zm-63-36a32 32 0 1 0-32-32 32 32 0 0 0 32 32Zm64-64a24 24 0 1 0-23-30 8 8 0 1 0-16-4 40 40 0 1 1 66 40 68 68 0 0 1 27 21 8 8 0 1 1-12 10 52 52 0 0 0-42-21 8 8 0 0 1 0-16ZM64 112a24 24 0 1 1 23-30 8 8 0 1 0 16-4 40 40 0 1 0-66 40 68 68 0 0 0-27 21 8 8 0 1 0 12 10 52 52 0 0 1 42-21 8 8 0 0 0 0-16Z"/></svg><div><h2>Crea Personaggi unici</h2><p>Schede con abilità, equipaggiamento e storia.</p></div></article>
+          <article><svg class="feature-icon" viewBox="0 0 256 256" aria-hidden="true"><path d="m238 88-104 125a8 8 0 0 1-12 0L18 88a8 8 0 0 1 1-12 181 181 0 0 1 218 0 8 8 0 0 1 1 12Z" opacity=".2"/><path d="M248 81a16 16 0 0 0-6-11 187 187 0 0 0-228 0 16 16 0 0 0-2 23l104 125a16 16 0 0 0 24 0L244 93a16 16 0 0 0 4-12ZM128 208 24 83a171 171 0 0 1 208 0Z"/></svg><div><h2>Gioca Online</h2><p>Sessioni in tempo reale con il tuo gruppo ovunque.</p></div></article>
+          <article><svg class="feature-icon" viewBox="0 0 256 256" aria-hidden="true"><path d="M232 56v144h-72a32 32 0 0 0-32 32 32 32 0 0 0-32-32H24V56h72a32 32 0 0 1 32 32 32 32 0 0 1 32-32Z" opacity=".2"/><path d="M232 48h-72a40 40 0 0 0-32 16 40 40 0 0 0-32-16H24a8 8 0 0 0-8 8v144a8 8 0 0 0 8 8h72a24 24 0 0 1 24 24 8 8 0 0 0 16 0 24 24 0 0 1 24-24h72a8 8 0 0 0 8-8V56a8 8 0 0 0-8-8ZM96 192H32V64h64a24 24 0 0 1 24 24v112a40 40 0 0 0-24-8Zm128 0h-64a40 40 0 0 0-24 8V88a24 24 0 0 1 24-24h64Z"/></svg><div><h2>Regolamenti integrati</h2><p>Regolamenti GDR disponibili o personalizzabili.</p></div></article>
+        </div>
+      </div>
+    </section>
+    <footer class="landing-footer">© 2026 Germanò Alfonso</footer>
+  </main>
+  <div class="auth-overlay" id="auth-overlay" hidden>
+    <section class="panel" role="dialog" aria-modal="true" aria-labelledby="page-title">
+      <button class="close-auth" id="close-auth" type="button" aria-label="Chiudi">×</button>
       <h1 id="page-title">Accedi a Hollowgate</h1>
       <p class="intro" id="page-intro">Inserisci le tue credenziali per continuare.</p>
-      <div class="preview-banner" role="note">Collaudo privato Aruba: usa soltanto un indirizzo email di prova.</div>
+      <nav class="auth-tabs" id="auth-tabs" aria-label="Accesso o registrazione">
+        <a href="/login" data-tab="login">Accedi</a>
+        <a href="/signup" data-tab="signup">Registrati</a>
+      </nav>
+      <div class="social-auth" id="social-auth" aria-label="Altri metodi di accesso">
+        <button type="button" data-oauth-provider="google" disabled title="Accesso Google non ancora disponibile su Aruba"><svg class="provider-icon google-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/></svg><span>Continua con Google</span></button>
+        <button type="button" data-oauth-provider="discord" disabled title="Accesso Discord non ancora disponibile su Aruba"><svg class="provider-icon discord-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/></svg><span>Continua con Discord</span></button>
+        <p id="social-status">Google e Discord non sono ancora disponibili durante la migrazione.</p>
+      </div>
       <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
-      <a id="vtt-entry" href="/vtt/" hidden>Entra nel portale VTT Aruba</a>
 
       <form id="login-form" data-view="login" novalidate>
         <label for="login-email">Indirizzo email</label>
@@ -33,7 +63,6 @@
         <button type="submit">Accedi</button>
         <nav class="links" aria-label="Altre azioni">
           <a href="/forgot-password">Hai dimenticato la password?</a>
-          <a href="/signup">Crea un account</a>
         </nav>
       </form>
 
@@ -72,7 +101,6 @@
         <nav class="links"><a href="/login">Torna all'accesso</a></nav>
       </form>
     </section>
-    <footer>Ambiente di prova Aruba · Nessuna modifica agli account Hollowgate esistenti</footer>
-  </main>
+  </div>
 </body>
 </html>

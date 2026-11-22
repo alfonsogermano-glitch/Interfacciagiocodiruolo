@@ -15,12 +15,13 @@ import {createArubaInitialSnapshotGate} from './ArubaInitialSnapshotGate.mjs';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function createVerifiedGmPeerBindings({router,campaignId,onError=()=>{},
- loadSnapshot,projectVisibleSnapshot}){
+  loadSnapshot,projectVisibleSnapshot,onAttachedCountChange=()=>{}}){
  if(typeof router?.attachVerifiedPlayer!=='function'||
   !UUID.test(campaignId)||typeof onError!=='function'||
   ((loadSnapshot===undefined)!==(projectVisibleSnapshot===undefined))||
   (loadSnapshot!==undefined&&typeof loadSnapshot!=='function')||
-  (projectVisibleSnapshot!==undefined&&typeof projectVisibleSnapshot!=='function'))
+   (projectVisibleSnapshot!==undefined&&typeof projectVisibleSnapshot!=='function')||
+   typeof onAttachedCountChange!=='function')
   throw new TypeError('Verified GM peer binding requires a campaign router');
  const proofs=new Map(),attached=new Map();
  let closed=false;
@@ -28,7 +29,8 @@ export function createVerifiedGmPeerBindings({router,campaignId,onError=()=>{},
   proofs.delete(id);
   const record=attached.get(id);
   if(!record)return;
-  attached.delete(id);
+   attached.delete(id);
+   try{onAttachedCountChange(attached.size);}catch(error){onError(error);}
   // Stop authorization before closing the transport. Old handles cannot
   // publish even if a queued onmessage callback executes after revocation.
   record.handle.disconnect();
@@ -70,7 +72,8 @@ export function createVerifiedGmPeerBindings({router,campaignId,onError=()=>{},
    verifiedCampaignId:campaignId,onError,
   });
   if(!handle){gate?.close();return false;}
-  attached.set(peerId,{handle,channel,gate});
+   attached.set(peerId,{handle,channel,gate});
+   try{onAttachedCountChange(attached.size);}catch(error){onError(error);revoke(peerId);return false;}
   if(gate)void gate.start().then(ready=>{
    if(!ready&&attached.get(peerId)?.handle===handle)revoke(peerId);
   }).catch(error=>{onError(error);revoke(peerId);});
@@ -90,11 +93,16 @@ export function createVerifiedGmPeerBindings({router,campaignId,onError=()=>{},
   for(const id of [...attached.keys()])revoke(id);
   proofs.clear();
  }
- return Object.freeze({
+  return Object.freeze({
   onVerifiedPeer:verifiedPeer,
   onPeerRevoked:peerRevoked,
   attachChannel,close,
   get verifiedCount(){return proofs.size;},
-  get attachedCount(){return attached.size;},
- });
+   get attachedCount(){return attached.size;},
+   hasAttachedUser(userId){
+    if(!UUID.test(userId))return false;
+    for(const [peerId] of attached)if(proofs.get(peerId)?.userId===userId)return true;
+    return false;
+   },
+  });
 }

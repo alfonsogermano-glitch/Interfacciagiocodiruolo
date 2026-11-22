@@ -104,14 +104,23 @@ test('VTT pilot bootstrap only accepts an active Aruba cookie; game capabilities
       user:{id:'test-id',role:'standard'},backend:'aruba-staging',
       capabilities:{
         campaigns:{read:false,write:false},
+        campaignInvites:{read:false,write:false},
         chapters:{read:false,write:false},
         scenes:{read:false,write:false},
+        narrativeContent:{read:false,write:false},
+        equipmentCatalog:{read:false,write:false},
+        campaignDocuments:{read:false,write:false},
+        campaignChat:{read:false,write:false},
+        diceFormulas:{read:false,write:false},
+        visualAssets:{read:false,write:false},
         characters:{read:false,write:false},
         characterAvailability:{read:false,write:false},
         characterAssignments:{read:false,write:false},
         playerCharacters:{read:false,write:false},
+        characterClaims:{read:false,write:false},
         characterPortraits:{read:false,write:false},
         entityNotes:{read:false,write:false},
+        narrativeEntityNotes:{read:false,write:false},
         campaignNotes:{read:false,write:false},
         campaignNoteFolders:{read:false,write:false},
         campaignRoster:{read:false,write:false},
@@ -133,7 +142,7 @@ test('original Notes panel bootstrap cannot advertise disabled backend dependenc
 });
 
 
-test('bootstrap exposes only server-verified GM memberships when explicitly enabled',async()=>{
+test('bootstrap exposes server-verified GM memberships when explicitly enabled',async()=>{
  const userId='00000000-0000-4000-8000-000000000002';
  const campaignId='00000000-0000-4000-8000-000000000001';
  const handler=createAuthHttpHandler({origin:ORIGIN,login:async()=>{},
@@ -152,10 +161,23 @@ test('bootstrap exposes only server-verified GM memberships when explicitly enab
  });
 });
 
+test('bootstrap accepts a server-verified player membership',async()=>{
+ const userId='00000000-0000-4000-8000-000000000002';
+ const campaignId='00000000-0000-4000-8000-000000000001';
+ const handler=createAuthHttpHandler({origin:ORIGIN,login:async()=>{},
+  getSessionUser:async()=>({id:userId,email:'player@example.org',displayName:'Player',role:'standard'}),
+  revokeSession:async()=>{},gameSessionBootstrap:async()=>[{userId,campaignId,role:'player'}]});
+ await withServer(handler,async base=>{
+  const response=await fetch(base+'/vtt/bootstrap',{headers:{cookie:'__Host-hg_session='+TOKEN}});
+  assert.equal(response.status,200);
+  assert.deepEqual((await response.json()).campaignMemberships,[{userId,campaignId,role:'player'}]);
+ });
+});
+
 test('bootstrap rejects malformed or forged membership lists before sending session capability',async()=>{
  const userId='00000000-0000-4000-8000-000000000002';
  const campaignId='00000000-0000-4000-8000-000000000001';
- for(const memberships of [undefined,{},[{userId,campaignId,role:'player'}],
+  for(const memberships of [undefined,{},[{userId,campaignId,role:'owner'}],
   [{userId:'00000000-0000-4000-8000-000000000003',campaignId,role:'gm'}],
   [{userId,campaignId,role:'gm'},{userId,campaignId,role:'gm'}]]){
   const handler=createAuthHttpHandler({origin:ORIGIN,login:async()=>{},

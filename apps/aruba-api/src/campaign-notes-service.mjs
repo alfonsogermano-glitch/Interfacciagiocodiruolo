@@ -1,4 +1,5 @@
 import {CampaignRejected} from './campaign-service.mjs';
+const MAX_RICH_CONTENT_BYTES=1024*1024;
 
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const id=(value,label)=>{
@@ -68,7 +69,7 @@ export function createCampaignNotesService({pool}){
   const title=name(data.title);
   if(data.contentRich!==null&&
     (!data.contentRich||typeof data.contentRich!=='object'||Array.isArray(data.contentRich)||
-    Buffer.byteLength(JSON.stringify(data.contentRich),'utf8')>49152))
+    Buffer.byteLength(JSON.stringify(data.contentRich),'utf8')>MAX_RICH_CONTENT_BYTES))
    throw new CampaignRejected('Documento nota non valido',400);
   if(!Number.isInteger(data.position)||data.position<0||data.position>10000||
     !['private','all'].includes(data.visibility))

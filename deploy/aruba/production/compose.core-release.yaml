@@ -1,0 +1,19 @@
+# Production phase 1: replace only the API image. All existing production
+# flags, secrets, ports and networks come from the two existing private files.
+# OAuth and email signup remain off until separately approved and tested.
+services:
+  aruba-api:
+    image: hollowgate-api-core-candidate:20261120
+    environment:
+      AUTH_OAUTH_ENABLED: "false"
+      AUTH_SIGNUP_ENABLED: "false"
+    networks:
+      hollowgate-db: {}
+      public-gateway:
+        aliases:
+          - hollowgate-production-api
+
+networks:
+  public-gateway:
+    external: true
+    name: hollowgate-auth-staging_default

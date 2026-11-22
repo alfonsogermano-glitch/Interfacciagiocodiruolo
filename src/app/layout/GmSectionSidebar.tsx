@@ -31,7 +31,7 @@ const PRIMARY_SECTIONS: { id: string; label: string; icon: LucideIcon }[] = [
 
 const SECONDARY_SECTIONS: { id: string; label: string; icon: LucideIcon }[] = [
   { id: 'map', label: 'Mappa legacy', icon: Map },
-  { id: 'situations', label: 'Eventi legacy', icon: Scroll },
+  { id: 'situations', label: 'Eventi', icon: Scroll },
   { id: 'phases', label: 'Fasi di Gioco', icon: Play },
   { id: 'combat', label: 'Combattimento', icon: Swords },
   { id: 'visual-assets', label: 'Asset Grafici', icon: Image },

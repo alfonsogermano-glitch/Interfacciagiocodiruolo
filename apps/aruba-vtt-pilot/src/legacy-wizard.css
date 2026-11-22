@@ -4,6 +4,9 @@
 @import "tailwindcss/theme";
 @import "tailwindcss/utilities" source(none);
 @source "../../../src/app/components/gm/CharacterCreationWizard.tsx";
+/* This unlayered utility bundle also emits grid-cols-1. Include the new
+   campaign home's responsive variant so it cannot override its md grid. */
+@source "./ArubaCampaignHome.tsx";
 /* Specific palette variables of the already-approved black/gold Hollowgate. */
 .aruba-original-wizard{
  --dash-bg:#0e1214;--dash-panel:#181c1c;--dash-surface:#30291d;

@@ -30,9 +30,11 @@ test('joined campaign list is a restricted SQL query by cookie player identity',
  const seen=[];
  const service=createPlayerCharacterService({pool:{query:async(sql,args)=>{
   seen.push({sql,args});return {rows:[{id:campaign,owner_id:owner,name:'Campagna',
-   description:'',ruleset:'hsc',created_at:'2026-11-12T00:00:00Z'}]};
+   description:'',ruleset:'hsc',created_at:'2026-11-12T00:00:00Z',logo_asset_id:'asset-id',cover_asset_id:null}]};
  }}});
  const result=await service.listCampaigns(player);
+ assert.equal(result.campaigns[0].logoUrl,'/vtt/campaigns/'+campaign+'/visual-assets/asset-id/content');
+ assert.equal(result.campaigns[0].coverImageUrl,null);
  assert.equal(result.campaigns[0].ownerId,owner);
  assert.deepEqual(seen[0].args,[player]);
  assert.match(seen[0].sql,/^SELECT \* FROM hollowgate_vtt.list_joined_player_campaigns/);

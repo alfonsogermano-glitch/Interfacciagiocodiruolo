@@ -53,7 +53,7 @@ staging.hollowgate.quest {
   # Exact method/path allowlist; no generic proxy for the rest of the API.
   @trialAPI {
     method GET POST
-    path /auth/login /auth/logout /auth/me /auth/signup /auth/verify-email /auth/password/request /auth/password/redeem
+    path /auth/login /auth/logout /auth/me /auth/signup /auth/verify-email /auth/password/request /auth/password/redeem /auth/oauth/providers /auth/oauth/complete /auth/oauth/google/start /auth/oauth/google/callback /auth/oauth/discord/start /auth/oauth/discord/callback
   }
   handle @trialAPI {
     reverse_proxy aruba-auth-staging:3000

@@ -15,12 +15,31 @@ export function validateBootstrap(data){
   if(!c||typeof c.campaigns?.read!=='boolean'||c.campaigns.read!==c.campaigns.write||
     typeof c.characters?.read!=='boolean'||c.characters.read!==c.characters.write||
     (c.characters.read&&!c.campaigns.read)||
+    (c.campaignInvites!==undefined&&(typeof c.campaignInvites.read!=='boolean'||
+      c.campaignInvites.read!==c.campaignInvites.write||
+      (c.campaignInvites.read&&!c.campaigns.read)))||
     (c.chapters!==undefined&&(typeof c.chapters.read!=='boolean'||
       c.chapters.read!==c.chapters.write||
       (c.chapters.read&&!c.campaigns.read)))||
     (c.scenes!==undefined&&(typeof c.scenes.read!=='boolean'||
       c.scenes.read!==c.scenes.write||
       (c.scenes.read&&c.chapters?.read!==true)))||
+    (c.narrativeContent!==undefined&&(typeof c.narrativeContent.read!=='boolean'||
+      c.narrativeContent.read!==c.narrativeContent.write||
+      (c.narrativeContent.read&&c.scenes?.read!==true)))||
+    (c.equipmentCatalog!==undefined&&(typeof c.equipmentCatalog.read!=='boolean'||
+      c.equipmentCatalog.read!==c.equipmentCatalog.write||
+      (c.equipmentCatalog.read&&!c.campaigns.read)))||
+    (c.campaignDocuments!==undefined&&(typeof c.campaignDocuments.read!=='boolean'||
+      c.campaignDocuments.read!==c.campaignDocuments.write||
+      (c.campaignDocuments.read&&!c.campaigns.read)))||
+    (c.campaignChat!==undefined&&(typeof c.campaignChat.read!=='boolean'||
+      c.campaignChat.read!==c.campaignChat.write||
+      (c.campaignChat.read&&!c.campaigns.read)))||
+    (c.diceFormulas!==undefined&&(typeof c.diceFormulas.read!=='boolean'||
+      c.diceFormulas.read!==c.diceFormulas.write||
+      (c.diceFormulas.read&&!c.campaigns.read)))||
+    (c.visualAssets!==undefined&&(typeof c.visualAssets.read!=='boolean'||c.visualAssets.read!==c.visualAssets.write||(c.visualAssets.read&&!c.campaigns.read)))||
     (c.characterAvailability!==undefined&&(
      typeof c.characterAvailability.read!=='boolean'||
      c.characterAvailability.read!==c.characterAvailability.write||
@@ -38,12 +57,18 @@ export function validateBootstrap(data){
     (c.playerCharacters!==undefined&&(
       typeof c.playerCharacters.read!=='boolean'||c.playerCharacters.write!==false||
       (c.playerCharacters.read&&c.characterAssignments?.read!==true)))||
+    (c.characterClaims!==undefined&&(typeof c.characterClaims.read!=='boolean'||
+      c.characterClaims.read!==c.characterClaims.write||
+      (c.characterClaims.read&&(c.playerCharacters?.read!==true||c.characterAssignments?.read!==true))))||
     (c.campaignRoster!==undefined&&(
       typeof c.campaignRoster.read!=='boolean'||c.campaignRoster.write!==false||
       (c.campaignRoster.read&&!c.campaigns.read)))||
     (c.entityNotes!==undefined&&(typeof c.entityNotes.read!=='boolean'||
       c.entityNotes.read!==c.entityNotes.write||
       (c.entityNotes.read&&!c.characters.read)))||
+    (c.narrativeEntityNotes!==undefined&&(typeof c.narrativeEntityNotes.read!=='boolean'||
+      c.narrativeEntityNotes.read!==c.narrativeEntityNotes.write||
+      (c.narrativeEntityNotes.read&&c.narrativeContent?.read!==true)))||
     (c.campaignNotes!==undefined&&(typeof c.campaignNotes.read!=='boolean'||
       c.campaignNotes.read!==c.campaignNotes.write||
       (c.campaignNotes.read&&!c.campaigns.read)))||
@@ -64,7 +89,7 @@ export function validateBootstrap(data){
   const memberships=c.gameSession?data.campaignMemberships.map(m=>{
     if(!m||m.userId!==data.user.id||
       !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(m.campaignId??'')||
-      m.role!=='gm')throw new Error('Appartenenza campagna non valida');
+      !['gm','player'].includes(m.role))throw new Error('Appartenenza campagna non valida');
     return Object.freeze({userId:m.userId,campaignId:m.campaignId,role:m.role});
   }):[];
   if(new Set(memberships.map(m=>m.campaignId)).size!==memberships.length)
@@ -72,14 +97,23 @@ export function validateBootstrap(data){
   return Object.freeze({
     gameSessionEnabled:c.gameSession,campaignMemberships:Object.freeze(memberships),
     id:data.user.id,email:data.user.email,displayName:data.user.displayName,role:data.user.role,
-    campaignsEnabled:c.campaigns.read,charactersEnabled:c.characters.read,
+    campaignsEnabled:c.campaigns.read,campaignInvitesEnabled:c.campaignInvites?.read===true,
+    charactersEnabled:c.characters.read,
     chaptersEnabled:c.chapters?.read===true,scenesEnabled:c.scenes?.read===true,
+    narrativeContentEnabled:c.narrativeContent?.read===true,
+    equipmentCatalogEnabled:c.equipmentCatalog?.read===true,
+    campaignDocumentsEnabled:c.campaignDocuments?.read===true,
+    campaignChatEnabled:c.campaignChat?.read===true,
+    diceFormulasEnabled:c.diceFormulas?.read===true,
+    visualAssetsEnabled:c.visualAssets?.read===true,
     characterAvailabilityEnabled:c.characterAvailability?.read===true,
     characterAssignmentsEnabled:c.characterAssignments?.read===true,
     playerCharactersEnabled:c.playerCharacters?.read===true,
+    characterClaimsEnabled:c.characterClaims?.read===true,
     characterPortraitsEnabled:c.characterPortraits?.read===true,
     campaignRosterEnabled:c.campaignRoster?.read===true,
     entityNotesEnabled:c.entityNotes?.read===true,
+    narrativeEntityNotesEnabled:c.narrativeEntityNotes?.read===true,
     campaignNotesEnabled:c.campaignNotes?.read===true,
     campaignNoteFoldersEnabled:c.campaignNoteFolders?.read===true,
     originalNotesPanelEnabled:c.originalNotesPanel?.read===true,
@@ -101,9 +135,17 @@ export function validateCampaign(data){
     typeof data.name!=='string'||data.name.length<1||
     typeof data.description!=='string'||!Object.hasOwn(RULESETS,data.ruleset))
     throw new Error('Campagna non valida');
+  const brandingUrl=(value)=>{
+    if(value===undefined||value===null)return null;
+    if(typeof value!=='string')throw new Error('Copertina campagna non valida');
+    const match=/^\/vtt\/campaigns\/([0-9a-f-]{36})\/visual-assets\/([0-9a-f-]{36})\/content$/i.exec(value);
+    if(!match||match[1].toLowerCase()!==data.id.toLowerCase())
+      throw new Error('URL copertina campagna fuori campagna o non autorizzato');
+    return value;
+  };
   return Object.freeze({
     id:data.id,ownerId:data.ownerId,name:data.name,description:data.description,ruleset:data.ruleset,
-    createdAt:data.createdAt,
+    createdAt:data.createdAt,logoUrl:brandingUrl(data.logoUrl),coverImageUrl:brandingUrl(data.coverImageUrl),
   });
 }
 export async function listOwnedCampaigns(fetchImpl,ownerId){
@@ -153,6 +195,88 @@ export async function updateOwnedCampaign(fetchImpl,campaignId,data,ownerId){
  if(!response.ok)throw new Error('Impossibile modificare la campagna');
  const campaign=validateCampaign((await response.json()).campaign);
  if(campaign.ownerId!==ownerId||campaign.id!==campaignId)throw new Error('Campagna non autorizzata');
+ return campaign;
+}
+
+export async function setCampaignBranding(fetchImpl,campaignId,body,ownerId){
+ if(typeof campaignId!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(campaignId))
+  throw new Error('Campagna non valida');
+ if(!body||typeof body!=='object'||Array.isArray(body)||
+  Object.keys(body).length!==2||
+  Object.keys(body).some(k=>!['logoAssetId','coverAssetId'].includes(k))||
+  [body.logoAssetId,body.coverAssetId].some(v=>v!==null&&(typeof v!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v))))
+  throw new Error('Dati immagine campagna non validi');
+ const response=await fetchImpl('/vtt/campaigns/'+campaignId+'/branding',{
+  method:'PUT',credentials:'same-origin',cache:'no-store',redirect:'error',
+  headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({logoAssetId:body.logoAssetId,coverAssetId:body.coverAssetId}),
+ });
+ if(response.status===401)throw new Error('Sessione scaduta: effettua nuovamente il login.');
+ if(response.status===404)throw new Error('Campagna non trovata o non autorizzata');
+ if(!response.ok)throw new Error("Impossibile aggiornare l'immagine della campagna");
+ const campaign=validateCampaign((await response.json()).campaign);
+ if(campaign.ownerId!==ownerId||campaign.id!==campaignId)throw new Error('Campagna non autorizzata');
+ return campaign;
+}
+
+const INVITE_CODE=/^HG-[A-F0-9]{20}$/;
+const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const normalizeInviteCode=value=>{
+ if(typeof value!=='string')throw new Error('Codice invito non valido');
+ const code=value.trim().toUpperCase();
+ if(!INVITE_CODE.test(code))throw new Error('Codice invito non valido');
+ return code;
+};
+const inviteError=(response,fallback)=>{
+ if(response.status===401)return new Error('Sessione scaduta: effettua nuovamente il login.');
+ if(response.status===403)return new Error('Operazione invito non autorizzata');
+ if(response.status===404)return new Error('Codice invito non valido o scaduto');
+ return new Error(fallback);
+};
+
+export async function rotateCampaignInvite(fetchImpl,campaignId,ownerId){
+ if(typeof campaignId!=='string'||!UUID.test(campaignId)||typeof ownerId!=='string'||!UUID.test(ownerId))
+  throw new Error('Campagna o proprietario non valido');
+ const response=await fetchImpl('/vtt/campaigns/'+campaignId+'/invite-code',{
+  method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',
+ });
+ if(!response.ok)throw inviteError(response,'Impossibile generare il codice invito');
+ const data=await response.json();
+ if(!data?.invite||Object.keys(data).join(',')!=='invite'||
+  Object.keys(data.invite).sort().join(',')!=='campaignId,code,expiresAt'||
+  data.invite.campaignId!==campaignId||!INVITE_CODE.test(data.invite.code)||
+  typeof data.invite.expiresAt!=='string'||Number.isNaN(Date.parse(data.invite.expiresAt))||
+  new Date(data.invite.expiresAt).toISOString()!==data.invite.expiresAt)
+  throw new Error('Risposta invito non valida');
+ return Object.freeze({campaignId,code:data.invite.code,expiresAt:data.invite.expiresAt});
+}
+
+export async function previewCampaignInvite(fetchImpl,codeValue,userId){
+ const code=normalizeInviteCode(codeValue);
+ if(typeof userId!=='string'||!UUID.test(userId))throw new Error('Utente non valido');
+ const response=await fetchImpl('/vtt/campaign-invites/preview?code='+encodeURIComponent(code),{
+  method:'GET',credentials:'same-origin',cache:'no-store',redirect:'error',
+ });
+ if(!response.ok)throw inviteError(response,'Impossibile verificare il codice invito');
+ const data=await response.json();
+ if(!data||Object.keys(data).join(',')!=='campaign')throw new Error('Anteprima invito non valida');
+ const campaign=validateCampaign(data.campaign);
+ if(campaign.ownerId===userId)throw new Error('Invito non valido per il proprietario');
+ return campaign;
+}
+
+export async function joinCampaignInvite(fetchImpl,codeValue,userId){
+ const code=normalizeInviteCode(codeValue);
+ if(typeof userId!=='string'||!UUID.test(userId))throw new Error('Utente non valido');
+ const response=await fetchImpl('/vtt/campaign-invites/join',{
+  method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',
+  headers:{'Content-Type':'application/json'},body:JSON.stringify({code}),
+ });
+ if(!response.ok)throw inviteError(response,'Impossibile unirsi alla campagna');
+ const data=await response.json();
+ if(!data||Object.keys(data).join(',')!=='campaign')throw new Error('Adesione invito non valida');
+ const campaign=validateCampaign(data.campaign);
+ if(campaign.ownerId===userId)throw new Error('Adesione proprietario non valida');
  return campaign;
 }
 
@@ -330,6 +454,63 @@ export async function setCharacterAssignment(fetchImpl,campaignId,characterId,pl
  return data;
 }
 
+export async function listClaimableCharacters(fetchImpl,campaignId){
+ if(!assignmentUuid.test(campaignId))throw Error('Campagna non valida');
+ const res=await fetchImpl('/vtt/player-character-claims?campaignId='+encodeURIComponent(campaignId),{method:'GET',credentials:'same-origin',cache:'no-store',redirect:'error'});
+ if(res.status===401)throw Error('Sessione scaduta');
+ if(!res.ok)throw Error('Personaggi disponibili non accessibili');
+ const data=await characterApiJson(res);
+ if(!Array.isArray(data.characters)||data.characters.length>100)throw Error('Elenco personaggi disponibili non valido');
+ const ids=new Set();return data.characters.map(character=>{
+  if(!character||!assignmentUuid.test(character.id)||character.campaignId!==campaignId||!assignmentUuid.test(character.ownerId)||typeof character.name!=='string'||character.status!=='active'||!character.sheetData||typeof character.sheetData!=='object'||Array.isArray(character.sheetData)||ids.has(character.id))throw Error('Personaggio disponibile non valido');
+  ids.add(character.id);return Object.freeze(character);
+ });
+}
+export async function claimAvailableCharacter(fetchImpl,characterId,action='claim'){
+ if(!assignmentUuid.test(characterId)||!['claim','release'].includes(action))throw Error('Richiesta personaggio non valida');
+ const res=await fetchImpl(`/vtt/player-characters/${characterId}/${action}`,{method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',headers:{Accept:'application/json'}});
+ if(res.status===401)throw Error('Sessione scaduta');if(res.status===409)throw Error(action==='claim'?'Personaggio non più disponibile':'Personaggio non posseduto');
+ if(!res.ok)throw Error('Richiesta personaggio non riuscita');const data=await characterApiJson(res);
+ if(data.characterId!==characterId||!assignmentUuid.test(data.campaignId))throw Error('Conferma richiesta personaggio non valida');return data;
+}
+export async function getCurrentCharacterClaim(fetchImpl,campaignId){
+ if(!assignmentUuid.test(campaignId))throw Error('Campagna non valida');
+ const res=await fetchImpl('/vtt/player-character-claim?campaignId='+encodeURIComponent(campaignId),{method:'GET',credentials:'same-origin',cache:'no-store',redirect:'error'});
+ if(res.status===401)throw Error('Sessione scaduta');
+ if(!res.ok)throw Error('Proprietà del personaggio non verificabile');
+ const data=await characterApiJson(res);
+ if(data.claim===null)return null;
+ if(!data.claim||!assignmentUuid.test(data.claim.characterId)||typeof data.claim.claimedAt!=='string'||!Number.isFinite(Date.parse(data.claim.claimedAt)))throw Error('Claim personaggio non valido');
+ return Object.freeze({characterId:data.claim.characterId,claimedAt:data.claim.claimedAt});
+}
+export async function listOwnedCharacterClaims(fetchImpl,campaignId){
+ if(!assignmentUuid.test(campaignId))throw Error('Campagna non valida');
+ const res=await fetchImpl('/vtt/owned-character-claims?campaignId='+encodeURIComponent(campaignId),{method:'GET',credentials:'same-origin',cache:'no-store',redirect:'error'});
+ if(res.status===401)throw Error('Sessione scaduta');
+ if(!res.ok)throw Error('Claim della campagna non accessibili');
+ const data=await characterApiJson(res);
+ if(!Array.isArray(data.claims)||data.claims.length>100)throw Error('Elenco claim non valido');
+ const claims=new Map();
+ for(const claim of data.claims){
+  if(!claim||!assignmentUuid.test(claim.characterId)||!assignmentUuid.test(claim.playerId)||typeof claim.claimedAt!=='string'||!Number.isFinite(Date.parse(claim.claimedAt))||claims.has(claim.characterId))throw Error('Claim campagna non valido');
+  claims.set(claim.characterId,claim.playerId);
+ }
+ return claims;
+}
+export async function saveClaimedCharacterSheet(fetchImpl,campaignId,characterId,character,ownerId){
+ if(!assignmentUuid.test(campaignId)||!assignmentUuid.test(characterId)||!assignmentUuid.test(ownerId)||typeof character?.name!=='string'||character.name.trim().length<1)throw Error('Scheda personaggio non valida');
+ const {id,player,portraitImageUrl:managedPortrait,portraitSourceImageUrl:managedPortraitSource,...sheetData}=character;
+ const encoded=JSON.stringify(sheetData);
+ if(/supabase[.]co/i.test(encoded)||encoded.includes('data:image/'))throw Error('Rimuovi i riferimenti alle immagini non migrate prima di salvare.');
+ const res=await fetchImpl('/vtt/player-characters/'+characterId,{method:'PUT',credentials:'same-origin',cache:'no-store',redirect:'error',headers:{'Content-Type':'application/json'},body:JSON.stringify({campaignId,name:character.name.trim(),sheetData})});
+ if(res.status===401)throw Error('Sessione scaduta');
+ if(res.status===404)throw Error('Claim non più valido o personaggio non autorizzato');
+ if(!res.ok)throw Error('Impossibile salvare la scheda reclamata');
+ const result=validateCharacterDraft((await characterApiJson(res)).character);
+ if(result.id!==characterId||result.campaignId!==campaignId||result.ownerId!==ownerId||result.status!=='active')throw Error('Risposta della scheda non autorizzata');
+ return result;
+}
+
 /** Assigned-player-only API; no writable character endpoint is used. */
 export async function listJoinedPlayerCampaigns(fetchImpl){
  const r=await fetchImpl('/vtt/player-campaigns',{method:'GET',credentials:'same-origin',
@@ -361,6 +542,40 @@ export async function listAssignedPlayerCharacters(fetchImpl,campaignId){
   const row=validateCharacterDraft(c);
   if(row.campaignId!==campaignId||row.status!=='active'||ids.has(row.id))
    throw Error('Scheda non autorizzata o duplicata');
+  ids.add(row.id);return row;
+ });
+}
+
+const PLAYER_VISUAL_TYPES=new Set(['portrait-frame-default','frame-default','portrait-frame','frame','ui-decoration','item-image','other']);
+const PLAYER_VISUAL_DATA=/^data:image\/(?:png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/i;
+function validatePlayerVisualAsset(item,campaignId){
+ if(!item||typeof item!=='object'||Array.isArray(item)||
+  !MEDIA_ID.test(item.id??'')||item.campaignId!==campaignId||
+  typeof item.name!=='string'||item.name.length<1||item.name.length>200||
+  !PLAYER_VISUAL_TYPES.has(item.type)||
+  typeof item.thumbnailDataUrl!=='string'||item.thumbnailDataUrl.length>1500000||
+  !PLAYER_VISUAL_DATA.test(item.thumbnailDataUrl))
+  throw Error('Asset grafico non valido');
+ return Object.freeze({id:item.id,campaignId,name:item.name,type:item.type,
+  imageDataUrl:'/vtt/campaigns/'+campaignId+'/visual-assets/'+item.id+'/content',
+  thumbnailDataUrl:item.thumbnailDataUrl,
+  createdAt:typeof item.createdAt==='string'?item.createdAt:''});
+}
+/** Player-scoped metadata for ONLY the assets referenced by currently assigned
+ * sheets. The content URL is later authorized per request by PostgreSQL. */
+export async function listPlayerVisualAssets(fetchImpl,campaignId){
+ if(!MEDIA_ID.test(campaignId??''))throw Error('Campagna non valida');
+ const r=await fetchImpl('/vtt/player-campaigns/'+campaignId+'/visual-assets',{
+  method:'GET',credentials:'same-origin',cache:'no-store',redirect:'error'});
+ if(r.status===401)throw Error('Sessione scaduta');
+ if(!r.ok)throw Error('Asset grafici non disponibili');
+ const data=await characterApiJson(r);
+ if(!Array.isArray(data.items)||data.items.length>1000)
+  throw Error('Elenco asset grafici non valido');
+ const ids=new Set();
+ return data.items.map(item=>{
+  const row=validatePlayerVisualAsset(item,campaignId);
+  if(ids.has(row.id))throw Error('Asset grafico duplicato');
   ids.add(row.id);return row;
  });
 }
@@ -607,3 +822,75 @@ export async function deleteArubaScene(fetchImpl,campaignId,sceneId){
  if(data?.deleted!==true)throw Error('Conferma eliminazione scena non valida');
  return true;
 }
+
+const NARRATIVE_KINDS=new Set(['npcs','monsters','clues','events']);
+function narrativeUrl(campaignId,kind,itemId=null){
+ if(!CHAPTER_UUID.test(campaignId??'')||!NARRATIVE_KINDS.has(kind)||
+  (itemId!==null&&!CHAPTER_UUID.test(itemId??'')))throw Error('Contenuto narrativo non valido');
+ return `/vtt/campaigns/${campaignId}/narrative/${kind}${itemId?'/'+itemId:''}`;
+}
+function validNarrativeItem(item,campaignId,kind){
+ if(!item||typeof item!=='object'||Array.isArray(item)||!CHAPTER_UUID.test(item.id??'')||item.campaignId!==campaignId)return false;
+ // Deterministic ETL placeholders preserve orphan references and intentionally
+ // carry a title instead of inventing an entity name.
+ const label=item.recoveredPlaceholder===true?item.title:
+  (kind==='clues'||kind==='events'?item.title:item.name);
+ if(typeof label!=='string'||!label.trim()||label.length>200)return false;
+ for(const key of ['chapterId','sceneId','environmentId'])if(item[key]!==undefined&&item[key]!==null&&!CHAPTER_UUID.test(item[key]))return false;
+ return !item.sceneId||!!item.chapterId;
+}
+async function narrativeResponse(response){
+ if(response.status===401)throw Error('Sessione scaduta: effettua nuovamente il login.');
+ if(response.status===404)throw Error('Campagna o contenuto non autorizzato');
+ if(!response.ok)throw Error('Operazione contenuti non riuscita');
+ return response.json();
+}
+export async function listArubaNarrativeContent(fetchImpl,campaignId,kind){
+ const response=await fetchImpl(narrativeUrl(campaignId,kind),{method:'GET',credentials:'same-origin',cache:'no-store',redirect:'error'});
+ const data=await narrativeResponse(response);
+ if(!Array.isArray(data?.items)||data.items.length>1000||data.items.some(item=>!validNarrativeItem(item,campaignId,kind))||
+  new Set(data.items.map(item=>item.id)).size!==data.items.length)throw Error('Risposta contenuti non valida');
+  return rewriteArubaLegacyMedia(data.items);
+}
+export async function saveArubaNarrativeContent(fetchImpl,campaignId,kind,draft){
+ const candidate={...draft,campaignId};
+ if(!validNarrativeItem(candidate,campaignId,kind))throw Error('Contenuto narrativo non valido');
+ const response=await fetchImpl(narrativeUrl(campaignId,kind),{method:'PUT',credentials:'same-origin',cache:'no-store',redirect:'error',
+  headers:{'Content-Type':'application/json'},body:JSON.stringify(draft)});
+ const data=await narrativeResponse(response);
+ if(!validNarrativeItem(data?.item,campaignId,kind)||data.item.id!==draft.id)throw Error('Conferma contenuto non valida');
+ return data.item;
+}
+export async function deleteArubaNarrativeContent(fetchImpl,campaignId,kind,itemId){
+ const response=await fetchImpl(narrativeUrl(campaignId,kind,itemId),{method:'DELETE',credentials:'same-origin',cache:'no-store',redirect:'error'});
+ const data=await narrativeResponse(response);
+ if(data?.deleted!==true)throw Error('Conferma eliminazione contenuto non valida');
+ return true;
+}
+
+function normalizeEquipmentCatalogItem(data,campaignId){
+ if(!data||typeof data!=='object'||Array.isArray(data)||!CHAPTER_UUID.test(data.id)||data.campaignId!==campaignId||
+  typeof data.name!=='string'||typeof data.description!=='string'||
+  !['tascabile','trasportabile','risorsa','arma'].includes(data.type)||
+  !['common','rare','unique','story'].includes(data.rarity)||data.source!=='gm_custom'||
+  !['isVehicle','isClue','isStoryItem','isActive','isPublic'].every(key=>typeof data[key]==='boolean')||
+  !['tags','linkedEnvironmentIds','linkedNpcIds','linkedMonsterIds'].every(key=>Array.isArray(data[key])&&data[key].every(value=>typeof value==='string')))
+  throw new Error('Oggetto catalogo non valido');
+ return Object.freeze(structuredClone(data));
+}
+export async function listArubaEquipmentCatalog(fetchImpl,campaignId){
+ const response=await fetchImpl(`/vtt/campaigns/${campaignId}/equipment`,{method:'GET',credentials:'include',headers:{accept:'application/json'}});
+ const data=await characterApiJson(response);if(!response.ok)throw new Error(data.error||'Archivio oggetti non disponibile');
+ if(!Array.isArray(data.items))throw new Error('Archivio oggetti non valido');
+ return Object.freeze(data.items.map(item=>normalizeEquipmentCatalogItem(item,campaignId)));
+}
+export async function saveArubaEquipmentCatalogItem(fetchImpl,campaignId,item){
+ const response=await fetchImpl(`/vtt/campaigns/${campaignId}/equipment`,{method:'PUT',credentials:'include',headers:{accept:'application/json','content-type':'application/json'},body:JSON.stringify(item)});
+ const data=await characterApiJson(response);if(!response.ok)throw new Error(data.error||'Salvataggio oggetto non riuscito');
+ return normalizeEquipmentCatalogItem(data.item,campaignId);
+}
+export async function deleteArubaEquipmentCatalogItem(fetchImpl,campaignId,itemId){
+ const response=await fetchImpl(`/vtt/campaigns/${campaignId}/equipment/${itemId}`,{method:'DELETE',credentials:'include',headers:{accept:'application/json'}});
+ const data=await characterApiJson(response);if(!response.ok||data.deleted!==true)throw new Error(data.error||'Eliminazione oggetto non riuscita');
+}
+import {rewriteArubaLegacyMedia} from './ArubaLegacyMedia.mjs';

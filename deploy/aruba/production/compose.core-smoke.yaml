@@ -1,0 +1,11 @@
+# Isolated release rehearsal: use the production flags and secret mounts from
+# the private Compose files, but NEVER connect to the live database or expose
+# the production API port. Use only with -p hollowgate-core-smoke and compose run
+# without --service-ports, publishing an explicit loopback-only test port.
+services:
+  aruba-api:
+    image: hollowgate-api-core-candidate:20261120
+    environment:
+      PGDATABASE: hollowgate_release_smoke_20261120
+      AUTH_OAUTH_ENABLED: "false"
+      AUTH_SIGNUP_ENABLED: "false"

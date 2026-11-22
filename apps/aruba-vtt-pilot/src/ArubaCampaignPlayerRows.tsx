@@ -1,7 +1,7 @@
 import {useEffect,useMemo,useRef,useState} from 'react';
 import {ArubaPortraitEntityCard} from './ArubaPortraitEntityCard';
 import {listOwnedCampaignRoster,listCharacterDrafts,listCharacterAvailability,setCharacterAvailability,
- listCharacterAssignments,setCharacterAssignment} from './client.mjs';
+  listCharacterAssignments,setCharacterAssignment,listOwnedCharacterClaims} from './client.mjs';
 import {composeOwnedCampaignPlayerRows,validateOwnedCampaignPlayerSnapshot} from './campaign-player-rows.mjs';
 type Char={id:string;campaignId:string;ownerId:string;name:string;status:string;
  sheetData:Record<string,unknown>};
@@ -9,15 +9,16 @@ type Member={userId:string;displayName:string;role:'gm'|'player'};
 type Row={userId:string;displayName:string;role:'gm'|'player';characters:Char[]};
 /** Original EntityCard + campaign member rows. Assignment changes are authoritative:
  * only a confirmed Aruba server response updates player grouping. */
-export function ArubaCampaignPlayerRows({campaignId,ownerId,revision,availabilityEnabled,assignmentsEnabled,onOpenCharacter,portraitsEnabled=false}:{
+export function ArubaCampaignPlayerRows({campaignId,ownerId,revision,availabilityEnabled,assignmentsEnabled,claimsEnabled,onOpenCharacter,portraitsEnabled=false}:{
  campaignId:string;ownerId:string;revision:number;availabilityEnabled:boolean;
- assignmentsEnabled:boolean;portraitsEnabled?:boolean;onOpenCharacter:(id:string)=>void;
+  assignmentsEnabled:boolean;claimsEnabled:boolean;portraitsEnabled?:boolean;onOpenCharacter:(id:string)=>void;
 }){
  const [members,setMembers]=useState<Member[]>([]);
  const [characters,setCharacters]=useState<Char[]>([]);
  const [busy,setBusy]=useState(true);
  const [availability,setAvailability]=useState<Map<string,boolean>>(new Map());
  const [assignments,setAssignments]=useState<Map<string,string>>(new Map());
+ const [claims,setClaims]=useState<Map<string,string>>(new Map());
  const [pending,setPending]=useState<string|null>(null);
  const [saveError,setSaveError]=useState<string|null>(null);
  const [error,setError]=useState<string|null>(null);
@@ -33,12 +34,12 @@ export function ArubaCampaignPlayerRows({campaignId,ownerId,revision,availabilit
  },[currentKey]);
  const rows=useMemo<Row[]>(()=> {
   if(busy||error||snapshotKey!==currentKey)return [];
-  try{return composeOwnedCampaignPlayerRows(members,characters,ownerId,assignments);}
+   try{return composeOwnedCampaignPlayerRows(members,characters,ownerId,assignments,claims);}
   catch{return [];}
- },[members,characters,ownerId,assignments,busy,error,snapshotKey,currentKey]);
+  },[members,characters,ownerId,assignments,claims,busy,error,snapshotKey,currentKey]);
  const groupingError=!busy&&!error&&snapshotKey===currentKey&&rows.length===0?'Assegnazioni o partecipanti non verificati':null;
  async function changeAvailable(id:string,now:boolean){
-  if(!availabilityEnabled||pending||busy||error||snapshotKey!==currentKey||assignments.has(id))return;
+   if(!availabilityEnabled||pending||busy||error||snapshotKey!==currentKey||assignments.has(id)||claims.has(id))return;
   const generation=requestGeneration.current;
   setPending(id);setSaveError(null);
   try{
@@ -48,7 +49,7 @@ export function ArubaCampaignPlayerRows({campaignId,ownerId,revision,availabilit
   finally{if(generation===requestGeneration.current&&currentKeyRef.current===currentKey)setPending(null);}
  }
  async function changeAssignment(id:string,playerId:string){
-  if(!assignmentsEnabled||!availabilityEnabled||pending||busy||error||snapshotKey!==currentKey||!availability.get(id))return;
+   if(!assignmentsEnabled||!availabilityEnabled||pending||busy||error||snapshotKey!==currentKey||!availability.get(id)||claims.has(id))return;
   const verifiedPlayer=members.some(m=>m.userId===playerId&&m.role==='player');
   if(playerId!==''&&!verifiedPlayer)return;
   const generation=requestGeneration.current;
@@ -68,25 +69,26 @@ export function ArubaCampaignPlayerRows({campaignId,ownerId,revision,availabilit
  useEffect(()=>{
   let active=true;
   setSnapshotKey('');setPending(null);
-  setMembers([]);setCharacters([]);setAssignments(new Map());setAvailability(new Map());
+   setMembers([]);setCharacters([]);setAssignments(new Map());setClaims(new Map());setAvailability(new Map());
   setError(null);setSaveError(null);setBusy(true);
   void Promise.all([
    listOwnedCampaignRoster(fetch,campaignId),
    listCharacterDrafts(fetch,campaignId,ownerId),
    availabilityEnabled?listCharacterAvailability(fetch,campaignId):Promise.resolve(new Map()),
-   assignmentsEnabled?listCharacterAssignments(fetch,campaignId):Promise.resolve(new Map()),
-  ]).then(([roster,pgs,flags,links])=>{
+    assignmentsEnabled?listCharacterAssignments(fetch,campaignId):Promise.resolve(new Map()),
+    claimsEnabled?listOwnedCharacterClaims(fetch,campaignId):Promise.resolve(new Map()),
+   ]).then(([roster,pgs,flags,links,claimLinks])=>{
    if(!active)return;
    // Validate the complete server snapshot BEFORE publishing any portion of it
    // to React. A rejected assignment must not leave a partially trusted roster.
-   validateOwnedCampaignPlayerSnapshot(roster,pgs,ownerId,flags,links,availabilityEnabled,assignmentsEnabled);
-   setMembers(roster);setCharacters(pgs);setAvailability(flags);setAssignments(links);
+    validateOwnedCampaignPlayerSnapshot(roster,pgs,ownerId,flags,links,availabilityEnabled,assignmentsEnabled,claimLinks,claimsEnabled);
+    setMembers(roster);setCharacters(pgs);setAvailability(flags);setAssignments(links);setClaims(claimLinks);
    setSnapshotKey(currentKey);
   }).catch(reason=>{
    if(active)setError(reason instanceof Error?reason.message:'Partecipanti non disponibili');
   }).finally(()=>{if(active)setBusy(false);});
   return()=>{active=false;};
- },[campaignId,ownerId,revision,retryRevision,availabilityEnabled,assignmentsEnabled]);
+  },[campaignId,ownerId,revision,retryRevision,availabilityEnabled,assignmentsEnabled,claimsEnabled]);
  return <section className="aruba-campaign-player-rows" data-roster-instance={instanceId.current} aria-label="Partecipanti campagna">
   <h2>Giocatori e personaggi</h2>
   <p className="muted">Ruoli e assegnazioni verificati dal server · le schede restano di proprietà del GM.</p>
@@ -105,24 +107,25 @@ export function ArubaCampaignPlayerRows({campaignId,ownerId,revision,availabilit
     <div className="aruba-campaign-character-grid">
      {row.characters.map(c=><div key={c.id} className="aruba-campaign-character-item"
       data-campaign-character-id={c.id}>
-      <div role="button" tabIndex={0} className="aruba-campaign-character-open"
-       aria-label={'Apri scheda campagna di '+c.name}
-       onKeyDown={event=>{if(event.target===event.currentTarget&&
-        (event.key==='Enter'||event.key===' ')){event.preventDefault();onOpenCharacter(c.id);}}}>
+       <div role="button" tabIndex={0} className="aruba-campaign-character-open"
+        aria-label={'Apri scheda campagna di '+c.name}
+        onClick={()=>onOpenCharacter(c.id)}
+        onKeyDown={event=>{if(event.target===event.currentTarget&&
+         (event.key==='Enter'||event.key===' ')){event.preventDefault();onOpenCharacter(c.id);}}}>
       <ArubaPortraitEntityCard campaignId={campaignId} characterId={c.id} enabled={portraitsEnabled} name={c.name}
        subtitle={[c.sheetData.style,c.sheetData.viaggio].filter(Boolean).join(' · ')}
        secondaryText={typeof c.sheetData.description==='string'?c.sheetData.description:undefined}
-       onClick={()=>onOpenCharacter(c.id)}/>
+        onClick={undefined}/>
       </div>
       {availabilityEnabled&&
        <button type="button" className="aruba-availability-toggle"
         aria-label={'Disponibilità di '+c.name}
         aria-pressed={availability.get(c.id)===true}
-        disabled={pending!==null||!availability.has(c.id)||assignments.has(c.id)}
+         disabled={pending!==null||!availability.has(c.id)||assignments.has(c.id)||claims.has(c.id)}
         onClick={()=>void changeAvailable(c.id,availability.get(c.id)===true)}>
         {availability.get(c.id)===true?'Disponibile per i giocatori':'Rendi disponibile ai giocatori'}
        </button>}
-      {assignmentsEnabled&&availability.get(c.id)===true&&
+       {claims.has(c.id)?<p className="muted aruba-character-claimed">Reclamato dal giocatore · gestione assegnazione bloccata</p>:assignmentsEnabled&&availability.get(c.id)===true&&
        <label className="aruba-assignment-label">
         <span>Assegna a un giocatore</span>
         <select aria-label={'Assegna '+c.name+' a un giocatore'}

@@ -1,0 +1,41 @@
+services:
+  aruba-api:
+    build:
+      context: ./apps/aruba-api
+    restart: unless-stopped
+    user: "1001:1001"
+    ports:
+      - "127.0.0.1:3002:3000"
+    env_file:
+      - ./config/production.env
+    environment:
+      PORT: "3000"
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      AUTH_RATE_LIMIT_KEY_FILE: /run/secrets/auth_hmac_key
+      RESEND_API_KEY_FILE: /run/secrets/resend_api_key
+    secrets:
+      - postgres_password
+      - auth_hmac_key
+      - resend_api_key
+    networks:
+      - hollowgate-db
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+
+secrets:
+  postgres_password:
+    file: ./secrets/postgres_password
+  auth_hmac_key:
+    file: ./secrets/auth_hmac_key
+  resend_api_key:
+    file: ./secrets/resend_api_key
+
+networks:
+  hollowgate-db:
+    external: true
+    name: hollowgate-db

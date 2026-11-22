@@ -70,4 +70,27 @@ test('PATCH campaign edit is cookie scoped and rejects CSRF and forged owner fie
  });
 });
 
+test('PUT campaign branding is cookie scoped, same-origin and owner-only',async()=>{
+ const uuid='be2f1a87-b8ee-4b34-9da0-07efda11379a';
+ const calls=[];
+ const campaigns={
+  list:async()=>({campaigns:[]}),
+  create:async()=>({campaign:{}}),
+  update:async(owner,id,body)=>{calls.push({owner,id,body});return {campaign:{id,ownerId:owner,...body}};},
+  setBranding:async(owner,campaignId,body)=>{calls.push({owner,campaignId,body});return {campaign:{id:campaignId,ownerId:owner,...body}};},
+ };
+ await serve(request({id:ownerA,role:'standard'},campaigns),async base=>{
+   const url=base+'/vtt/campaigns/'+uuid+'/branding';
+   const body={logoAssetId:'11111111-1111-4111-8111-111111111111',coverAssetId:null};
+   const req={method:'PUT',headers:{cookie:'__Host-hg_session='+token,origin,'content-type':'application/json'},body:JSON.stringify(body)};
+   assert.equal((await fetch(url,{...req,headers:{origin,'content-type':'application/json'}})).status,401);
+   assert.equal((await fetch(url,{...req,headers:{...req.headers,origin:'https://evil.invalid'}})).status,403);
+   const res=await fetch(url,req);
+   assert.equal(res.status,200);
+   const payload=await res.json();
+   assert.equal(payload.campaign.id,uuid);
+   assert.deepEqual(calls,[{owner:ownerA,campaignId:uuid,body}]);
+ });
+});
+
 // Character-specific HTTP tests live separately from campaign compatibility.

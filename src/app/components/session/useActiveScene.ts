@@ -44,7 +44,7 @@ function sameObjectOrder(previous: ActiveScenePublication['mapObjectOrder'], nex
   return previous.every((item, index) => item.id === next[index].id && item.family === next[index].family);
 }
 
-export function useActiveScene(campaignId: string | null | undefined) {
+export function useActiveScene(campaignId: string | null | undefined, _options?: { owner?: boolean }) {
   const [activeScene, setActiveScene] = useState<ActiveScenePublication | null>(null);
   const [loading, setLoading] = useState(!!campaignId);
   const receivedBroadcast = useRef(false);

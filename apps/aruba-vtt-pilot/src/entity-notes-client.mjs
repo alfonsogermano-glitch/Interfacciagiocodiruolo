@@ -85,3 +85,44 @@ export async function setArubaSubtabOrder(fetchImpl,campaignId,characterId,paren
   throw Error('Ordine sottoschede non confermato');
  return data.tabOrder;
 }
+
+const narrativeScope=(campaignId,kind,entityId)=>{
+ safeId(campaignId,'Campagna');safeId(entityId,'Entità');
+ if(!['npcs','monsters'].includes(kind))throw Error('Tipo narrativo non valido');
+ return {campaignId,kind,entityId};
+};
+export async function listArubaNarrativeEntityNotes(fetchImpl,campaignId,kind,entityId,parentId=null){
+ const scope=narrativeScope(campaignId,kind,entityId);if(parentId!==null)safeId(parentId,'Nota padre');
+ const query=new URLSearchParams({...scope,...(parentId===null?{}:{parentId})});
+ const data=await jsonResponse(await fetchImpl('/vtt/narrative-entity-notes?'+query,options('GET')));
+ if(!Array.isArray(data.notes)||data.notes.length>100)throw Error('Elenco note narrative non valido');
+ return data.notes.map(normalizeNote);
+}
+export async function createArubaNarrativeEntityNote(fetchImpl,campaignId,kind,entityId,tabName,parentId=null){
+ const scope=narrativeScope(campaignId,kind,entityId);
+ if(typeof tabName!=='string'||!tabName.trim()||tabName.trim().length>120)throw Error('Nome nota non valido');
+ if(parentId!==null)safeId(parentId,'Nota padre');
+ const data=await jsonResponse(await fetchImpl('/vtt/narrative-entity-notes',options('POST',{...scope,tabName:tabName.trim(),...(parentId===null?{}:{parentId})})));
+ return normalizeNote(data.note);
+}
+export async function saveArubaNarrativeEntityNote(fetchImpl,campaignId,kind,entityId,noteId,note){
+ const scope=narrativeScope(campaignId,kind,entityId);safeId(noteId,'Nota');
+ const allowed=['tab_name','content','content_rich','position','hidden','visibility'];
+ if(!note||typeof note!=='object'||allowed.some(key=>!Object.hasOwn(note,key)))throw Error('Nota incompleta');
+ const data=await jsonResponse(await fetchImpl('/vtt/narrative-entity-notes/'+noteId,options('PATCH',{...scope,
+  tabName:note.tab_name,content:note.content,contentRich:note.content_rich,position:note.position,hidden:note.hidden,visibility:note.visibility})));
+ const value=normalizeNote(data.note);if(value.id!==noteId)throw Error('Nota non corrispondente');return value;
+}
+export async function archiveArubaNarrativeEntityNote(fetchImpl,campaignId,kind,entityId,noteId){
+ const scope=narrativeScope(campaignId,kind,entityId);safeId(noteId,'Nota');
+ const data=await jsonResponse(await fetchImpl('/vtt/narrative-entity-notes/'+noteId,options('DELETE',scope)));
+ if(data.archivedId!==noteId)throw Error('Archiviazione nota non confermata');return noteId;
+}
+export async function setArubaNarrativeSubtabOrder(fetchImpl,campaignId,kind,entityId,parentId,order){
+ const scope=narrativeScope(campaignId,kind,entityId);safeId(parentId,'Nota padre');
+ if(!Array.isArray(order)||order.length>100||order.some(id=>typeof id!=='string'||!UUID.test(id))||new Set(order).size!==order.length)
+  throw Error('Ordine sottoschede non valido');
+ const data=await jsonResponse(await fetchImpl('/vtt/narrative-entity-notes/order/'+parentId,options('PATCH',{...scope,tabOrder:order})));
+ if(data.parentId!==parentId||JSON.stringify(data.tabOrder)!==JSON.stringify(order))throw Error('Ordine sottoschede non confermato');
+ return data.tabOrder;
+}

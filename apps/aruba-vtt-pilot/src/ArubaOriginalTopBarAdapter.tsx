@@ -4,10 +4,15 @@ import {createContext,useContext,type ReactNode} from 'react';
  * character-claim writes fail explicitly and map operations stay unavailable. */
 export type TopBarQaUser={id:string;email:string;displayName:string;role:'standard'|'admin'};
 const Context=createContext<TopBarQaUser|null>(null);
+let currentUser:TopBarQaUser|null=null;
+const identityKey='__HG_ARUBA_TOPBAR_IDENTITY__' as const;
 export function ArubaTopBarQaIdentity({user,children}:{user:TopBarQaUser;children:ReactNode}){
+ currentUser=user;
+ (globalThis as typeof globalThis&Record<typeof identityKey,TopBarQaUser>)[identityKey]=user;
  return <Context.Provider value={user}>{children}</Context.Provider>;
 }
-export function useAuth(){return {user:useContext(Context),session:null};}
+export function useAuth(){return {user:useContext(Context)??currentUser??(globalThis as typeof globalThis&Partial<Record<typeof identityKey,TopBarQaUser>>)[identityKey]??null,session:null};}
+export const supabase=null;
 export type NotificationRow={
  id:string;type:string;data:Record<string,unknown>;read:boolean;created_at:string;
 };

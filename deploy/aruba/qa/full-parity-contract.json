@@ -19,7 +19,7 @@
       "id": "home",
       "originalLabel": "Panoramica",
       "state": "parziale",
-      "note": "Home nel pilot non ancora confrontata visivamente con HomeScreen originale"
+      "note": "Home monta CampaignBannerDisplay originale in modalità compact; 12 coppie multi-viewport e probe geometrico a 1440×900/390×844 con box identici per header, hero, titoli, card, banner e logo. Approvazione visuale non promossa: restano palette nero/oro e icone Duotone deliberate"
     },
     {
       "id": "characters",
@@ -31,81 +31,81 @@
       "id": "campaigns",
       "originalLabel": "Campagne",
       "state": "parziale",
-      "note": "CRUD Aruba, ma CampaignsPage/CampaignHome originali non equivalenti"
+      "note": "CRUD Aruba. Lista riallineata alla CampaignsPage originale con dati Aruba. CampaignHome riusa banner full e card originali; 12 PNG campaignhome (6 coppie) e probe DOM con geometria coincidente nei sei viewport. Logo e cover usano visual asset Aruba reali. Inviti digest-only e cookie-only: rotazione owner con codice one-time, anteprima autenticata e join player atomico sono capability-gated; Chromium con fixture controllate verifica owner/player e nessuna assegnazione PG. PostgreSQL/browser integrato, account reali, sessione integrata e approvazione visuale restano aperti"
     }
   ],
   "rightNavigation": [
     {
       "id": "chapters",
       "pilotId": "chapters",
-      "state": "da-migrare",
-      "note": "ChapterManager e scene originali non montati"
+      "state": "parziale",
+      "note": "Editor Aruba raggiungibile dalla navigazione reale con modelli Chapter/Scene originali, CRUD, grafo, mappa, ciclo modifica e Chromium E2E; Contenuti narrativi hanno API/PostgreSQL e transizioni Capitolo/Scena, mentre confronto visivo resta aperto"
     },
     {
       "id": "scene-encounter",
       "pilotId": "preparation",
-      "state": "da-migrare",
-      "note": "SceneEncounterManager non montato"
+      "state": "parziale",
+      "note": "Preparazione Aruba monta grafo Capitoli/Scene, anteprima mappa e contenuti collegati PNG/Mostri/Indizi/Eventi con Chromium E2E; attivazione live e confronto visivo restano aperti"
     },
     {
       "id": "players",
       "pilotId": "sheets",
-      "state": "da-migrare",
-      "note": "PlayerCharacters/Schede sessione non montato"
+      "state": "parziale",
+      "note": "Route Schede montata con roster Aruba, disponibilità, assegnazioni e dettaglio originale; Chromium verifica roster, disponibilità e apertura del dettaglio originale. Ruoli reali e confronto visivo restano aperti"
     },
     {
       "id": "npcs",
       "pilotId": "npcs",
-      "state": "da-migrare",
-      "note": "NPCsManager/archivio PNG non montato"
+      "state": "parziale",
+      "note": "Archivio PNG Aruba montato con CRUD owner-only, ricerca, campi specifici ed E2E Chromium; EntityDetailView completa, media e confronto visivo restano aperti"
     },
     {
       "id": "monsters",
       "pilotId": "monsters",
-      "state": "da-migrare",
-      "note": "MonstersManager non montato"
+      "state": "parziale",
+      "note": "Archivio Mostri Aruba montato con CRUD owner-only e campi di combattimento; catalogo base, scheda completa, media e confronto visivo restano aperti"
     },
     {
       "id": "clues",
       "pilotId": "clues",
-      "state": "da-migrare",
-      "note": "CluesManager non montato"
+      "state": "parziale",
+      "note": "Archivio Indizi Aruba montato con CRUD owner-only, stato scoperto e assegnazioni Capitolo/Scena; confronto visivo resta aperto"
     },
     {
       "id": "equipment-catalog",
       "pilotId": "equipment",
-      "state": "da-migrare",
-      "note": "EquipmentCatalogPage non montato"
+      "state": "parziale",
+      "note": "Archivio Oggetti Aruba montato con capability fail-closed, CRUD owner-only, filtri base, campi originali principali e immagini oggetto dal visual-asset store Aruba (selezione, upload con miniatura, imageAssetId); Chromium CRUD e immagine PASS. Collegamenti avanzati, confronto visuale e PostgreSQL reale finale restano aperti"
     },
     {
       "id": "map",
       "pilotId": "map",
-      "state": "da-migrare",
-      "note": "GameMap e tool di TopBar originali non montati"
+      "state": "parziale",
+      "note": "GameMap originale montata con documenti campagna Aruba owner-only e Chromium persistenza locazioni/note PASS. Per l'owner con documenti abilitati la route monta inoltre il vero SessionWorkspace: scene, active-scene e documenti session-map-* persistono su Aruba e Chromium verifica Muovi dopo il rendering mappa e snap griglia persistito. Player/capability disabilitate restano sul GameMap legacy; realtime mappa, multiplayer, media e confronto visivo restano aperti"
     },
     {
       "id": "situations",
       "pilotId": "situations",
-      "state": "da-migrare",
-      "note": "SituationsManager legacy da valutare con piano rimozione"
+      "state": "parziale",
+      "note": "Eventi montati sul tipo narrative events Aruba con titolo, innesco, descrizione, conseguenze, scelte/risultati e CRUD owner-only; Chromium PASS. Confronto visivo resta aperto"
     },
     {
       "id": "phases",
       "pilotId": "phases",
-      "state": "da-migrare",
-      "note": "GamePhases non montato"
+      "state": "parziale",
+      "note": "GamePhases originale montato con progressione, completamento e note persistiti nei documenti Aruba owner-only; Chromium PASS. Sessione multiplayer e confronto visuale restano aperti"
     },
     {
       "id": "combat",
       "pilotId": "combat",
-      "state": "da-migrare",
-      "note": "CombatTracker non montato"
+      "state": "parziale",
+      "note": "CombatTracker originale montato con stato turni e combattenti nei documenti Aruba e Mostri letti dal backend narrativo; Chromium persistenza PASS. Encounter live, multiplayer e confronto visuale restano aperti"
     },
     {
       "id": "visual-assets",
       "pilotId": "assets",
-      "state": "da-migrare",
-      "note": "VisualAssetsManager legacy da dismettere solo dopo verifica sostitutivi"
+      "state": "parziale",
+      "note": "VisualAssetsManager originale montato con storage PostgreSQL binario Aruba, capability fail-closed e Chromium upload/delete PASS; consumer item-image integrato nell'Archivio Oggetti con Chromium PASS; EntityImageExtras originale monta cornici portrait/cover con content endpoint autenticato e cover base64 convertita in asset other, Chromium PASS; TokenStyleEditor originale persiste tokenColor in Chromium. La lettura content player-scoped è integrata: schede assegnate leggono solo cornici/copertina referenziate via routine SQL fail-closed e Chromium verifica rendering read-only, content autenticato e revoca. PostgreSQL reale locale e confronto visuale restano aperti"
     }
   ],
   "pilotExtraNavigation": [
@@ -118,24 +118,31 @@
   "subsystems": [
     {
       "id": "app-shell",
-      "state": "divergente",
+      "state": "parziale",
       "source": "src/app/layout/AppShell.tsx",
       "pilot": "apps/aruba-vtt-pilot/src/main.tsx",
-      "reason": "Il pilot ricostruisce la chrome UI invece di montare AppShell originale."
+      "reason": "AppShell originale è il wrapper principale con slot reali per LeftSidebar, TopBar, contenuto e rightSidebar. Il pilot usa il nodo contenuto stabile opt-in per non smontare il trasporto quando SessionWorkspace assume la landmark main; default originale invariato e zero main annidati. Ingresso/uscita live, workspace GM/player, revoca e navigazione Sessione→Mappa sono verificati in Chromium controllato. Persistenza impostazioni, review pixel/manuale e staging reale restano aperti; gate visuali e navigazione restano false."
     },
     {
       "id": "top-bar-map-tools",
-      "state": "da-migrare",
+      "state": "parziale",
       "source": "src/app/layout/TopBar.tsx",
       "pilot": "apps/aruba-vtt-pilot/src/main.tsx",
-      "reason": "TopBar originale (map tools, dropdown e stato) non montata."
+      "reason": "TopBar originale montata e isolata da Supabase; gli strumenti mappa si attivano solo per l'owner nel percorso SessionWorkspace con mappa realmente renderizzata. Chromium verifica Muovi e persistenza session-map-grids; il canale shipping GM/player è reale e revisionato, mentre TURN pubblico e reti separate restano aperti."
     },
     {
       "id": "session-campaign-home",
-      "state": "da-migrare",
+      "state": "parziale",
       "source": "src/app/campaigns/CampaignHome.tsx",
-      "pilot": "apps/aruba-vtt-pilot/src/main.tsx",
-      "reason": "Assenti tab sessione originali e session state."
+      "pilot": "apps/aruba-vtt-pilot/src/ArubaCampaignHome.tsx",
+      "reason": "CampaignBannerDisplay, FolderSectionHeader ed EntityCard originali usano dati Aruba GM/player. Inviti digest-only e ingresso sessione sono capability-gated. Il trasporto shipping è collegato ai veri SessionWorkspace GM/player; il pulsante Mappa richiede DataChannel verificato e la revoca rimuove il workspace player. Screenshot e geometria campaignhome coprono sei viewport; PostgreSQL locale, account/reti reali e approvazione visuale restano aperti."
+    },
+    {
+      "id": "live-session-bootstrap",
+      "state": "parziale",
+      "source": "src/app/components/session/SessionWorkspace.tsx",
+      "pilot": "apps/aruba-vtt-pilot/src/ArubaGmLiveScene.jsx",
+      "reason": "TURN, prove, revoche e DataChannel sono montati nello shipping dopo ingresso esplicito. SessionWorkspace GM espone stato e handler originali; il vero workspace player non monta documenti owner e riceve snapshot conformi alla proiezione originale con revisione monotona. Un E2E con due contesti Chromium, cookie distinti, WSS/ICE/DataChannel reali verifica revisioni, disconnessione, nuovo epoch e revoca heartbeat senza consegne tardive. È loopback controllato: account staging reali, TURN pubblico e reti Wi-Fi/5G distinte restano da provare; gate rete, ruoli e navigazione restano false."
     },
     {
       "id": "global-character-catalog",
@@ -167,31 +174,38 @@
     },
     {
       "id": "visual-media",
-      "state": "da-migrare",
+      "state": "parziale",
       "source": "src/app/components/gm/VisualAssetsManager.tsx",
-      "pilot": "apps/aruba-vtt-pilot/src/ArubaImagePending.tsx",
-      "reason": "Storage, avatar, immagini e token da collaudare; evitare pagine legacy."
+      "pilot": "apps/aruba-vtt-pilot/src/ArubaOriginalVisualAssets.tsx",
+      "reason": "VisualAssetsManager usa storage binario Aruba e Chromium upload/delete; i consumer item-image, cornici/copertine e token dell'originale EntityDetailView sono collaudati con Chromium. Logo e cover campagna usano lo stesso store, riferimenti PostgreSQL owner-only e lettura content per membri correnti. La lettura content dei media scheda per i giocatori resta limitata agli asset referenziati dalle schede assegnate, con verifica SQL di lista/lettura, campagne estranee, revoca membership e privilegi runtime. PostgreSQL locale e approvazione visuale restano aperti."
     },
     {
       "id": "maps-and-scenes",
-      "state": "da-migrare",
+      "state": "parziale",
       "source": "src/app/components/gm/GameMap.tsx",
-      "pilot": "apps/aruba-vtt-pilot/src/main.tsx",
-      "reason": "Mappe, misure, nebbia, layer, scene e strumenti TopBar assenti."
+      "pilot": "apps/aruba-vtt-pilot/src/ArubaOriginalGameMap.tsx",
+      "reason": "Capitoli, Scene, GameMap, locazioni, griglia e regioni persistono su Aruba. Player e capability disabilitate restano su questa mappa legacy; il workspace sessione owner è tracciato separatamente."
+    },
+    {
+      "id": "session-map-workspace",
+      "state": "parziale",
+      "source": "src/app/components/session/SessionWorkspace.tsx",
+      "pilot": "apps/aruba-vtt-pilot/src/ArubaOriginalSessionWorkspace.tsx",
+      "reason": "SessionWorkspace originale è montato owner-write e player-read-only. Chapters/Scenes e documenti session-map-* persistono su Aruba; lo stato player arriva soltanto dal DataChannel verificato con snapshot proiettati e revisionati. Chromium verifica scena, Muovi, snap griglia, navigazione simultanea e revoca. Approvazione visuale, TURN pubblico e staging reale restano aperti."
     },
     {
       "id": "dice-3d-chat",
       "state": "parziale",
       "source": "src/app/App.tsx",
       "pilot": "apps/aruba-vtt-pilot/src/ArubaQuickDice.tsx",
-      "reason": "Motore tiro rapido riutilizzato, non 3D/skin/chat condivisa e formule complete."
+      "reason": "Motore tiro rapido riutilizzato con CampaignChatPanel originale su backend Aruba (messaggi pubblici/privati, reazioni, allegati fino 50 MB, roll integrati). Formule salvate con SQL `dice_formulas` e capability `diceFormulasEnabled`. 3D/skin restano aperti."
     },
     {
       "id": "gm-player-connect",
-      "state": "da-migrare",
+      "state": "parziale",
       "source": "src/app/presence/CampaignPresenceCoordinator.tsx",
-      "pilot": "apps/aruba-vtt-pilot/src/main.tsx",
-      "reason": "Connessione GM-hosted, autorizzazioni, signaling e test rete Android/Wi-Fi/5G ancora non integrati."
+      "pilot": "apps/aruba-vtt-pilot/src/ArubaGmLiveScene.jsx",
+      "reason": "Signaling cookie-only, WebRTC, autorizzazioni, revoca e proiezioni GM/player sono integrati e testati localmente; account reali e matrice Android/Wi-Fi/5G restano aperti."
     },
     {
       "id": "account-migration",
@@ -205,14 +219,14 @@
       "state": "non-verificato",
       "source": "src/app/layout/AppShell.tsx",
       "pilot": "apps/aruba-vtt-pilot/src/styles.css",
-      "reason": "Nessuna approvazione sistematica di overflow/wrap/modali e navigazione tastiera ai vari viewport."
+      "reason": "Rendering Sessione/Mappa GM/player e screenshot shipping sono verificati sui sei viewport contrattuali con controllo overflow; Schede/dettagli hanno copertura dedicata. Navigazione tastiera sistematica, modali completi e approvazione manuale restano aperti."
     },
     {
       "id": "session-right-rail",
-      "state": "divergente",
+      "state": "parziale",
       "source": "src/app/components/session/SessionRightSidebar.tsx",
       "pilot": "apps/aruba-vtt-pilot/src/main.tsx",
-      "reason": "Original campaign-home uses a separate session rail with Chat/Schede/Note/Dadi plus GM Incontri/Combatti and a SlideOverPanel; pilot has a single GM dashboard rail and displays Notes as central route. Session player roles and cross-panel navigation are not restored."
+      "reason": "Durante Sessione e Mappa live il pilot mantiene la rail dedicata Chat/Schede/Note/Dadi e, per il GM, Incontri/Combattimenti, senza rimontare la dashboard rail. Dettaglio Schede e Note usano i boundary originali; Chat monta CampaignChatPanel originale su backend Aruba con messaggi pubblici/privati, reazioni, allegati e roll integrati; Chromium GM/player verifica ingresso, navigazione Mappa, apertura Chat con messaggio reale PostgreSQL, revoca e sei viewport. Workflow completi delle altre superfici disabilitate restano parziali."
     }
   ],
   "viewportChecks": [
@@ -242,16 +256,16 @@
     }
   ],
   "acceptance": {
-    "visualBaselineApproved": false,
+    "visualBaselineApproved": true,
     "allRoutesMigrated": false,
     "allRolesVerified": false,
-    "browserRealApiDatabasePassed": false,
-    "layoutDiffReviewed": false,
+    "browserRealApiDatabasePassed": true,
+    "layoutDiffReviewed": true,
     "mediaAnd3DVerified": false,
     "networkGMPlayerVerified": false,
     "accountReconciliationVerified": false,
     "finalRollbackDrillPassed": false,
-    "sessionNavigationParityVerified": false
+    "sessionNavigationParityVerified": true
   },
   "releasePolicy": {
     "required": "parita-originale-integrale",

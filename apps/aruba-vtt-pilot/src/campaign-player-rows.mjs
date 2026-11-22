@@ -1,10 +1,10 @@
 // Original CampaignHome groups cards by the SERVER-VERIFIED assigned player.
 // The GM retains ownership of every sheet, including when its card is shown
 // beneath a player. The assignment map is never inferred from names or roles.
-export function composeOwnedCampaignPlayerRows(members,characters,ownerId,assignments=new Map()){
+export function composeOwnedCampaignPlayerRows(members,characters,ownerId,assignments=new Map(),claims=new Map()){
  if(!Array.isArray(members)||!Array.isArray(characters)||
     typeof ownerId!=='string'||members.length>101||characters.length>100||
-    !(assignments instanceof Map)||assignments.size>100)
+     !(assignments instanceof Map)||assignments.size>100||!(claims instanceof Map)||claims.size>100)
   throw new Error('Elenco campagna non valido');
  const seen=new Set();
  const rows=members.map(m=>{
@@ -32,24 +32,29 @@ export function composeOwnedCampaignPlayerRows(members,characters,ownerId,assign
   }else if(character.status!=='draft'||assignments.has(character.id))
    throw new Error('Stato personaggio o assegnazione non valido');
  }
- for(const [characterId,playerId] of assignments){
+  for(const [characterId,playerId] of assignments){
   if(!charIds.has(characterId)||!playerRows.has(playerId))
    throw new Error('Assegnazione non verificata');
- }
+  }
+  for(const [characterId,playerId] of claims){
+   if(assignments.get(characterId)!==playerId)throw new Error('Claim non allineato con assegnazione');
+  }
  return rows;
 }
 
 /** Validate roster, ownership, availability and assignments as one atomic snapshot. */
-export function validateOwnedCampaignPlayerSnapshot(members,characters,ownerId,availability,assignments,availabilityEnabled,assignmentsEnabled){
+export function validateOwnedCampaignPlayerSnapshot(members,characters,ownerId,availability,assignments,availabilityEnabled,assignmentsEnabled,claims=new Map(),claimsEnabled=false){
  if(!(availability instanceof Map)||!(assignments instanceof Map))throw new Error('Stato campagna non valido');
  if(assignmentsEnabled&&!availabilityEnabled)throw new Error('Assegnazioni senza disponibilità verificata');
- const rows=composeOwnedCampaignPlayerRows(members,characters,ownerId,assignments);
+  if(!(claims instanceof Map)||(!claimsEnabled&&claims.size))throw new Error('Claim campagna non verificati');
+  const rows=composeOwnedCampaignPlayerRows(members,characters,ownerId,assignments,claims);
  const ids=new Set(characters.map(c=>c.id));
  for(const [id,value] of availability){
   if(!ids.has(id)||typeof value!=='boolean')throw new Error('Disponibilità non verificata');
  }
- for(const [id] of assignments){
+  for(const [id] of assignments){
   if(!availabilityEnabled||availability.get(id)!==true)throw new Error('Assegnazione a personaggio non disponibile');
- }
+  }
+  if(claimsEnabled&&!assignmentsEnabled)throw new Error('Claim senza assegnazioni verificate');
  return rows;
 }

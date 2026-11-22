@@ -13,6 +13,7 @@ import { EntityDetailRail, type EntityDetailRailSection } from './EntityDetailRa
 import { TokenStyleEditor } from '../../shared/TokenStyleEditor';
 import { EntityImageTab } from './EntityImageTab';
 import { EntityPortraitImage } from '../../shared/EntityPortraitImage';
+import { CoverFrame } from '../../shared/PortraitCropEditor';
 import type { ImageCrop } from '../../gm/monsters/monstersTypes';
 import { ConfirmDialog } from '../../shared/ConfirmDialog';
 import { FreschezzaBoxesEditor } from '../../shared/FreschezzaBoxesEditor';
@@ -22,6 +23,7 @@ import { useRuleset } from '../../../campaigns/RulesetContext';
 import { RulesetTag } from '../../shared/RulesetTag';
 import type { Stile, Viaggio, Trait } from '../../../../types/character';
 import type { Chapter } from '../../../../types/chapter';
+import type { RulesetId } from '../../../campaigns/campaignTypes';
 import { STYLE_TRAITS, JOURNEY_TRAITS } from '../../../../data/traits';
 import { VIAGGI_PER_STILE, calculateAmbiti, NOTABLE_CITIZENS, LATER_SENTINEL } from '../../../../data/characterCalculations';
 import { loadNPCs, loadChapters } from '../../../../services/supabase/entitiesService';
@@ -177,8 +179,19 @@ interface EntityDetailViewProps {
    *  image editors and campaign asset loaders in the read-only image tab.
    *  Default false leaves the entire original GM workflow unchanged. */
   arubaReadOnlyMedia?: boolean;
+  /** Player-authorized frame assets for the read-only Aruba media preview.
+   *  Only ids returned by the player-scoped API are passed by the caller. */
+  arubaReadOnlyVisualAssets?: Array<{ id: string; type: string; imageDataUrl: string }>;
   /** Optional isolated Aruba GM image editor rendered inside the original media rail. */
   arubaPortraitEditor?: ReactNode;
+  /** Server-verified Aruba chapters for isolated narrative placement. When
+   * provided, legacy Supabase placement loaders remain disabled. */
+  arubaNarrativeChapters?: Chapter[];
+  /** Authoritative Aruba campaign ruleset for isolated narrative rendering. */
+  arubaRuleset?: RulesetId;
+  /** Read-only Aruba narrative rendering: never activate Supabase-backed
+   * notes, placement loaders or media writes. */
+  arubaIsolatedNarrative?: boolean;
 }
 
 export function EntityDetailView({
@@ -199,7 +212,11 @@ export function EntityDetailView({
   onActiveSectionChange,
   monsterAudaciaExtraAction,
   arubaReadOnlyMedia = false,
+  arubaReadOnlyVisualAssets = [],
   arubaPortraitEditor,
+  arubaNarrativeChapters,
+  arubaRuleset,
+  arubaIsolatedNarrative = false,
 }: EntityDetailViewProps) {
   const [internalActiveSection, setInternalActiveSection] = useState<EntityDetailRailSection>('scheda');
   const activeSection = controlledActiveSection ?? internalActiveSection;
@@ -218,7 +235,9 @@ export function EntityDetailView({
   // (const isD20 = isDnD5e || isPathfinder), per applicare le identiche
   // condizioni di visibilita' ai campi PNG specifici del sistema d20.
   const { isDnD5e, isPathfinder } = useRuleset();
-  const isD20 = isDnD5e || isPathfinder;
+  const isD20 = arubaIsolatedNarrative
+    ? arubaRuleset === 'dnd5e' || arubaRuleset === 'pathfinder'
+    : isDnD5e || isPathfinder;
 
   // Le tab modalita' custom/notable sono scelte di presentazione locali (non
   // dati salvati): vanno azzerate quando si passa a un'altra entita', altrimenti
@@ -276,6 +295,11 @@ export function EntityDetailView({
   // PNG/Mostri, un PG non viene posizionato dal GM in un capitolo
   // specifica), quindi restano esclusi qui.
   useEffect(() => {
+    if (arubaIsolatedNarrative) {
+      setCampaignChapters(arubaNarrativeChapters ?? []);
+      setCampaignEnvironments([]);
+      return;
+    }
     if (!campaignId || (entityType !== 'npc' && entityType !== 'monster')) {
       setCampaignChapters([]);
       setCampaignEnvironments([]);
@@ -292,7 +316,7 @@ export function EntityDetailView({
       setCampaignEnvironments(environments);
     })();
     return () => { cancelled = true; };
-  }, [campaignId, entityType]);
+  }, [campaignId, entityType, arubaIsolatedNarrative, arubaNarrativeChapters]);
 
   const legamePool = (campaignId ? campaignCharacters : linkableCharacters).filter(c => c.id !== entity?.id);
 
@@ -447,6 +471,9 @@ export function EntityDetailView({
     onPersistTabOrder: (order) => {
       onUpdate({ ...entity, tabOrder: order });
     },
+    // Aruba isolation blocks legacy loaders above; custom tabs are enabled only
+    // by the authenticated ArubaNotes provider and remain off without it.
+    enabled: true,
   });
 
   const updateAmbito = (ambito: string, delta: number) => {
@@ -475,6 +502,11 @@ export function EntityDetailView({
 
   const portraitBucket =
     entityType === 'character' ? 'character-portraits' : entityType === 'npc' ? 'npc-images' : 'monster-images';
+
+  const arubaReadOnlyPortraitFrameUrl = arubaReadOnlyVisualAssets
+    .find(asset => asset.id === entity.portraitFrameAssetId)?.imageDataUrl;
+  const arubaReadOnlyCoverFrameUrl = arubaReadOnlyVisualAssets
+    .find(asset => asset.id === entity.coverFrameAssetId)?.imageDataUrl;
 
   return (
     <>
@@ -1037,7 +1069,7 @@ export function EntityDetailView({
             </div>
           )}
 
-          {entityType === 'npc' && tabs.currentTab === 'summary' && (
+              {entityType === 'npc' && tabs.currentTab === 'summary' && (
             <div className="space-y-3 text-sm">
               {!!campaignId && (
                 <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
@@ -1059,9 +1091,11 @@ export function EntityDetailView({
                 <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
                   <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Luogo</div>
                   <select
+                    aria-label="Luogo"
                     value={entity.environmentId ?? ''}
+                    disabled={arubaIsolatedNarrative}
                     onChange={(e) => onUpdate({ ...entity, environmentId: e.target.value || null })}
-                    className="w-full rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-2 py-1.5 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
+                    className="w-full rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-2 py-1.5 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)] disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <option value="">Nessun luogo</option>
                     {campaignEnvironments
@@ -1070,6 +1104,11 @@ export function EntityDetailView({
                         <option key={environment.id} value={environment.id}>{environment.name}</option>
                       ))}
                   </select>
+                  {arubaIsolatedNarrative && (
+                    <p className="mt-1 text-xs text-[var(--dash-muted)]">
+                      I luoghi non hanno ancora un archivio Aruba: il campo resta disabilitato.
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -1236,9 +1275,11 @@ export function EntityDetailView({
                 <div className="rounded-xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-3">
                   <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Luogo</div>
                   <select
+                    aria-label="Luogo"
                     value={entity.environmentId ?? ''}
+                    disabled={arubaIsolatedNarrative}
                     onChange={(e) => onUpdate({ ...entity, environmentId: e.target.value || null })}
-                    className="w-full rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-2 py-1.5 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
+                    className="w-full rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-2 py-1.5 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)] disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <option value="">Nessun luogo</option>
                     {campaignEnvironments
@@ -1247,6 +1288,11 @@ export function EntityDetailView({
                         <option key={environment.id} value={environment.id}>{environment.name}</option>
                       ))}
                   </select>
+                  {arubaIsolatedNarrative && (
+                    <p className="mt-1 text-xs text-[var(--dash-muted)]">
+                      I luoghi non hanno ancora un archivio Aruba: il campo resta disabilitato.
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -1492,14 +1538,39 @@ export function EntityDetailView({
                 <h3 className="mb-3 text-lg font-semibold text-[var(--dash-text-strong)]">Immagine personaggio</h3>
                 <p className="mb-4 text-sm text-[var(--dash-muted)]">Anteprima originale in sola lettura. Le immagini non ancora migrate non vengono caricate dal vecchio archivio.</p>
                 {entity.portraitImageUrl || (entity.portraitSourceImageUrl && entity.portraitCropArea) ? (
-                  <EntityPortraitImage
-                    portraitImageUrl={entity.portraitImageUrl}
-                    portraitSourceImageUrl={entity.portraitSourceImageUrl}
-                    portraitCropArea={entity.portraitCropArea}
-                    alt={'Ritratto di ' + entity.name}
-                    className="mx-auto aspect-square w-full max-w-xs rounded-xl object-cover"
-                    draggable={false}
-                  />
+                  arubaReadOnlyPortraitFrameUrl && entity.portraitImageUrl ? (
+                    <div className="relative mx-auto h-64 w-64" data-aruba-readonly-portrait-frame="true">
+                      <div className="absolute inset-[10%] z-10 overflow-hidden rounded-full bg-[var(--dash-panel)]">
+                        <EntityPortraitImage
+                          portraitImageUrl={entity.portraitImageUrl}
+                          alt={'Ritratto di ' + entity.name}
+                          className="h-full w-full"
+                          draggable={false}
+                        />
+                      </div>
+                      <img
+                        src={arubaReadOnlyPortraitFrameUrl}
+                        alt=""
+                        aria-hidden="true"
+                        data-aruba-readonly-frame="portrait"
+                        className="pointer-events-none absolute inset-0 z-20 h-full w-full object-contain"
+                        draggable={false}
+                        style={{
+                          transform: `translate(${entity.portraitFrameOffsetX ?? 0}px, ${entity.portraitFrameOffsetY ?? 0}px) rotate(${entity.portraitFrameRotationDegrees ?? 0}deg) scale(${entity.portraitFrameScaleX ?? 1}, ${entity.portraitFrameScaleY ?? 1})`,
+                          transformOrigin: 'center center'
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <EntityPortraitImage
+                      portraitImageUrl={entity.portraitImageUrl}
+                      portraitSourceImageUrl={entity.portraitSourceImageUrl}
+                      portraitCropArea={entity.portraitCropArea}
+                      alt={'Ritratto di ' + entity.name}
+                      className="mx-auto aspect-square w-full max-w-xs rounded-xl object-cover"
+                      draggable={false}
+                    />
+                  )
                 ) : (
                   <p className="rounded-xl border border-dashed border-[var(--dash-border-soft)] px-4 py-8 text-center text-sm text-[var(--dash-muted)]">
                     Nessuna immagine migrata disponibile.
@@ -1509,8 +1580,28 @@ export function EntityDetailView({
               {entity.coverImageUrl ? (
                 <section className="rounded-2xl border border-[var(--dash-border-soft)] bg-[var(--dash-panel)] p-5">
                   <h3 className="mb-3 text-lg font-semibold text-[var(--dash-text-strong)]">Immagine di copertina</h3>
-                  <img src={entity.coverImageUrl} alt={'Copertina di ' + entity.name}
-                    className="w-full rounded-xl object-contain" draggable={false}/>
+                  {arubaReadOnlyCoverFrameUrl ? (
+                    <div data-aruba-readonly-cover-frame="true">
+                      <CoverFrame
+                        imageUrl={entity.coverImageUrl}
+                        name={entity.name}
+                        scale={entity.coverImageScale ?? 1}
+                        crop={entity.coverCrop ?? { x: 0, y: 0, scale: 1 }}
+                        frameImageUrl={arubaReadOnlyCoverFrameUrl}
+                        frameRotation={entity.frameRotation === 90 ? 90 : 0}
+                        frameRotationDegrees={entity.frameRotationDegrees ?? 0}
+                        frameOffsetX={entity.coverFrameOffsetX ?? 0}
+                        frameOffsetY={entity.coverFrameOffsetY ?? 0}
+                        frameScaleX={entity.coverFrameScaleX ?? 1}
+                        frameScaleY={entity.coverFrameScaleY ?? 1}
+                        coverRotationDegrees={entity.coverRotationDegrees ?? 0}
+                        isEditing={false}
+                      />
+                    </div>
+                  ) : (
+                    <img src={entity.coverImageUrl} alt={'Copertina di ' + entity.name}
+                      className="w-full rounded-xl object-contain" draggable={false}/>
+                  )}
                 </section>
               ) : null}
             </div>

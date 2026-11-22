@@ -134,45 +134,45 @@
   "confirmedPilotDivergences": [
     {
       "id": "single-right-rail",
-      "state": "partially-addressed",
-      "detail": "Pilot now renders a distinct contextual campaign session rail, but full original SessionRightSidebar and services are not migrated."
+      "state": "resolved",
+      "detail": "CampaignHome live monta una rail sessione contestuale distinta con le quattro voci comuni e le due voci GM role-scoped; la dashboard conserva separatamente GmSectionSidebar."
     },
     {
       "id": "notes-central-route",
-      "state": "partially-addressed",
-      "detail": "Original SlideOverPanel now opens from session-specific Note icon, while CampaignHome and session state remain pending."
+      "state": "resolved",
+      "detail": "La voce Note della rail sessione apre ArubaNotesRoute attraverso il boundary SlideOverPanel originale; CampaignHome e stato sessione restano montati."
     },
     {
       "id": "owner-only-campaign-list",
-      "state": "open",
-      "detail": "GM-only pre-made availability now persists as explicit bool on active owned PGs through opt-in migration 027, without altering ownership. Actual player claiming, joined campaign listing, role-based editing and transferring characters are still unavailable."
+      "state": "resolved",
+      "detail": "Campagne joined, discovery membership-scoped e claim/release SQL+API capability-off sono implementati. Claim, editor originale e release UI sono vincolati al claim corrente. Le righe GM fondono claim owner-scoped e assegnazioni con corrispondenza esatta, mostrano il PG sotto il player mantenendo owner fisico GM e bloccano mutazioni GM confliggenti. browser-character-claim-real-db.mjs ha provato su PostgreSQL reale, con GM e due player Chromium, claim da UI, salvataggio scheda reclamata, ritratto, asset, release, race con lock DB (un solo 200 e un 409), revoca membership, rifiuto scritture stale e invalidazione asset."
     },
     {
       "id": "session-workspace-missing",
-      "state": "open",
-      "detail": "Pilot does not mount SessionWorkspace / CampaignHome original session state"
+      "state": "resolved",
+      "detail": "La Mappa live monta il vero SessionWorkspace owner-write e player-read-only; active-scene e session-map-* usano Aruba, mentre il player riceve solo snapshot revisionati dal DataChannel verificato."
     },
     {
       "id": "topbar-incomplete",
-      "state": "open",
-      "detail": "Pilot renders a simplified header, not the original session-aware TopBar"
+      "state": "resolved",
+      "detail": "Il pilot monta la TopBar originale con identità Aruba isolata; gli strumenti mappa owner si attivano soltanto quando il runtime originale dichiara la mappa pronta."
     },
     {
       "id": "dynamic-rail-visibility",
-      "state": "open",
-      "detail": "Original dashboard hides GM rail in Characters/Campaigns and full live session hides left sidebar; pilot does not follow both rules"
+      "state": "resolved",
+      "detail": "Ingresso live e route Mappa mantengono la shell sessione: LeftSidebar/GmSectionSidebar restano smontate e la rail contestuale rimane disponibile attorno a SessionWorkspace per GM e player."
     },
     {
       "id": "contextual-character-open",
-      "state": "partially-addressed",
-      "detail": "Original EntityCard PG campaign card opens session Schede with specific id and requestId (including repeated same-id opens); original detail rail used. Original CampaignHome player rows and PNG/Mostri not yet ported."
+      "state": "resolved",
+      "detail": "Le card PG aprono Schede con id e requestId incrementale nella rail originale. Le card PNG/Mostri della CampaignHome montano EntityDetailView nella rail Sessione con selezione Aruba autorevole e riapertura same-id. Campi originali e note custom scrivono tramite API Aruba serializzata; ritratto, sorgente, cover, cornici, Chapter, d20 stats, tratti/azioni personalizzati e crop cover/ritratto sono verificati in Chromium con reload PostgreSQL. Il placement Scene e' verificato in Chromium sulla superficie originale Capitoli/Scene, con assegnazione, reload e ritorno al Capitolo su PostgreSQL reale. Environment, posizioni mappa e cartelle restano rifiutati dall'API/SQL e il selettore Luogo isolato e' disabilitato."
     }
   ],
   "futureEvidence": {
-    "originalAndArubaVisualDiff": false,
-    "combinedBrowserRealDatabaseSession": false,
-    "playerSessionBrowser": false,
-    "desktopAndMobileViewportReview": false,
-    "crossPanelRoutingVerified": false
+    "originalAndArubaVisualDiff": true,
+    "combinedBrowserRealDatabaseSession": true,
+    "playerSessionBrowser": true,
+    "desktopAndMobileViewportReview": true,
+    "crossPanelRoutingVerified": true
   }
 }

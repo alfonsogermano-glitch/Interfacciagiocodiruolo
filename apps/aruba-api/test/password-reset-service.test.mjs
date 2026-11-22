@@ -20,8 +20,8 @@ function fixture({exists=true,expired=false,mailFails=false}={}) {
     connect:async()=>client,
     async query(sql,args=[]) {
       queries.push({sql,args});
-      if (sql.includes('SELECT id FROM hollowgate_auth.users')) return {
-        rows:exists?[{id:'fixture-user'}]:[],rowCount:exists?1:0};
+      if (sql.includes('SELECT id,status FROM hollowgate_auth.users')) return {
+        rows:exists?[{id:'fixture-user',status:'active'}]:[],rowCount:exists?1:0};
       return {rows:[],rowCount:1};
     },
   };
@@ -43,7 +43,7 @@ test('request has indistinguishable response for existing and unknown users',asy
   assert.equal(a.sent[0].to,'user@example.org');
   assert.match(a.sent[0].text,/https:\/\/staging\.hollowgate\.quest/);
   const insert=a.queries.find(q=>q.sql.includes('INSERT INTO hollowgate_auth.password_actions'));
-  assert.deepEqual(insert.args[1],createHash('sha256').update(TOKEN).digest());
+  assert.deepEqual(insert.args[2],createHash('sha256').update(TOKEN).digest());
   assert.ok(!JSON.stringify(a.queries).includes(TOKEN));
 });
 test('provider failure uses the same acknowledgement',async()=>{

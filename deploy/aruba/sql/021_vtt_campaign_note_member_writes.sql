@@ -47,7 +47,7 @@ RETURNS uuid LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_tem
 DECLARE v_role text;v_id uuid;
 BEGIN
  IF p_title IS NULL OR length(btrim(p_title)) NOT BETWEEN 1 AND 120
- OR (p_rich IS NOT NULL AND (jsonb_typeof(p_rich)<>'object' OR octet_length(p_rich::text)>49152))
+  OR (p_rich IS NOT NULL AND (jsonb_typeof(p_rich)<>'object' OR octet_length(p_rich::text)>1048576))
  OR p_position IS NULL OR p_position NOT BETWEEN 0 AND 10000
  OR p_visibility IS NULL OR p_visibility NOT IN ('private','all')
  THEN RAISE EXCEPTION 'Invalid campaign Note data' USING ERRCODE='22023';END IF;

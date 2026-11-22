@@ -5,3 +5,34 @@ dist/
 src_backup*/
 supabase/.temp/
 emoji-test.txt
+
+# Machine-local runtime, certificates, credentials and imported private data.
+.local/
+certs/
+*.log
+*.dump
+*.env
+*.env.*
+apps/aruba-api/*.key
+apps/aruba-api/password.txt
+apps/aruba-api/resend.key
+apps/aruba-api/*oauth*secret*
+deploy/aruba/data/
+deploy/aruba/production/config/
+deploy/aruba/production/secrets/
+
+# Generated local QA artifacts (sources and fixtures remain versioned).
+__pycache__/
+*.pyc
+deploy/aruba/qa/screenshots/
+deploy/aruba/qa/visual-comparison/
+
+# Historical machine-local helpers contain embedded credentials. Preserve
+# existing local files, but never publish them or run them as a migration plan.
+/check-real-data.mjs
+/deploy/aruba/scripts/dump-supabase-real-data.mjs
+/deploy/aruba/scripts/insert-missing-records.mjs
+/deploy/aruba/scripts/migrate-real-data-v2.mjs
+/deploy/aruba/scripts/migrate-real-data.mjs
+/deploy/aruba/scripts/migrate-supabase-to-aruba.mjs
+/deploy/aruba/scripts/seed-supabase.mjs

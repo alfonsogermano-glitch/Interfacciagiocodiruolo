@@ -1,0 +1,7 @@
+BEGIN;
+ALTER TABLE hollowgate_vtt.campaign_documents DROP CONSTRAINT IF EXISTS campaign_documents_document_key_check;
+ALTER TABLE hollowgate_vtt.campaign_documents ADD CONSTRAINT campaign_documents_document_key_check CHECK (document_key IN ('map','phases','combat','active-encounter','active-scene','session-map-placements','session-map-grids','session-map-tokens','session-map-drawings','session-map-pois','session-map-fog','session-map-object-order'));
+CREATE OR REPLACE FUNCTION hollowgate_vtt.save_owned_campaign_document(p_owner uuid,p_campaign uuid,p_key text,p_payload jsonb) RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$ BEGIN IF NOT hollowgate_vtt.campaign_document_owner_authorized(p_owner,p_campaign) OR p_payload IS NULL OR p_key NOT IN ('map','phases','combat','active-encounter','active-scene','session-map-placements','session-map-grids','session-map-tokens','session-map-drawings','session-map-pois','session-map-fog','session-map-object-order') THEN RETURN false; END IF; INSERT INTO hollowgate_vtt.campaign_documents(campaign_id,document_key,payload) VALUES(p_campaign,p_key,p_payload) ON CONFLICT(campaign_id,document_key) DO UPDATE SET payload=EXCLUDED.payload,updated_at=now(); RETURN true; END $$;
+REVOKE ALL ON FUNCTION hollowgate_vtt.save_owned_campaign_document(uuid,uuid,text,jsonb) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION hollowgate_vtt.save_owned_campaign_document(uuid,uuid,text,jsonb) TO hollowgate_api_runtime;
+COMMIT;

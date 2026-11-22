@@ -39,7 +39,7 @@ test('campaign note transport rejects mismatched parents and bad confirmations',
  await assert.rejects(()=>listArubaCampaignNotes(async()=>{},campaign,'bad'),/non valido/);
  await assert.rejects(()=>createArubaCampaignNote(async()=>{},campaign,''),/non valido/);
  await assert.rejects(()=>saveArubaCampaignNote(async()=>{},parent,{...note,campaignId:campaign}),/differente/);
- await assert.rejects(()=>saveArubaCampaignNote(async()=>{},campaign,{...note,campaignId:campaign,contentRich:{text:'x'.repeat(50000)}}),/non validi/);
+  await assert.rejects(()=>saveArubaCampaignNote(async()=>{},campaign,{...note,campaignId:campaign,contentRich:{text:'x'.repeat(1024*1024+1)}}),/non validi/);
  await assert.rejects(()=>saveArubaCampaignNote(async()=>json({savedId:parent}),campaign,{...note,campaignId:campaign}),/non confermato/);
  await assert.rejects(()=>archiveArubaCampaignNote(async()=>json({archivedId:parent}),campaign,child),/non confermata/);
 });

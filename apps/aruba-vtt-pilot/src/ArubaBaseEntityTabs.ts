@@ -3,6 +3,8 @@ import {useArubaNotesContext} from './ArubaNotesCapability';
 import {registerArubaNoteWrite} from './ArubaNotesWriteRegistry.mjs';
 import {
  listArubaEntityNotes,createArubaEntityNote,saveArubaEntityNote,archiveArubaEntityNote,setArubaSubtabOrder,
+ listArubaNarrativeEntityNotes,createArubaNarrativeEntityNote,saveArubaNarrativeEntityNote,
+ archiveArubaNarrativeEntityNote,setArubaNarrativeSubtabOrder,
 } from './entity-notes-client.mjs';
 type BaseTab={id:string;label:string};
 type Note={id:string;tab_name:string;content:string;content_rich:Record<string,unknown>|null;
@@ -23,12 +25,25 @@ export function useEntityTabs({
 }:Params){
  const notesContext=useArubaNotesContext();
  const nested=entityType==='note';
+ const narrative=entityType==='npc'||entityType==='monster';
  const parentId=nested?entityId:null;
- const scopeCharacterId=nested?notesContext.characterId:entityId;
+ const scopeCharacterId=narrative?notesContext.narrativeEntityId:(nested?notesContext.characterId:entityId);
  const scopeCampaignId=nested?notesContext.campaignId:campaignId;
  const supported=notesContext.enabled&&enabled&&
-  (entityType==='character'||entityType==='note')&&
-  !!entityId&&!!scopeCampaignId&&!!scopeCharacterId;
+   ((narrative&&notesContext.narrativeKind===(entityType==='npc'?'npcs':'monsters'))||entityType==='character'||entityType==='note')&&
+   !!entityId&&!!scopeCampaignId&&!!scopeCharacterId;
+ const listNotes=(parent:string|null)=>narrative?
+  listArubaNarrativeEntityNotes(fetch,scopeCampaignId!,notesContext.narrativeKind!,scopeCharacterId!,parent):
+  listArubaEntityNotes(fetch,scopeCampaignId!,scopeCharacterId!,parent);
+ const createNote=(name:string,parent:string|null)=>narrative?
+  createArubaNarrativeEntityNote(fetch,scopeCampaignId!,notesContext.narrativeKind!,scopeCharacterId!,name,parent):
+  createArubaEntityNote(fetch,scopeCampaignId!,scopeCharacterId!,name,parent);
+ const saveNote=(id:string,note:Note)=>narrative?
+  saveArubaNarrativeEntityNote(fetch,scopeCampaignId!,notesContext.narrativeKind!,scopeCharacterId!,id,note):
+  saveArubaEntityNote(fetch,scopeCampaignId!,scopeCharacterId!,id,note);
+ const archiveNote=(id:string)=>narrative?
+  archiveArubaNarrativeEntityNote(fetch,scopeCampaignId!,notesContext.narrativeKind!,scopeCharacterId!,id):
+  archiveArubaEntityNote(fetch,scopeCampaignId!,scopeCharacterId!,id);
  const [customTabs,setCustomTabs]=useState<Note[]>([]);
  const [tabOrder,setTabOrder]=useState<string[]>(savedTabOrder??baseTabs.map(t=>t.id));
  const [currentTab,setCurrentTab]=useState(baseTabs[0]?.id??'');
@@ -54,7 +69,7 @@ export function useEntityTabs({
  useEffect(()=>{
   const seq=++generation.current;setNotes([]);setError(null);
   if(!supported)return;
-  void listArubaEntityNotes(fetch,scopeCampaignId!,scopeCharacterId!,parentId).then(notes=>{
+   void listNotes(parentId).then(notes=>{
    if(seq!==generation.current)return;
    setNotes(notes as Note[]);
   }).catch(e=>{if(seq===generation.current)setError(e instanceof Error?e.message:'Errore caricamento Note');});
@@ -88,18 +103,18 @@ export function useEntityTabs({
   setNotes(prev=>prev.map(n=>n.id===id?updated:n));
   return enqueue(id,async()=>{
    const latest=byId(id)??updated;
-   await saveArubaEntityNote(fetch,scopeCampaignId!,scopeCharacterId!,id,latest);
+    await saveNote(id,latest);
   });
  };
  const reloadCustomTabs=useCallback(async()=>{
   if(!supported){setNotes([]);return;}
-  try{setNotes((await listArubaEntityNotes(fetch,scopeCampaignId!,scopeCharacterId!,parentId)) as Note[]);setError(null);}
+   try{setNotes((await listNotes(parentId)) as Note[]);setError(null);}
   catch(e){fail(e);}
  },[supported,scopeCampaignId,scopeCharacterId,parentId]);
  const handleAddCustomTab=async(tabName='Nuova tab',opts?:{hidden?:boolean;visibility?:'all'|'private'})=>{
   if(!supported||!canEdit)return;
   try{
-   const row=await createArubaEntityNote(fetch,scopeCampaignId!,scopeCharacterId!,tabName,parentId) as Note;
+    const row=await createNote(tabName,parentId) as Note;
    setNotes(prev=>[...prev,row]);
    setTabOrder(prev=>[...prev,row.id]);
    if(opts?.hidden||opts?.visibility==='private')
@@ -112,10 +127,10 @@ export function useEntityTabs({
   if(!supported||!canEdit)return;
   const source=byId(id);if(!source)return;
   try{
-   const created=await createArubaEntityNote(fetch,scopeCampaignId!,scopeCharacterId!,source.tab_name+' (copia)',parentId) as Note;
+    const created=await createNote(source.tab_name+' (copia)',parentId) as Note;
    const cloned={...created,content:source.content,content_rich:source.content_rich,
     hidden:source.hidden,visibility:source.visibility,position:source.position+1};
-   await saveArubaEntityNote(fetch,scopeCampaignId!,scopeCharacterId!,created.id,cloned);
+    await saveNote(created.id,cloned);
    setNotes(prev=>[...prev,cloned]);
    setTabOrder(prev=>[...prev,created.id]);setCurrentTab(created.id);
    setError(null);
@@ -137,7 +152,8 @@ export function useEntityTabs({
   const updated={...note,tab_order:order};
   setNotes(prev=>prev.map(n=>n.id===id?updated:n));
   void enqueue(id,async()=>{
-   await setArubaSubtabOrder(fetch,scopeCampaignId!,scopeCharacterId!,id,order);
+    if(narrative)await setArubaNarrativeSubtabOrder(fetch,scopeCampaignId!,notesContext.narrativeKind!,scopeCharacterId!,id,order);
+    else await setArubaSubtabOrder(fetch,scopeCampaignId!,scopeCharacterId!,id,order);
   });
  };
  const handleDeleteCustomTab=async(id:string)=>{
@@ -146,7 +162,7 @@ export function useEntityTabs({
   try{
    const pending=queueRef.current.get(id);
    if(pending)await pending;
-   await archiveArubaEntityNote(fetch,scopeCampaignId!,scopeCharacterId!,id);
+    await archiveNote(id);
    setNotes(prev=>prev.filter(n=>n.id!==id));
    setTabOrder(prev=>prev.filter(x=>x!==id));
    if(currentTab===id)setCurrentTab(baseTabs[0]?.id??'');

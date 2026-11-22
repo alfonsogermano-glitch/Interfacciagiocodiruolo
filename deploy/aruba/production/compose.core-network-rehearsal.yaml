@@ -1,0 +1,19 @@
+# Disposable candidate on the same gateway network but with a unique alias.
+# It cannot replace production DNS and uses only the restored database.
+services:
+  aruba-api:
+    image: hollowgate-api-core-candidate:20261120
+    environment:
+      PGDATABASE: hollowgate_release_smoke_20261120
+      AUTH_OAUTH_ENABLED: "false"
+      AUTH_SIGNUP_ENABLED: "false"
+    networks:
+      hollowgate-db: {}
+      public-gateway:
+        aliases:
+          - hollowgate-core-network-qa
+
+networks:
+  public-gateway:
+    external: true
+    name: hollowgate-auth-staging_default

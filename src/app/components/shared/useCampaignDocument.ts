@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import { toast } from 'sonner';
 import { useCampaign } from '../../campaigns/CampaignContext';
-import { deleteCampaignDocument, loadCampaignDocumentOrNull, saveCampaignDocument } from '../../../services/storage/campaignDocuments';
+import { campaignDocumentLegacyMigrationEnabled, deleteCampaignDocument, loadCampaignDocumentOrNull, saveCampaignDocument } from '../../../services/storage/campaignDocuments';
 import { persistenceKey } from '../../../services/storage/persistenceMode';
 import { CAMPAIGN_STORAGE_KEYS } from '../../../services/campaign/campaignStorageKeys';
 
@@ -15,6 +15,7 @@ const LEGACY_LOCAL_KEYS: Record<string, string> = {
 };
 
 function readLegacyDocument<T>(key: string): T | null {
+  if (!campaignDocumentLegacyMigrationEnabled()) return null;
   const legacyKey = LEGACY_LOCAL_KEYS[key];
   if (!legacyKey || typeof window === 'undefined') return null;
 

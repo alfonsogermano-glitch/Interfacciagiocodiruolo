@@ -1,0 +1,7 @@
+async function json(response:Response){const mime=response.headers.get('content-type')??'';if(!mime.includes('application/json'))throw new Error('Risposta documenti campagna non valida');const data=await response.json();if(!response.ok)throw new Error(data.error??'Documento campagna non disponibile');return data;}
+export function campaignDocumentLegacyMigrationEnabled(){return false;}
+export function configureCampaignDocumentTransport(){/* Aruba transport is fixed and cannot be replaced by the browser. */}
+export async function loadCampaignDocumentOrNull<T>(campaignId:string,key:string):Promise<T|null>{return (await json(await fetch(`/vtt/campaigns/${campaignId}/documents/${key}`,{credentials:'include',headers:{accept:'application/json'}}))).value??null;}
+export async function loadCampaignDocument<T>(campaignId:string,key:string,fallback:T):Promise<T>{return (await loadCampaignDocumentOrNull<T>(campaignId,key))??fallback;}
+export async function saveCampaignDocument<T>(campaignId:string,key:string,value:T):Promise<void>{await json(await fetch(`/vtt/campaigns/${campaignId}/documents/${key}`,{method:'PUT',credentials:'include',headers:{accept:'application/json','content-type':'application/json'},body:JSON.stringify({value})}));}
+export async function deleteCampaignDocument(campaignId:string,key:string):Promise<void>{await json(await fetch(`/vtt/campaigns/${campaignId}/documents/${key}`,{method:'DELETE',credentials:'include',headers:{accept:'application/json'}}));}

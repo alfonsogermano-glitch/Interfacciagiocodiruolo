@@ -48,6 +48,13 @@ jobs:
           grep -q 'UNVERIFIED:' /tmp/hg-release-gate.log
       - name: Verify original campaign/session rail and contextual navigation
         run: node deploy/aruba/qa/verify-session-navigation-contract.mjs
+      - name: Verify atomic character claim boundary inventory
+        run: |
+          node deploy/aruba/qa/verify-character-claim-contract.mjs
+          if node deploy/aruba/qa/verify-character-claim-contract.mjs --release; then
+            echo "Unsafe: incomplete character claiming was marked release-ready" >&2
+            exit 1
+          fi
       - name: Test isolated auth browser flows
         run: node --test apps/aruba-auth-web/test/*.test.mjs
       - name: Test and build isolated Aruba React VTT lobby
@@ -164,6 +171,37 @@ jobs:
       - name: Apply original Scene schema in disposable PostgreSQL
         run: |
           docker exec -i hg-chapter-real-pg psql -X -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/scenes/001_scene_documents.sql
+      - name: Apply and verify equipment catalog schema
+        run: |
+          docker exec -i hg-chapter-real-pg psql -X -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/equipment/001_equipment_catalog.sql
+          docker exec -i hg-chapter-real-pg psql -X -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/equipment/test_equipment_catalog.sql
+      - name: Apply campaign document schema
+        run: |
+          docker exec -i hg-chapter-real-pg psql -X -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/campaign-documents/001_campaign_documents.sql
+          docker exec -i hg-chapter-real-pg psql -X -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/campaign-documents/002_session_document_keys.sql
+          docker exec -i hg-chapter-real-pg psql -X -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/campaign-documents/test_campaign_documents.sql
+      - name: Apply and verify visual asset storage
+        run: |
+          docker exec -i hg-chapter-real-pg psql -X -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/visual-assets/001_visual_assets.sql
+          docker exec -i hg-chapter-real-pg psql -X -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/visual-assets/002_visual_asset_content.sql
+          docker exec -i hg-chapter-real-pg psql -X -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/visual-assets/003_player_visual_asset_read.sql
+          docker exec -i hg-chapter-real-pg psql -X -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/visual-assets/test_visual_assets.sql
+          docker exec -i hg-chapter-real-pg psql -X -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/visual-assets/test_visual_asset_content.sql
+          docker exec -i hg-chapter-real-pg psql -X -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/visual-assets/test_player_visual_asset_read.sql
+          docker exec -i hg-chapter-real-pg psql -X -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/visual-assets/004_campaign_branding.sql
+          docker exec -i hg-chapter-real-pg psql -X -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/visual-assets/test_campaign_branding.sql
+      - name: Apply narrative content and custom entity notes after dependencies
+        run: |
+          docker exec -i hg-chapter-real-pg psql -X -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/narrative/001_narrative_content.sql
+          docker exec -i hg-chapter-real-pg psql -X -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/narrative/002_narrative_entity_notes.sql
+      - name: Verify atomic character claim and release SQL
+        run: docker exec -i hg-chapter-real-pg psql -X -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_character_claims.sql
+      - name: Verify concurrent character claim has exactly one PostgreSQL winner
+        run: bash deploy/aruba/scripts/test-character-claim-race.sh hg-chapter-real-pg
+      - name: Verify narrative ownership, kind isolation and rollback
+        run: |
+          docker exec -i hg-chapter-real-pg psql -X -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/narrative/test_narrative_content.sql
+          docker exec -i hg-chapter-real-pg psql -X -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/narrative/test_narrative_entity_notes.sql
       - name: Verify real Scene ownership, chapter isolation and rollback
         run: |
           docker exec -i hg-chapter-real-pg psql -X -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/scenes/test_scene_documents.sql
@@ -203,19 +241,48 @@ jobs:
             sleep 1
           done
           exit 1
-      - name: Apply actual Aruba migrations 001-025 (no test fixtures)
+      - name: Apply actual Aruba migrations 001-034 and feature schemas (no test fixtures)
         run: |
           set -euo pipefail
           for f in deploy/aruba/sql/[0-9][0-9][0-9]_*.sql; do
             echo "Applying $f"
-            docker exec -i hg-notes-real-pg psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < "$f" > /dev/null
+           docker exec -i hg-notes-real-pg psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < "$f" > /dev/null
           done
+          docker exec -i hg-notes-real-pg psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/chapters/001_chapter_documents.sql
+          docker exec -i hg-notes-real-pg psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/scenes/001_scene_documents.sql
+          docker exec -i hg-notes-real-pg psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/campaign-documents/001_campaign_documents.sql
+          docker exec -i hg-notes-real-pg psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/campaign-documents/002_session_document_keys.sql
+          docker exec -i hg-notes-real-pg psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/visual-assets/001_visual_assets.sql
+          docker exec -i hg-notes-real-pg psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/visual-assets/002_visual_asset_content.sql
+          docker exec -i hg-notes-real-pg psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/visual-assets/003_player_visual_asset_read.sql
+          docker exec -i hg-notes-real-pg psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/narrative/001_narrative_content.sql
+          docker exec -i hg-notes-real-pg psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/narrative/002_narrative_entity_notes.sql
       - name: Install API's PostgreSQL driver
         working-directory: apps/aruba-api
         run: npm install --ignore-scripts --no-audit --no-fund
       - name: Exercise real SQL-backed API with owner/player cookie identities
         working-directory: apps/aruba-api
         run: node qa/notes-db-http.mjs
+      - name: Exercise narrative tabs in real Chromium through HTTP and PostgreSQL
+        working-directory: apps/aruba-vtt-pilot
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.56.1
+          npx playwright install --with-deps chromium
+          node test/browser-narrative-notes-real-db.mjs
+      - name: Exercise Scene placement in real Chromium through HTTP and PostgreSQL
+        working-directory: apps/aruba-vtt-pilot
+        run: node test/browser-scene-placement-real-db.mjs
+      - name: Exercise atomic player claims in real Chromium through HTTP and PostgreSQL
+        working-directory: apps/aruba-vtt-pilot
+        run: node test/browser-character-claim-real-db.mjs
+      - name: Exercise combined real session (Chromium + HTTPS + PostgreSQL + signaling + WebRTC) in the shipping pilot build
+        working-directory: apps/aruba-vtt-pilot
+        run: |
+          npm run build
+          npm install --no-save --ignore-scripts --no-audit --no-fund playwright@1.56.1
+          npx playwright install --with-deps chromium
+          node test/browser-combined-session-real-db.mjs
 
   notes-browser-test:
     runs-on: ubuntu-24.04
@@ -279,6 +346,7 @@ jobs:
           curl --silent --fail http://127.0.0.1:4173/ >/dev/null
           node test/browser-original-notes.mjs
           node test/browser-player-characters.mjs
+          node test/browser-chapter-scene-editor.mjs
 
 
   api-test:
@@ -520,6 +588,24 @@ jobs:
       - name: Verify GM-only original source isolation
         run: |
           docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_character_portrait_sources.sql
+      - name: Install expiring digest-only campaign invites 033
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/033_vtt_campaign_invites.sql
+      - name: Verify invite ownership, rotation, atomic join and runtime isolation
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_campaign_invites.sql
+      - name: Install owner visual asset storage with player-scoped referenced reads 003
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/visual-assets/001_visual_assets.sql
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/visual-assets/002_visual_asset_content.sql
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/visual-assets/003_player_visual_asset_read.sql
+      - name: Verify owner asset writes/reads and player-referenced frame and cover access
+        run: |
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/visual-assets/test_visual_assets.sql
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/visual-assets/test_visual_asset_content.sql
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/visual-assets/test_player_visual_asset_read.sql
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/visual-assets/004_campaign_branding.sql
+          docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/visual-assets/test_campaign_branding.sql
       - name: Verify character draft isolation
         run: |
           docker exec -i hg-auth-test psql -v ON_ERROR_STOP=1 -U postgres -d hollowgate_test < deploy/aruba/sql/test_vtt_character_drafts.sql

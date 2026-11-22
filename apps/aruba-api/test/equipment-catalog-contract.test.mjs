@@ -1,0 +1,6 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {validateEquipmentCatalogDraft} from '../src/equipment-catalog-contract.mjs';
+const campaign='f24f6bdd-a5f7-4521-aa16-bc0854dc5841',id='e2244c0b-4b67-45c2-901a-2b4d3f7c8c42';
+const valid={id,campaignId:campaign,name:'Lanterna',description:'Una luce fioca',type:'trasportabile',isVehicle:false,source:'gm_custom',rarity:'common',isClue:false,isStoryItem:false,isActive:true,isPublic:true,tags:['luce'],linkedEnvironmentIds:[],linkedNpcIds:[],linkedMonsterIds:[],imageAssetId:null,iconId:null,iconColor:null,containerItemId:null};
+test('equipment contract preserves the original bounded model',()=>{const item=validateEquipmentCatalogDraft(campaign,{...valid,name:' Lanterna '});assert.equal(item.name,'Lanterna');assert.equal(item.source,'gm_custom');});
+test('equipment contract rejects forged campaign, legacy assets and malformed links',()=>{assert.throws(()=>validateEquipmentCatalogDraft(campaign,{...valid,campaignId:crypto.randomUUID()}));assert.throws(()=>validateEquipmentCatalogDraft(campaign,{...valid,description:'https://x.supabase.co/a'}));assert.throws(()=>validateEquipmentCatalogDraft(campaign,{...valid,linkedNpcIds:['bad']}));});

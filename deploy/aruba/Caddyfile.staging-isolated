@@ -1,0 +1,85 @@
+{
+  # The public Caddy instance owns certificate renewal. This second gateway
+  # reads the existing staging certificate without modifying its volume.
+  auto_https disable_redirects
+}
+
+staging.hollowgate.quest {
+  tls /origin-cert/caddy/certificates/acme-v02.api.letsencrypt.org-directory/staging.hollowgate.quest/staging.hollowgate.quest.crt /origin-cert/caddy/certificates/acme-v02.api.letsencrypt.org-directory/staging.hollowgate.quest/staging.hollowgate.quest.key
+  encode zstd gzip
+
+  @diagnostics path /health /ready
+  handle @diagnostics {
+    reverse_proxy aruba-auth-staging:3000
+  }
+
+  # Everything except health/readiness requires a private trial password.
+  @private {
+    not path /health /ready
+  }
+  basic_auth @private bcrypt "Hollowgate Aruba - Private Trial" {
+    import /run/secrets/auth_trial_hash
+  }
+
+  @authAPI {
+    method GET POST
+    path /auth/login /auth/logout /auth/me /auth/signup /auth/verify-email /auth/password/request /auth/password/redeem /auth/oauth/providers /auth/oauth/complete /auth/oauth/google/start /auth/oauth/google/callback /auth/oauth/discord/start /auth/oauth/discord/callback
+  }
+  handle @authAPI {
+    reverse_proxy aruba-auth-staging:3000
+  }
+
+  @vttAPI path /vtt/bootstrap /vtt/campaigns /vtt/campaigns/* /vtt/characters /vtt/characters/* /vtt/campaign-invites/preview /vtt/campaign-invites/join /vtt/player-campaigns /vtt/player-characters /vtt/player-characters/* /vtt/character-availability /vtt/character-availability/* /vtt/character-assignments /vtt/character-assignments/*
+  handle @vttAPI {
+    reverse_proxy aruba-auth-staging:3000
+  }
+
+  @authPages path / /login /signup /forgot-password /account/password /account/verify-email
+  handle @authPages {
+    root * /srv/auth-preview
+    rewrite * /index.trial.html
+    file_server
+  }
+  @authAssets path /auth-ui/app.mjs /auth-ui/flow.mjs /auth-ui/styles.css
+  handle @authAssets {
+    root * /srv/auth-preview
+    uri strip_prefix /auth-ui
+    file_server
+  }
+
+  # Only bundled image/media files, never arbitrary URL fetches.
+  @landingFiles path /favicon.ico /favicon-*.png /apple-touch-icon.png /android-chrome-*.png /site.webmanifest /hollowgate-logo.png /title-main.png /title-sub.png /header-pattern.png /footer-pattern.png /eye_animation_final.gif /eye-anim/* /condition-* /death-skull.svg
+  handle @landingFiles {
+    root * /srv/vtt-pilot
+    file_server
+  }
+
+  handle /vtt {
+    redir /vtt/ 308
+  }
+  handle /vtt/ {
+    root * /srv/vtt-pilot
+    rewrite * /index.html
+    file_server
+  }
+  # A missing static file returns 404. No SPA fallback for unknown API paths.
+  handle_path /vtt/* {
+    root * /srv/vtt-pilot
+    file_server
+  }
+
+  handle {
+    respond "Not Found" 404
+  }
+
+  header {
+    X-Content-Type-Options nosniff
+    Referrer-Policy no-referrer
+    X-Frame-Options DENY
+    X-Robots-Tag "noindex, nofollow, noarchive"
+    Cache-Control "no-store"
+    Content-Security-Policy "default-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; font-src 'self'; upgrade-insecure-requests"
+    Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    -Server
+  }
+}

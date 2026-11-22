@@ -1,0 +1,16 @@
+# Disposable, secret-free stand-in for merge validation. Never deploy.
+services:
+  aruba-api:
+    image: example.invalid/hollowgate/placeholder:never-run
+    environment:
+      PGDATABASE: hollowgate
+      AUTH_PRODUCTION_ENABLED: "true"
+      AUTH_ORIGIN: https://www.hollowgate.quest
+      AUTH_SIGNUP_ENABLED: "false"
+      AUTH_OAUTH_ENABLED: "false"
+    networks:
+      - hollowgate-db
+networks:
+  hollowgate-db:
+    external: true
+    name: hollowgate-db

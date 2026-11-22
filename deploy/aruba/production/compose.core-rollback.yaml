@@ -1,0 +1,15 @@
+# Rollback only the public API image to the previously tagged image.
+# Existing production flags, ports, secrets and networks stay unchanged.
+services:
+  aruba-api:
+    image: hollowgate-api-core-rollback:20261120
+    networks:
+      hollowgate-db: {}
+      public-gateway:
+        aliases:
+          - hollowgate-production-api
+
+networks:
+  public-gateway:
+    external: true
+    name: hollowgate-auth-staging_default

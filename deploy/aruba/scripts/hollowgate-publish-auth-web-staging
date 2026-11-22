@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# Root-owned sudo target: ONLY publish allowlisted auth-web files to staging.
+# Never execute scripts or commands supplied in the upload directory.
+set -euo pipefail
+[[ $# -ge 3 && $# -le 6 ]] || exit 2
+run=$1; mode=$2; shift 2
+[[ $run =~ ^hg-web-[0-9a-f]{32}$ ]] || exit 2
+[[ $mode == preview || $mode == publish ]] || exit 2
+source_dir="/home/hgadmin/$run"
+target=/opt/hollowgate-staging-auth-web
+[[ -d $target && -d $source_dir && ! -L $source_dir ]] || exit 2
+
+declare -A seen=()
+for name in "$@"; do
+  case "$name" in index.trial.html|styles.css|app.mjs|flow.mjs) ;; *) exit 2;; esac
+  [[ ! ${seen[$name]+yes} ]] || exit 2
+  seen[$name]=yes
+  [[ -f $target/$name && -f $source_dir/$name ]] || exit 2
+done
+
+# Read user-owned uploads as the unprivileged SSH user, then operate only on
+# immutable root-owned copies. A symlink to a root-only file cannot be read.
+private=$(mktemp -d /opt/.hollowgate-auth-web-publish.XXXXXXXX)
+installed=()
+cleanup() {
+  if [[ -n ${private:-} && -d $private ]]; then rm -rf -- "$private"; fi
+}
+rollback() {
+  if (( ${#installed[@]} )); then
+    for name in "${installed[@]}"; do
+      cp -a "$target/$name.before-$run" "$target/$name"
+    done
+    echo 'Asset staging ripristinati dopo errore' >&2
+  fi
+}
+trap cleanup EXIT
+trap rollback ERR
+runuser -u hgadmin -- head -c 4097 -- "$source_dir/SHA256SUMS" > "$private/SHA256SUMS"
+[[ $(wc -c < "$private/SHA256SUMS") -le 4096 ]] || exit 2
+for name in "$@"; do
+  runuser -u hgadmin -- head -c 1048577 -- "$source_dir/$name" > "$private/$name"
+  [[ $(wc -c < "$private/$name") -le 1048576 ]] || exit 2
+done
+# The manifest must name exactly the requested files, once each.
+[[ $(wc -l < "$private/SHA256SUMS") -eq $# ]] || exit 2
+declare -A manifest_seen=()
+while IFS= read -r line; do
+  [[ $line =~ ^[0-9a-f]{64}\ \ (index\.trial\.html|styles\.css|app\.mjs|flow\.mjs)$ ]] || exit 2
+  [[ ${seen[${BASH_REMATCH[1]}]+yes} ]] || exit 2
+  [[ ! ${manifest_seen[${BASH_REMATCH[1]}]+yes} ]] || exit 2
+  manifest_seen[${BASH_REMATCH[1]}]=yes
+done < "$private/SHA256SUMS"
+for name in "$@"; do [[ ${manifest_seen[$name]+yes} ]] || exit 2; done
+(cd "$private" && sha256sum --status -c SHA256SUMS)
+
+echo "Differenze rispetto agli asset web staging ($mode):"
+for name in "$@"; do
+  echo "$name:"
+  diff -u "$target/$name" "$private/$name" | grep '^@@' || true
+done
+if [[ $mode == preview ]]; then echo 'ANTEPRIMA_STAGING_COMPLETATA'; exit 0; fi
+
+for name in "$@"; do
+  backup="$target/$name.before-$run"
+  [[ ! -e $backup ]] || false
+  cp -a "$target/$name" "$backup"
+  installed+=("$name")
+  install -o root -g root -m 644 "$private/$name" "$target/$name"
+  cmp -s "$private/$name" "$target/$name"
+done
+curl -fsS --max-time 8 -o /dev/null http://127.0.0.1:3003/ready
+curl -fsS --max-time 8 -o /dev/null http://127.0.0.1:3004/ready
+trap - ERR
+echo 'WEB_STAGING_PUBBLICATO; API staging e produzione sane'

@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS hollowgate_vtt.entity_notes (
  owner_id uuid NOT NULL REFERENCES hollowgate_auth.users(id) ON DELETE RESTRICT,
  tab_name text NOT NULL CHECK(length(btrim(tab_name)) BETWEEN 1 AND 120),
  content text NOT NULL DEFAULT '' CHECK(octet_length(content)<=32768),
- content_rich jsonb CHECK(content_rich IS NULL OR (jsonb_typeof(content_rich)='object' AND octet_length(content_rich::text)<=49152)),
+ content_rich jsonb CHECK(content_rich IS NULL OR (jsonb_typeof(content_rich)='object' AND octet_length(content_rich::text)<=1048576)),
  position integer NOT NULL DEFAULT 0 CHECK(position BETWEEN 0 AND 10000),
  hidden boolean NOT NULL DEFAULT false,
  visibility text NOT NULL DEFAULT 'all' CHECK(visibility IN ('all','private')),
@@ -68,7 +68,7 @@ DECLARE v_id uuid;
 BEGIN
  IF p_name IS NULL OR length(btrim(p_name)) NOT BETWEEN 1 AND 120
   OR p_content IS NULL OR octet_length(p_content)>32768
-  OR (p_rich IS NOT NULL AND (jsonb_typeof(p_rich)<>'object' OR octet_length(p_rich::text)>49152))
+   OR (p_rich IS NOT NULL AND (jsonb_typeof(p_rich)<>'object' OR octet_length(p_rich::text)>1048576))
   OR p_position NOT BETWEEN 0 AND 10000 OR p_hidden IS NULL
   OR p_visibility NOT IN ('all','private') THEN
   RAISE EXCEPTION 'Invalid note' USING ERRCODE='22023';

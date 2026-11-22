@@ -45,7 +45,7 @@ test('dice engine remounts when authenticated player or active campaign changes'
 
 test('session dice palette does not leak into campaign management or home views',()=>{
  const main=read('../src/main.tsx');
- assert.match(main,/\{section==='session'&&activeCampaign&&<ArubaQuickDice key=/);
+  assert.match(main,/\{\(section==='session'\|\|section==='map'\)&&activeCampaign&&<ArubaQuickDice key=/);
  assert.doesNotMatch(main,/\{activeCampaign&&<ArubaQuickDice/);
 });
 
@@ -56,5 +56,43 @@ test('Aruba session rail follows original GM-only visibility for encounters and 
  assert.match(original,/isOwner \? \[\.\.\.ICONS, \.\.\.GM_ICONS\] : ICONS/);
  assert.match(rail,/\[\.\.\.shared,\.\.\.\(isGm\?gm:\[\]\)\]/);
  assert.match(rail,/isGm:boolean/);
- assert.match(main,/isGm=\{activeCampaign\.ownerId===user\.id&&user\.campaignMemberships\.some/);
+ assert.match(main,/isGm=\{activeCampaignOwned\|\|user\.campaignMemberships\.some/);
+});
+
+test('session combat mounts the original panel only behind real Aruba dependencies',()=>{
+ const rail=read('../src/ArubaSessionRightRail.tsx');
+ const panel=read('../src/ArubaSessionCombatPanel.tsx');
+ const main=read('../src/main.tsx');
+ assert.match(rail,/id==='combat'&&combatEnabled/);
+ assert.match(panel,/import \{CombatTracker\} from '.+CombatTracker'/);
+ assert.match(panel,/CampaignScopeOverride campaign=\{campaign\}/);
+ assert.match(panel,/<SlideOverPanel isOpen onClose=\{onClose\}>/);
+ assert.match(main,/combatEnabled=\{activeCampaignOwned&&user\.campaignDocumentsEnabled&&user\.narrativeContentEnabled\}/);
+ assert.match(main,/sessionPanel==='combat'&&activeCampaignOwned&&user\.campaignDocumentsEnabled&&user\.narrativeContentEnabled/);
+});
+
+test('session encounters mounts the original manager with strictly scoped Aruba adapters',()=>{
+ const rail=read('../src/ArubaSessionRightRail.tsx');
+ const panel=read('../src/ArubaSessionEncounterPanel.tsx');
+ const config=read('../vite.config.mjs');
+ const main=read('../src/main.tsx');
+ assert.match(rail,/id==='encounters'&&encountersEnabled/);
+ assert.match(panel,/import \{SceneEncounterManager\} from '.+SceneEncounterManager'/);
+ assert.match(panel,/<SceneEncounterManager\/>/);
+ for(const adapter of ['ArubaEncounterEntitiesService','ArubaEncounterPersistenceMode','ArubaEncounterNarrativeClient','ArubaEncounterActiveScene'])assert.match(config,new RegExp(adapter));
+ assert.match(main,/encountersEnabled=\{activeCampaignOwned&&user\.chaptersEnabled&&user\.scenesEnabled&&user\.narrativeContentEnabled&&user\.campaignDocumentsEnabled\}/);
+ assert.match(main,/sessionPanel==='encounters'&&activeCampaignOwned&&user\.chaptersEnabled&&user\.scenesEnabled&&user\.narrativeContentEnabled&&user\.campaignDocumentsEnabled/);
+});
+
+test('session chat mounts the original campaign panel only behind the complete Aruba capability',()=>{
+ const rail=read('../src/ArubaSessionRightRail.tsx');
+ const panel=read('../src/ArubaSessionChatPanel.tsx');
+ const main=read('../src/main.tsx');
+ const config=read('../vite.config.mjs');
+ assert.match(rail,/id==='chat'&&chatEnabled/);
+ assert.match(panel,/import \{CampaignChatPanel\} from '.+CampaignChatPanel'/);
+ assert.match(panel,/<CampaignChatPanel incomingMessage=\{null\}/);
+ assert.match(main,/chatEnabled=\{user\.campaignChatEnabled\}/);
+ assert.match(main,/sessionPanel==='chat'&&user\.campaignChatEnabled/);
+ for(const adapter of ['ArubaChatService','ArubaPrivateChatService','ArubaChatAttachments','ArubaChatDiceSession'])assert.match(config,new RegExp(adapter));
 });

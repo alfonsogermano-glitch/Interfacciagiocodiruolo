@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "status": "verified",
+  "originalContract": {
+    "claimTransfersLogicalOwnership": true,
+    "oneActiveCharacterPerPlayerCampaign": true,
+    "concurrentClaimExactlyOneWinner": true,
+    "releaseReturnsCharacterToCampaignGm": true,
+    "membershipRevocationReturnsCharacterToCampaignGm": true
+  },
+  "requiredBoundaries": [
+    {
+      "id": "atomic-claim-release-sql",
+      "state": "verified",
+      "source": "deploy/aruba/sql/034_vtt_character_claims.sql",
+      "evidence": "Migration 034 implements locked logical ownership, unique player/campaign and character claims, release, claimed-player save and no direct runtime table privileges. The real PostgreSQL 17 harness installed 026-034, ran as hollowgate_api_runtime and produced exactly one committed claim plus one assignment per claim, an atomic release that deleted both rows, and a membership trigger that removed claim and assignment in the same transaction."
+    },
+    {
+      "id": "gm-character-list",
+      "state": "verified",
+      "source": "apps/aruba-vtt-pilot/src/ArubaCampaignPlayerRows.tsx",
+      "evidence": "Real Chromium GM context merged owner-scoped claims with assignments from PostgreSQL, required exact agreement, kept physical GM ownership and rendered the claimed card under the verified player row with the locked-assignment notice; after release the grouping disappeared while the edited name persisted. No stale claim grouping survived a full GM re-entry."
+    },
+    {
+      "id": "player-character-read-write",
+      "state": "verified",
+      "source": "deploy/aruba/sql/034_vtt_character_claims.sql",
+      "evidence": "Real Chromium player claimed through the shipping UI, opened the original detail and saved a renamed sheet: PUT returned 200 and PostgreSQL stored the new name. save_claimed_character_sheet authorizes the current claim and membership on every write; after membership revocation the same stale PUT returned 404 and the database kept the previous name."
+    },
+    {
+      "id": "portrait-authorization",
+      "state": "verified",
+      "source": "deploy/aruba/sql/034_vtt_character_claims.sql",
+      "evidence": "Real Chromium claimant uploaded a PNG portrait (PUT 200) against PostgreSQL. After release the claimant PUT returned 404 while the physical GM PUT returned 200. After a later reclaim plus membership revocation the claimant PUT returned 404 again, proving authorization follows the live claim and membership."
+    },
+    {
+      "id": "visual-asset-authorization",
+      "state": "verified",
+      "source": "deploy/aruba/sql/visual-assets/003_player_visual_asset_read.sql",
+      "evidence": "With the real claim active, the player-scoped asset list returned the referenced portrait-frame asset and its content endpoint returned 200 through PostgreSQL. Release and membership revocation each emptied the player asset list and returned 404 for the same referenced content; the claimed UI never wrote shared assets."
+    },
+    {
+      "id": "membership-revocation",
+      "state": "verified",
+      "source": "deploy/aruba/sql/034_vtt_character_claims.sql",
+      "evidence": "Real PostgreSQL set_campaign_membership(active=false) deleted the claim and assignment atomically. The open Chromium detail then received 404 on sheet save and portrait upload, the player asset list became empty, /vtt/player-campaigns stopped listing the campaign and a full reload showed no campaign entry."
+    },
+    {
+      "id": "http-and-bootstrap-capability",
+      "state": "verified",
+      "source": "apps/aruba-api/src/auth-http.mjs",
+      "evidence": "Real HTTP handlers behind the shipping Vite proxy derived identity from the __Host-hg_session cookie. Bootstrap reported characterClaims and playerCharacters reads enabled; a foreign Origin claim returned 403, an empty invalid body returned 400, and all claim, release, save, portrait and asset responses passed exact status/shape assertions."
+    },
+    {
+      "id": "campaign-home-ui",
+      "state": "verified",
+      "source": "apps/aruba-vtt-pilot/src/ArubaCampaignHome.tsx",
+      "evidence": "browser-character-claim-real-db.mjs drives the shipping CampaignHome in Chromium against real HTTP and PostgreSQL: claim from Precompilati, Personaggi listing, original claimed detail editing, release to GM, empty-state message, re-entry and both GM and player views were exercised without page errors. This supersedes the earlier stateful HTTP fixture proof."
+    },
+    {
+      "id": "real-postgres-browser-race",
+      "state": "verified",
+      "evidence": "browser-character-claim-real-db.mjs runs three real Chromium contexts against disposable PostgreSQL. An admin SELECT ... FOR UPDATE on the character row held both browser claims in pg_stat_activity (two lock waiters) before COMMIT; the two responses were exactly one 200 and one 409, PostgreSQL kept the single winning claim/assignment and the losing UI displayed the authoritative 'Personaggio non più disponibile' failure. Release, reclaim, membership revocation and stale-write denial were then re-proven in the same session."
+    }
+  ],
+  "activationPolicy": {
+    "allowPartialCapability": false,
+    "requiresAllBoundariesVerified": true,
+    "requiresRealPostgres": true,
+    "requiresTwoBrowserAccounts": true
+  }
+}

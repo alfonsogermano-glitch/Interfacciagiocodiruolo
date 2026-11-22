@@ -161,6 +161,8 @@ export function SessionWorkspace({
   isOwner,
   currentUserId = null,
   currentUserAccessToken = null,
+  allowOwnerPublicationWithoutChannel = false,
+  onAuthoritativeMapRuntime,
   onEndSession,
 }: {
   campaignId: string;
@@ -169,6 +171,13 @@ export function SessionWorkspace({
   isOwner: boolean;
   currentUserId?: string | null;
   currentUserAccessToken?: string | null;
+  allowOwnerPublicationWithoutChannel?: boolean;
+  onAuthoritativeMapRuntime?: (runtime: {
+    getCurrentMapContext: () => { chapterId: string; state: Record<string, unknown> } | null;
+    onTokenAction: (payload: unknown) => void;
+    onPoiAction: (payload: unknown) => void;
+    onLayerAction: (payload: unknown) => void;
+  } | null) => void;
   onEndSession: () => Promise<void>;
 }) {
   setSessionMapCurrentUserId(currentUserId);
@@ -182,7 +191,11 @@ export function SessionWorkspace({
     setSessionMapCurrentUserId(currentUserId);
     return () => resetSessionMapRuntime();
   }, [campaignId, currentUserId]);
-  const { activeScene, channelReady, publish, publishMapPatch } = useActiveScene(campaignId);
+  const { activeScene, channelReady, publish, publishMapPatch } = useActiveScene(campaignId, { owner: isOwner });
+  // Aruba owners persist the active scene through authenticated documents even
+  // when the WebRTC campaign channel is not mounted. The default is false, so
+  // every legacy caller still requires the original channel readiness.
+  const publicationReady = channelReady || (isOwner && allowOwnerPublicationWithoutChannel);
   // Avviso di connessione persa: senza questo indicatore un giocatore il cui
   // WebSocket cade resta davanti a una mappa congelata senza capire perche'.
   // Non lampeggia al caricamento iniziale: compare solo dopo che il canale
@@ -209,6 +222,7 @@ export function SessionWorkspace({
   const playerMapActionHandlerRef = useRef<(payload: any) => void>(() => {});
   const playerMapPoiActionHandlerRef = useRef<(payload: any) => void>(() => {});
   const playerMapLayerActionHandlerRef = useRef<(payload: any) => void>(() => {});
+  const authoritativeDisplayRef = useRef<any>(null);
   const historyActorRef = useRef<string | null>(null);
   const runAsHistoryActor = (payload: any, action: () => void) => {
     historyActorRef.current = typeof payload?.actorProfileId === 'string' ? payload.actorProfileId : null;
@@ -386,7 +400,7 @@ export function SessionWorkspace({
   useEffect(() => {
     if (
       !isOwner ||
-      !channelReady ||
+      !publicationReady ||
       loading ||
       !mapPlacementsReady ||
       !chapterGridsReady ||
@@ -447,7 +461,7 @@ export function SessionWorkspace({
     });
   }, [
     activeScene?.chapterId,
-    channelReady,
+    publicationReady,
     chapterDrawings,
     chapterDrawingsReady,
     chapterGrids,
@@ -592,6 +606,7 @@ export function SessionWorkspace({
             ),
           }
         : publicChapterPreview;
+  authoritativeDisplayRef.current = display;
   useEffect(() => {
     if (!display?.mapTokens) return;
     setRemoteTokenPositions((current) => {
@@ -714,7 +729,7 @@ export function SessionWorkspace({
       [chapterId]: structuredClone(snapshot.fog),
     }));
     setChapterObjectOrders((current) => ({ ...current, [chapterId]: structuredClone(snapshot.objectOrder) }));
-    if (channelReady) {
+    if (publicationReady) {
       const fields = {
         mapPlacement: snapshot.placement,
         gridSettings: snapshot.grid,
@@ -832,7 +847,7 @@ export function SessionWorkspace({
   const chooseScene = async (scene: Scene, chapter: Chapter) => {
     setSelectedChapterId(chapter.id);
     setSelectedSceneId(scene.id);
-    if (scene.status !== "ready" || !channelReady) return;
+    if (scene.status !== "ready" || !publicationReady) return;
     setPublishingId(scene.id);
     try {
       const tokens =
@@ -840,7 +855,7 @@ export function SessionWorkspace({
         (activeScene?.chapterId === chapter.id
           ? activeScene.mapTokens
           : undefined) ??
-        [];
+             [];
       const drawings =
         chapterDrawings[chapter.id] ??
         (activeScene?.chapterId === chapter.id
@@ -889,7 +904,7 @@ export function SessionWorkspace({
       ...current,
       [display.chapterId]: placement,
     }));
-    if (channelReady) {
+    if (publicationReady) {
       const publishedAt = new Date().toISOString();
       void publishMapPatch({
         ...display,
@@ -909,7 +924,7 @@ export function SessionWorkspace({
       ...current,
       [display.chapterId]: settings,
     }));
-    if (channelReady) {
+    if (publicationReady) {
       const publishedAt = new Date().toISOString();
       void publishMapPatch({
         ...display,
@@ -930,7 +945,7 @@ export function SessionWorkspace({
       [display.chapterId]: tokens,
     }));
     setChapterObjectOrders((current) => ({ ...current, [display.chapterId]: objectOrder }));
-    if (channelReady) {
+    if (publicationReady) {
       const publicTokens = publicMapTokens(tokens);
       const publicOrder = publicMapObjectOrder(objectOrder, drawings, tokens, pois);
       const publishedAt = new Date().toISOString();
@@ -957,7 +972,7 @@ export function SessionWorkspace({
       [display.chapterId]: drawings,
     }));
     setChapterObjectOrders((current) => ({ ...current, [display.chapterId]: objectOrder }));
-    if (channelReady) {
+    if (publicationReady) {
       const publicDrawings = publicMapDrawings(drawings);
       const publicOrder = publicMapObjectOrder(objectOrder, drawings, tokens, pois);
       const publishedAt = new Date().toISOString();
@@ -978,7 +993,7 @@ export function SessionWorkspace({
       ...current,
       [display.chapterId]: fog,
     }));
-    if (channelReady) {
+    if (publicationReady) {
       const publishedAt = new Date().toISOString();
       void publishMapPatch({
         ...display,
@@ -1061,7 +1076,7 @@ export function SessionWorkspace({
     const objectOrder = reconcileOrder(display.mapObjectOrder, drawings, tokens, pois);
     setChapterPois((current) => ({ ...current, [display.chapterId]: pois }));
     setChapterObjectOrders((current) => ({ ...current, [display.chapterId]: objectOrder }));
-    if (channelReady) {
+    if (publicationReady) {
       const publicPois = publicMapPois(pois);
       const publicOrder = publicMapObjectOrder(objectOrder, drawings, tokens, pois);
       const publishedAt = new Date().toISOString();
@@ -1111,7 +1126,7 @@ export function SessionWorkspace({
     if (next === current) return;
     recordMapHistory();
     setChapterObjectOrders((orders) => ({ ...orders, [display.chapterId]: next }));
-    if (channelReady) {
+    if (publicationReady) {
       const publicOrder = publicMapObjectOrder(next, display.mapDrawings ?? [], display.mapTokens ?? [], display.mapPois ?? []);
       const publishedAt = new Date().toISOString();
       void publishMapPatch({ ...display, mapObjectOrder: publicOrder, publishedAt }, { mapObjectOrder: publicOrder });
@@ -1926,6 +1941,23 @@ export function SessionWorkspace({
     } else if (payload.action === "delete" && controlled(payload.poiId))
       deleteMapPoi(payload.poiId);
   };
+
+  useEffect(() => {
+    if (!isOwner || !onAuthoritativeMapRuntime) return;
+    const runtime = {
+      getCurrentMapContext: () => {
+        const current = authoritativeDisplayRef.current;
+        return current?.chapterId
+          ? { chapterId: current.chapterId, state: current as Record<string, unknown> }
+          : null;
+      },
+      onTokenAction: (payload: unknown) => playerMapActionHandlerRef.current(payload),
+      onPoiAction: (payload: unknown) => playerMapPoiActionHandlerRef.current(payload),
+      onLayerAction: (payload: unknown) => playerMapLayerActionHandlerRef.current(payload),
+    };
+    onAuthoritativeMapRuntime(runtime);
+    return () => onAuthoritativeMapRuntime(null);
+  }, [campaignId, isOwner, onAuthoritativeMapRuntime]);
 
   useEffect(() => {
     if (!isOwner || !display?.mapTokens?.some((token) => token.size == null))

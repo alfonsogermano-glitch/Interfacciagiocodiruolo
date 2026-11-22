@@ -1,0 +1,21 @@
+# Phase 2 only. NEVER combine with staging clients or run before schema,
+# production-only OAuth client registration and real new-user staging tests.
+# Merge with both private base/port files and the core networking overlay.
+services:
+  aruba-api:
+    environment:
+      AUTH_SIGNUP_ENABLED: "true"
+      AUTH_OAUTH_ENABLED: "true"
+      GOOGLE_OAUTH_CLIENT_SECRET_FILE: /run/secrets/production_google_oauth_secret
+      DISCORD_OAUTH_CLIENT_SECRET_FILE: /run/secrets/production_discord_oauth_secret
+    env_file:
+      - /opt/hollowgate-production-oauth/ids.env
+    secrets:
+      - production_google_oauth_secret
+      - production_discord_oauth_secret
+
+secrets:
+  production_google_oauth_secret:
+    file: /opt/hollowgate-production-oauth/google_client_secret
+  production_discord_oauth_secret:
+    file: /opt/hollowgate-production-oauth/discord_client_secret

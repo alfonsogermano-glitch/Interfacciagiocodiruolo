@@ -1,0 +1,14 @@
+# Opt-in restricted staging-only database login. Requires the reviewed
+# 037_staging_database_role.sql grants in hollowgate_auth_test, a separate
+# 0600 password file, and NO grants or role membership in production.
+services:
+  aruba-auth-staging:
+    environment:
+      PGUSER: hollowgate_auth_staging_app
+      POSTGRES_PASSWORD_FILE: /run/secrets/auth_staging_db_password
+    secrets:
+      - auth_staging_db_password
+
+secrets:
+  auth_staging_db_password:
+    file: /opt/hollowgate/config/auth_staging_db_password

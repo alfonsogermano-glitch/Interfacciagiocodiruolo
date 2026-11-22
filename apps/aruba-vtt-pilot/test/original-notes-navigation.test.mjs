@@ -11,14 +11,14 @@ test('original Notes route is server gated and lives in its own session rail',()
  assert.match(app,/activeCampaign\.ownerId===user\.id/);
  assert.match(app,/<ArubaNotesRoute key=\{activeCampaign\.id\}/);
  assert.match(app,/<ArubaSessionRightRail campaignId=\{activeCampaign\.id\}/);
- assert.match(app,/isGm=\{activeCampaign\.ownerId===user\.id&&user\.campaignMemberships\.some/);
+ assert.match(app,/isGm=\{activeCampaignOwned\|\|user\.campaignMemberships\.some/);
  assert.match(app,/notesEnabled=\{notesPanelReady\}/);
  assert.match(app,/<ArubaSessionCharactersPanel key=\{activeCampaign.id\} campaignId=\{activeCampaign.id\}/);
- assert.match(app,/sessionCharacterRequest&&user.charactersEnabled/);
+ assert.match(app,/sessionCharacterRequest&&activeCampaignOwned&&user.charactersEnabled/);
  assert.match(app,/<ArubaCampaignCharacterCards/);
- assert.match(app,/<ArubaCampaignPlayerRows key=\{activeCampaign.id\}/);
+ assert.match(app,/<ArubaCampaignHome campaign=\{activeCampaign\}/);
  assert.match(app,/availabilityEnabled=\{user.characterAvailabilityEnabled\}/);
- assert.match(app,/user\.charactersEnabled&&!user\.campaignRosterEnabled&&<ArubaCampaignCharacterCards/);
+ assert.match(app,/campaignRosterEnabled:user\.campaignRosterEnabled,charactersEnabled:user\.charactersEnabled/);
  assert.match(app,/sessionCharacterRequest.requestId/);
  assert.match(app,/requestSequence.current/);
  assert.match(app,/section==='session'&&activeCampaign/);
@@ -52,8 +52,10 @@ test('Aruba character detail uses the Phosphor icon set without changing origina
 
 test('session character selection unmounts the list while original detail owns the right panel',()=>{
  const app=readFileSync(resolve(root,'src/main.tsx'),'utf8');
- assert.match(app,/sessionPanel==='characters'&&!sessionCharacterRequest&&user\.charactersEnabled&&\s*<ArubaSessionCharactersPanel/);
- assert.match(app,/section==='session'&&activeCampaign&&sessionCharacterRequest&&user\.charactersEnabled&&\s*<ArubaCharacterDetailPanel/);
+ assert.match(app,/sessionPanel==='characters'&&!sessionCharacterRequest&&activeCampaignOwned&&user\.charactersEnabled&&\s*<ArubaSessionCharactersPanel/);
+ assert.match(app,/!activeCampaignOwned&&user\.playerCharactersEnabled&&\s*<ArubaAssignedCharacterPanel/);
+ assert.match(app,/\(section==='session'\|\|section==='map'\)&&activeCampaign&&sessionCharacterRequest&&activeCampaignOwned&&user\.charactersEnabled&&\s*<ArubaCharacterDetailPanel/);
+ assert.match(app,/sessionCharacterRequest&&!activeCampaignOwned&&user\.playerCharactersEnabled&&\s*<ArubaPlayerCharacterDetail/);
  assert.match(app,/onClose=\{\(\)=>closeSessionCharacter\(\)\}/);
 });
 

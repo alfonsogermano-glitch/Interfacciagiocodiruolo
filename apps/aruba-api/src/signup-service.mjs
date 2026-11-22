@@ -13,13 +13,15 @@ export class SignupRejected extends Error {
 }
 
 export function createSignupService({
-  pool,mailer,hmacKey,now=()=>new Date(),
+  pool,mailer,hmacKey,baseUrl,now=()=>new Date(),
   issueToken=()=>randomBytes(32).toString('base64url'),
   hashNewPassword=hashPassword,
 }) {
   if(typeof pool?.query!=='function'||typeof pool?.connect!=='function')throw new TypeError('Pool required');
   if(typeof mailer?.send!=='function')throw new TypeError('Mailer required');
   if(!Buffer.isBuffer(hmacKey)||hmacKey.length<32)throw new TypeError('HMAC key required');
+  if(typeof baseUrl!=='string'||new URL(baseUrl).protocol!=='https:'||new URL(baseUrl).origin!==baseUrl)
+    throw new TypeError('Exact HTTPS base URL required');
 
   async function signup({email,displayName,password,networkSubject}) {
     let address;
@@ -60,7 +62,7 @@ export function createSignupService({
       [address,displayName.trim(),encoded,digest]);
     if(registered.rows[0]?.created!==true)return ACK;
 
-    const link='https://staging.hollowgate.quest/account/verify-email?token='+encodeURIComponent(token);
+    const link=baseUrl+'/account/verify-email?token='+encodeURIComponent(token);
     try {
       await mailer.send({
         to:address,

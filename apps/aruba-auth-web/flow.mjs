@@ -28,7 +28,7 @@ export function validatePasswords(password,confirm) {
 }
 
 export class ApiError extends Error {
-  constructor(status,message) {super(message);this.status=status;}
+  constructor(status,message) {super(message);this.name='ApiError';this.status=status;}
 }
 
 export function createAuthApi({fetchImpl,origin}={}) {

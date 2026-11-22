@@ -1,0 +1,40 @@
+www.hollowgate.quest {
+  encode zstd gzip
+
+  # The frontend production build uses /vtt/ asset URLs, while JSON endpoints
+  # share the same prefix. Serve only known static paths before proxying API.
+  @vttAssets path /vtt/assets/*
+  handle @vttAssets {
+    uri strip_prefix /vtt
+    root * /opt/hollowgate/current/web
+    file_server
+  }
+
+  @frontendEntry path / /vtt /vtt/
+  handle @frontendEntry {
+    root * /opt/hollowgate/current/web
+    rewrite * /index.html
+    file_server
+  }
+
+  @publicFiles path /favicon.ico /favicon-*.png /apple-touch-icon.png /android-chrome-*.png /site.webmanifest /hollowgate-logo.png /title-main.png /title-sub.png /header-pattern.png /eye_animation_final.gif /eye-anim/* /condition-* /death-skull.svg
+  handle @publicFiles {
+    root * /opt/hollowgate/current/web
+    file_server
+  }
+
+  @api path /auth/* /vtt/* /health /ready
+  handle @api {
+    reverse_proxy 127.0.0.1:3002
+  }
+
+  handle { respond "Not Found" 404 }
+
+  header {
+    X-Content-Type-Options nosniff
+    Referrer-Policy strict-origin-when-cross-origin
+    X-Frame-Options DENY
+    Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    -Server
+  }
+}

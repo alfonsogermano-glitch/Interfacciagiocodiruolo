@@ -105,7 +105,10 @@ test('player upgrade cannot resurrect a room after its host disconnects during v
    peer.once('open',()=>peer.once('close',code=>resolve(code)));
    peer.once('error',()=>{});
   });
-  assert.ok([403,1008].includes(outcome));
+  // Depending on whether ws observes the HTTP rejection or the transport is
+  // destroyed while verification is still pending, fail-closed is 403, 1008
+  // or a transport shutdown (1001/1006). None opens a game room.
+  assert.ok([403,1001,1006,1008].includes(outcome),`unexpected fail-closed outcome: ${outcome}`);
  }finally{release?.();await s.close();}
 });
 test('wrong Origin and absent cookie are rejected before upgrade',async()=>{

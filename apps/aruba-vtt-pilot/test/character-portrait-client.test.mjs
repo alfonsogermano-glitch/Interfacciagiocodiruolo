@@ -44,8 +44,10 @@ test('portrait capability checks explicit dependencies and the original cropper 
  assert.match(source,/selectedFile && preserveSource && !uploadSource && !uploadCropped/);
  assert.match(source,/selectedFile && preserveSource && uploadSource/);
  const panel=readFileSync(new URL('../src/ArubaCharacterDetailPanel.tsx',import.meta.url),'utf8');
- assert.match(panel,/arubaPortraitEditor=\{portraitsEnabled\?/);
- assert.match(panel,/<ArubaGMCharacterPortrait/);
+ const editor=readFileSync(new URL('../src/ArubaCharacterImageEditor.tsx',import.meta.url),'utf8');
+ assert.match(panel,/arubaPortraitEditor=\{visualAssetsEnabled\?/);
+ assert.match(panel,/<ArubaCharacterImageEditor/);
+ assert.match(editor,/<ArubaGMCharacterPortrait/);
  assert.doesNotMatch(panel,/section==='immagine'/);
 });
 
