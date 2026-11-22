@@ -61,6 +61,12 @@ class PublicLegalRouteTests(unittest.TestCase):
         self.assertNotIn('reverse_proxy', module.BLOCK)
         self.assertIn('rewrite * {path}.html', module.BLOCK)
 
+    def test_no_transform_is_scoped_to_legal_response_only(self):
+        after = module.candidate(BEFORE)
+        self.assertIn('header Cache-Control "no-transform"', module.BLOCK)
+        self.assertEqual(after.count('header Cache-Control "no-transform"'), 1)
+        self.assertNotIn('no-transform', after.replace(module.BLOCK, '', 1))
+
     def test_repeat_foreign_or_ambiguous_public_site_is_rejected(self):
         for source in (module.candidate(BEFORE), BEFORE.replace('www.hollowgate.quest {', 'other.example {'),
                        BEFORE+'\nwww.hollowgate.quest {\n}\n',

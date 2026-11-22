@@ -28,7 +28,7 @@ def main():
         raise RuntimeError('Expected QA directory, legal inputs directory, pinned manifest hash')
     qa, inputs = map(lambda value: Path(value).resolve(), sys.argv[1:3])
     home = Path.home().resolve()
-    if qa != home/'hg-public-legal-caddy-qa-20261122' or inputs != home/'hg-public-legal-20261122':
+    if qa != home/'hg-public-legal-caddy-qa-20261122' or inputs != home/'hg-public-legal-20261122-v2':
         raise RuntimeError('QA/input directories must be the dedicated operator-owned home paths')
     binary = qa/'caddy'
     if not binary.is_file() or binary.is_symlink():
@@ -47,7 +47,7 @@ def main():
             raise RuntimeError('Input content mismatch')
     if names != {'privacy.html','elimina-dati.html','manifest.json','prepare-public-legal-routes.py'}:
         raise RuntimeError('Unexpected input set')
-    work = qa/'rehearsal'
+    work = qa/'rehearsal-v2'
     work.mkdir(mode=0o700)  # Exclusive: preserve any previous attempted QA.
     spec = importlib.util.spec_from_file_location('legal_routes', inputs/'prepare-public-legal-routes.py')
     generator = importlib.util.module_from_spec(spec)
@@ -101,9 +101,9 @@ def main():
         request = urllib.request.Request(f'http://127.0.0.1:{http_port}'+path, method=method)
         try:
             with opener.open(request, timeout=2) as response:
-                return response.status, response.read(), response.headers.get('Content-Type', '')
+                return response.status, response.read(), response.headers.get('Content-Type', ''), response.headers.get('Cache-Control', '')
         except urllib.error.HTTPError as error:
-            return error.code, error.read(), error.headers.get('Content-Type', '')
+            return error.code, error.read(), error.headers.get('Content-Type', ''), error.headers.get('Cache-Control', '')
 
     with (work/'caddy.private.log').open('wb') as log:
         def command(*args):
@@ -125,30 +125,38 @@ def main():
                     raise RuntimeError('Disposable Caddy startup timeout')
                 time.sleep(0.05)  # Bounded local server readiness, not tool-job polling.
             baseline = {path:get(path)[:2] for path in ('/login','/signup','/vtt/','/ready')}
+            baseline_cache = {path:get(path)[3] for path in baseline}
             if baseline != {'/login':(200,b'qa-auth-unchanged'),'/signup':(200,b'qa-auth-unchanged'),
                             '/vtt/':(200,b'qa-vtt-unchanged'),'/ready':(418,b'qa-api-unchanged')}:
                 raise RuntimeError('Unexpected original routing in QA')
             if any(get(path)[0] != 404 for path in ('/privacy','/elimina-dati')):
                 raise RuntimeError('Legal routes unexpectedly present before reload')
-            print('PUBLIC_LEGAL_REAL_CADDY_BASELINE_OK', flush=True)
+            print('PUBLIC_LEGAL_V2_REAL_CADDY_BASELINE_OK', flush=True)
             command('reload','--address',f'127.0.0.1:{admin_port}','--config',new_file,'--adapter','caddyfile')
             for path in ('/privacy','/elimina-dati'):
-                status, body, mime = get(path+'?qa=1')
+                status, body, mime, cache = get(path+'?qa=2')
                 if status != 200 or not mime.startswith('text/html') or body != (inputs/(path[1:]+'.html')).read_bytes():
                     raise RuntimeError('Real Caddy served wrong legal page bytes/type/status')
-                if get(path, 'HEAD')[0] != 200:
-                    raise RuntimeError('Legal HEAD failed')
+                if 'no-transform' not in {part.strip().lower() for part in cache.split(',')}:
+                    raise RuntimeError('Real Caddy legal response missing no-transform')
+                head = get(path, 'HEAD')
+                if head[0] != 200 or 'no-transform' not in {part.strip().lower() for part in head[3].split(',')}:
+                    raise RuntimeError('Legal HEAD or its no-transform header failed')
             if {path:get(path)[:2] for path in baseline} != baseline:
                 raise RuntimeError('Other public routes changed in QA')
-            print('PUBLIC_LEGAL_REAL_CADDY_RELOAD_AND_HASHES_OK', flush=True)
+            if {path:get(path)[3] for path in baseline} != baseline_cache:
+                raise RuntimeError('Legal cache header escaped into another public route')
+            print('PUBLIC_LEGAL_V2_REAL_CADDY_RELOAD_HEADERS_AND_HASHES_OK', flush=True)
             command('reload','--address',f'127.0.0.1:{admin_port}','--config',old_file,'--adapter','caddyfile')
             if any(get(path)[0] != 404 for path in ('/privacy','/elimina-dati')):
                 raise RuntimeError('Old routing not restored in QA')
             if {path:get(path)[:2] for path in baseline} != baseline:
                 raise RuntimeError('Rollback changed old routes in QA')
+            if {path:get(path)[3] for path in baseline} != baseline_cache:
+                raise RuntimeError('Rollback changed old cache headers in QA')
             if live.read_bytes() != before_bytes:
                 raise RuntimeError('Live Caddy source changed independently')
-            print('PUBLIC_LEGAL_REAL_CADDY_ROLLBACK_OK — disposable loopback only; active services untouched', flush=True)
+            print('PUBLIC_LEGAL_V2_REAL_CADDY_ROLLBACK_OK — disposable loopback only; v1 evidence and active services untouched', flush=True)
         finally:
             process.terminate()
             try:

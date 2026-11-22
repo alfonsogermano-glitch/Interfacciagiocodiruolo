@@ -67,9 +67,25 @@ curl(){
   local url=${!#}
   if [[ $url == *'/privacy?legal-release='* || $url == *'/elimina-dati?legal-release='* ]]; then
     [[ $SCENARIO != https-fail && $SCENARIO != rollback-fail ]] || return 22
+    local arg headers= next=0
+    for arg in "$@"; do
+      if (( next )); then headers=$arg; next=0
+      elif [[ $arg == --dump-header ]]; then next=1; fi
+    done
+    [[ -n $headers ]] || { echo 'MISSING_HEADER_CAPTURE' >&2; return 1; }
+    if [[ $SCENARIO == interim-header-only ]]; then
+      printf 'HTTP/1.1 103 Early Hints\r\nCache-Control: no-transform\r\n\r\n' > "$headers"
+    else : > "$headers"; fi
+    printf 'HTTP/1.1 200 OK\r\n' >> "$headers"
+    if [[ $SCENARIO == wrong-content-type ]]; then printf 'Content-Type: text/plain\r\n' >> "$headers"
+    else printf 'Content-Type: text/html; charset=utf-8\r\n' >> "$headers"; fi
+    if [[ $SCENARIO == mixed-case-header ]]; then printf 'cAcHe-CoNtRoL: public, No-Transform\r\n' >> "$headers"
+    elif [[ $SCENARIO != missing-no-transform && $SCENARIO != interim-header-only ]]; then printf 'Cache-Control: no-transform\r\n' >> "$headers"; fi
+    printf '\r\n' >> "$headers"
     if [[ $SCENARIO == body-mismatch ]]; then echo wrong-body; return; fi
     if [[ $url == *'/privacy?'* ]]; then cat "$QA/live/web/site-pages/privacy.html"
     else cat "$QA/live/web/site-pages/elimina-dati.html"; fi
+    if [[ $SCENARIO == cf-rewrite ]]; then printf '<script src="/cdn-cgi/scripts/qa/cloudflare-static/email-decode.min.js"></script>'; fi
   elif [[ $SCENARIO == baseline-fail ]]; then echo 502
   elif [[ $SCENARIO == post-baseline-fail && -e $QA/reloaded ]]; then echo 502
   else echo 200; fi
@@ -128,13 +144,13 @@ class PublicLegalReleaseTests(unittest.TestCase):
                 # Actual Caddy readability remains a mandatory deployment gate.
                 source = source.replace('install -m 644', 'install -m 600')
             replacements = {
-                '/home/hgadmin/hg-public-legal-20261122': shell_path(inputs),
-                '/opt/hollowgate-public-legal-20261122': shell_path(work),
+                '/home/hgadmin/hg-public-legal-20261122-v2': shell_path(inputs),
+                '/opt/hollowgate-public-legal-20261122-v2': shell_path(work),
                 '/opt/hollowgate/aruba-source/deploy/aruba/dist/vtt-pilot': shell_path(web),
                 '/opt/hollowgate/aruba-source/deploy/aruba/Caddyfile.auth-trial': shell_path(live/'Caddyfile'),
                 '/opt/hollowgate/staging-trial/Caddyfile.staging-isolated': shell_path(live/'isolated'),
                 '05b06f6da2b655f5c3248cbd54fee0cd3f9a2ce06259766502bbce40b757603b': hashlib.sha256(fixture.BEFORE.encode()).hexdigest(),
-                'b5ac1260525018dd32044fafc7560fb9406f518dbdb2f1cf897f449f81d99d11': hashlib.sha256(fixture.module.candidate(fixture.BEFORE).encode()).hexdigest(),
+                '95562a4440785dd1431e94ac8a952bd97f3f5a5b938e73af208aba4127f41fdf': hashlib.sha256(fixture.module.candidate(fixture.BEFORE).encode()).hexdigest(),
             }
             for old, new in replacements.items():
                 self.assertEqual(source.count(old), 1, old)
@@ -147,7 +163,7 @@ class PublicLegalReleaseTests(unittest.TestCase):
             result = subprocess.run([BASH, shell_path(root/'runner.sh'), pinned], env=env,
                                     capture_output=True, text=True, timeout=25)
             output = result.stdout+result.stderr
-            success = scenario == 'success'
+            success = scenario in ('success','mixed-case-header')
             self.assertEqual(result.returncode == 0, success, output)
             expected = fixture.module.candidate(fixture.BEFORE) if success else fixture.BEFORE
             if scenario == 'caddy-drift': expected = fixture.module.candidate(fixture.BEFORE)+'external-caddy-change\n'
@@ -181,6 +197,11 @@ class PublicLegalReleaseTests(unittest.TestCase):
     def test_interrupted_reload_rolls_back(self): self.run_case('interrupted-reload')
     def test_failed_https_restores_old_routing(self): self.run_case('https-fail')
     def test_wrong_https_body_is_not_a_success(self): self.run_case('body-mismatch')
+    def test_missing_no_transform_is_rejected_even_with_identical_html(self): self.run_case('missing-no-transform')
+    def test_interim_no_transform_header_does_not_validate_final_response(self): self.run_case('interim-header-only')
+    def test_cache_directives_accept_case_insensitive_tokens(self): self.run_case('mixed-case-header')
+    def test_wrong_https_content_type_is_rejected(self): self.run_case('wrong-content-type')
+    def test_cloudflare_script_injection_is_not_silently_normalized(self): self.run_case('cf-rewrite')
     def test_post_reload_baseline_failure_rolls_back(self): self.run_case('post-baseline-fail')
     def test_container_drift_rolls_back(self): self.run_case('container-drift')
     def test_independent_staging_change_is_never_overwritten(self): self.run_case('stage-drift')

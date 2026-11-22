@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # APPROVED LEGAL PAGES ONLY. No VTT bundle, API/Compose/SQL/OAuth/staging edits.
 # Install a pinned root-owned copy before execution. Never run from uploads.
+# v2: no-transform on the two legal responses; preserve all v1 evidence.
 set -Eeuo pipefail
 umask 077
 # Keep operator diagnostics visible even if a signal arrives while a child
@@ -9,14 +10,14 @@ exec 4>&2
 die(){ echo "PUBLIC_LEGAL_STOP: $*" >&4; exit 1; }
 (( EUID == 0 )) || die 'approved sudo session required'
 [[ $# == 1 && $1 =~ ^[a-f0-9]{64}$ ]] || die 'expected input manifest SHA-256'
-source=/home/hgadmin/hg-public-legal-20261122
-work=/opt/hollowgate-public-legal-20261122
+source=/home/hgadmin/hg-public-legal-20261122-v2
+work=/opt/hollowgate-public-legal-20261122-v2
 web=/opt/hollowgate/aruba-source/deploy/aruba/dist/vtt-pilot
 file=/opt/hollowgate/aruba-source/deploy/aruba/Caddyfile.auth-trial
 isolated=/opt/hollowgate/staging-trial/Caddyfile.staging-isolated
 gateway=hollowgate-staging-edge-caddy-1
 expected=05b06f6da2b655f5c3248cbd54fee0cd3f9a2ce06259766502bbce40b757603b
-expected_candidate=b5ac1260525018dd32044fafc7560fb9406f518dbdb2f1cf897f449f81d99d11
+expected_candidate=95562a4440785dd1431e94ac8a952bd97f3f5a5b938e73af208aba4127f41fdf
 phase=preflight
 trap 'status=$?; echo "PUBLIC_LEGAL_ERROR: phase=$phase line=$LINENO exit=$status" >&4' ERR
 [[ ! -e $work && ! -L $work ]] || die 'release already attempted; inspect, do not repeat'
@@ -142,8 +143,27 @@ echo 'PUBLIC_LEGAL_CADDY_RELOADED'
 phase=https-and-invariants
 for page in privacy elimina-dati; do
   curl -fsS --max-time 20 --header 'Cache-Control: no-cache' \
-    "https://www.hollowgate.quest/$page?legal-release=20261122" \
+    --dump-header "$work/$page.https.headers" \
+    "https://www.hollowgate.quest/$page?legal-release=20261122-v2" \
     > "$work/$page.https.html" || die 'public HTTPS page failed'
+  python3 - "$work/$page.https.headers" <<'PY'
+from pathlib import Path
+import sys
+headers={}
+for line in Path(sys.argv[1]).read_bytes().splitlines():
+    if line.startswith(b'HTTP/'):
+        headers={}  # Keep the final response, not CONNECT/100/103 headers.
+    elif b':' in line:
+        name,value=line.split(b':',1)
+        key=name.strip().lower()
+        headers[key]=headers.get(key,b'')+b','+value.strip().lower()
+directives={part.strip() for part in headers.get(b'cache-control',b'').split(b',')}
+if b'no-transform' not in directives:
+    raise SystemExit('PUBLIC_LEGAL_STOP: public HTTPS no-transform header missing')
+if not headers.get(b'content-type',b'').lstrip(b',').startswith(b'text/html'):
+    raise SystemExit('PUBLIC_LEGAL_STOP: public HTTPS content type differs')
+PY
+  # Do not normalize away injected scripts/email rewrites: require exact bytes.
   cmp -s "$work/$page.html" "$work/$page.https.html" || die 'public HTTPS content hash differs'
 done
 baseline_http || die 'public/staging baseline changed after reload'
@@ -153,4 +173,4 @@ cmp -s "$work/containers.before" "$work/containers.after" || die 'running contai
 [[ $(sha256sum "$isolated" | cut -d' ' -f1) == "$isolated_hash" ]] || die 'isolated staging config changed independently'
 [[ $(sha256sum "$file" | cut -d' ' -f1) == "$expected_candidate" ]] || die 'shared Caddyfile changed independently; do not overwrite other work'
 phase=complete
-echo 'PUBLIC_LEGAL_RELEASE_OK — two original pages verified over HTTPS; VTT entry/containers/staging config unchanged; no SQL/API/OAuth deployment'
+echo 'PUBLIC_LEGAL_RELEASE_OK — v2 original pages and no-transform verified over HTTPS; VTT entry/containers/staging config unchanged; no SQL/API/OAuth deployment'

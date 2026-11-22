@@ -9,6 +9,7 @@ from pathlib import Path
 BLOCK = '''  # Static render of the original legal pages; no auth or API dependency.
   @publicLegalPages path /privacy /elimina-dati
   handle @publicLegalPages {
+    header Cache-Control "no-transform"
     root * /srv/vtt-pilot/site-pages
     rewrite * {path}.html
     file_server

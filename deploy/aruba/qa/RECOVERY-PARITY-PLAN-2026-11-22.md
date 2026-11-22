@@ -166,3 +166,17 @@ Readiness/login esterni 200 e route legali 404 confermati dopo il rollback.
 Conservare work e risposta HTTPS privati, acquisire soltanto diagnosi
 sanitizzata. Trasformazione CDN/email è un'ipotesi non ancora provata; non
 promuovere il rilascio o allentare il gate. Dettagli nel runbook legale.
+
+### V2 preparata dopo diagnosi Cloudflare
+
+L'utente conferma CSS identico, email offuscate e uno script di decodifica
+Cloudflare nella risposta HTTPS salvata; config precedente ripristinata.
+V2: no-transform confinato alle due route legali, HTML invariato e confronto
+esatto mantenuto, più verifica degli header finali. Nessuna impostazione
+globale CDN modificata. Nuovi percorsi v2, evidenze/backup V1 conservati.
+
+22 test del runner e 5 del generatore passati; Caddy reale non-root conferma
+GET/HEAD, header confinato, hash esatti e rollback su porte temporanee. La
+prova non attraversa Cloudflare: il gate HTTPS vivo resta obbligatorio.
+V2 non ancora applicata; dettagli e pin in
+`../production/PUBLIC-LEGAL-RELEASE-V2.md`. Nessuna correzione VTT inclusa.

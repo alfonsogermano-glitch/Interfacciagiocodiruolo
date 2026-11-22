@@ -1,7 +1,7 @@
 # Rilascio Privacy / Elimina dati — 22 novembre 2026
 
-**Autorizzato dall'utente. Primo tentativo annullato con rollback riuscito;
-pagine non pubblicate, diagnosi in corso.**
+**Archivio V1: primo tentativo annullato con rollback riuscito; pagine non
+pubblicate. Causa CDN confermata, seguito in `PUBLIC-LEGAL-RELEASE-V2.md`.**
 La riuscita della preparazione/rehearsal non è una pubblicazione.
 
 ## Perimetro
@@ -122,3 +122,18 @@ https://developers.cloudflare.com/waf/tools/scrape-shield/email-address-obfuscat
 Non disabilitare il confronto esatto né modificare impostazioni globali CDN
 prima di identificare la differenza. Nessun nuovo tentativo autorizzato da
 un semplice successo di test locali.
+
+### Diagnosi successiva confermata dall'utente
+
+La lettura sanitizzata del file salvato ha riportato 234673 byte originali e
+235075 ricevuti, CSS identico, email Cloudflare offuscate e un solo script di
+decodifica email; nessun challenge o gzip. Configurazione uguale al backup.
+Cloudflare sta quindi modificando almeno i riferimenti email e inserendo lo
+script. Non normalizzare via queste differenze per far passare il gate.
+
+La V2 aggiunge `Cache-Control: no-transform` solo alle due risposte legali,
+senza disattivare impostazioni globali CDN/WAF. HTML invariato, controllo byte
+per byte conservato. Usa nuove directory e un nuovo installer root; questa
+V1 e il relativo work/installer sul VPS restano intatti, non vanno rieseguiti.
+Il sorgente del runner V1 è conservato nel commit `03ef3695`; il file canonico
+nel repository segue adesso la V2. I pin sopra sono quelli storici della V1.
