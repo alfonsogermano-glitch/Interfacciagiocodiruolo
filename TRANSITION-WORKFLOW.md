@@ -49,6 +49,9 @@ metodo operativo; non dichiara conclusa la migrazione né autorizza deploy.
 - Escludere credenziali, token, certificati, dump, export, log e screenshot
   non revisionati. Alcuni vecchi helper con credenziali incorporate restano
   soltanto locali e ignorati: non cancellarli, pubblicarli o usarli alla cieca.
+- `deploy/aruba/production/production.env.example` è un template revisionato
+  senza segreti, non una fotografia della configurazione live e non un file
+  da applicare automaticamente al VPS.
 - `LOCAL-WORKFLOW.md` descrive l'ambiente locale di test facoltativo precedente,
   non un secondo passaggio obbligatorio di accettazione.
 - I report storici con parole come «100%», «certificato» o «completo» non

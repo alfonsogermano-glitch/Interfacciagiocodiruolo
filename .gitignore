@@ -20,6 +20,8 @@ apps/aruba-api/*oauth*secret*
 deploy/aruba/data/
 deploy/aruba/production/config/
 deploy/aruba/production/secrets/
+# Reviewed non-secret template only; keep real environment files ignored.
+!deploy/aruba/production/production.env.example
 
 # Generated local QA artifacts (sources and fixtures remain versioned).
 __pycache__/
