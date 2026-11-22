@@ -7,6 +7,8 @@ on:
       - 'apps/aruba-vtt-pilot/**'
       - 'src/app/legal/**'
       - 'deploy/aruba/qa/*legal*'
+      - 'deploy/aruba/production/release-public-legal.sh'
+      - 'deploy/aruba/production/test_release_public_legal.py'
       - 'package.json'
       - 'package-lock.json'
       - '.github/workflows/aruba-recovery.yml'
@@ -16,6 +18,8 @@ on:
       - 'apps/aruba-vtt-pilot/**'
       - 'src/app/legal/**'
       - 'deploy/aruba/qa/*legal*'
+      - 'deploy/aruba/production/release-public-legal.sh'
+      - 'deploy/aruba/production/test_release_public_legal.py'
       - '.github/workflows/aruba-recovery.yml'
 permissions:
   contents: read
@@ -35,6 +39,7 @@ jobs:
       - run: npm run test:aruba-public-pages
       - run: npm run build:aruba-public-pages
       - run: python -B -m unittest discover -s deploy/aruba/qa -p 'test_prepare_public_legal_routes.py' -v
+      - run: python -B -m unittest discover -s deploy/aruba/production -p 'test_release_public_legal.py' -v
       - run: npm ci --ignore-scripts --no-audit --no-fund
         working-directory: apps/aruba-vtt-pilot
       - run: npm test

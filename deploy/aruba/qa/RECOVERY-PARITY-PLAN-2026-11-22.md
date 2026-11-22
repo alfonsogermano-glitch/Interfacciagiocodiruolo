@@ -134,3 +134,26 @@ di preflight, non è stata certificata dai soli test Python del generatore.
   pagine alle sei larghezze: nessun overflow, h1 line-height 48px e margin-top
   0px come base originale; zero script. Si tratta di iframe same-origin,
   non di un test Android reale né di approvazione visiva dell'intero sito.
+
+## Aggiornamento: rilascio delle sole pagine legali autorizzato
+
+Il proprietario ha autorizzato la pubblicazione di Privacy / Elimina dati con
+backup e reload del gateway pubblico, escludendo VTT/API/database/OAuth/staging.
+Runner, input e guardie in `../production/PUBLIC-LEGAL-RELEASE.md`.
+
+La rehearsal Caddy mancante sopra è ora stata eseguita con Caddy Linux 2.10.2
+ufficiale come utente non-root su porte effimere loopback: validazione, route
+404→200 con hash HTML esatti, HEAD, vecchie route immutate e rollback 200→404
+passati. Processo temporaneo terminato, nessun servizio Docker o file attivo
+modificato. La verifica COMPLETA nel gateway pubblico rimane un gate obbligatorio
+del runner prima delle modifiche vive.
+
+Diciassette test di flusso del runner passati (26/26 nella suite production),
+incluse interruzioni, guasti e rifiuto di sovrascrivere modifiche indipendenti.
+Pacchetto caricato e hash verificati sul VPS; marker ricevuto dall'agente:
+`PUBLIC_LEGAL_BUNDLE_VERIFIED_NOT_APPLIED`.
+
+**Applicazione ancora da eseguire tramite sudo dell'operatore.** Non considerare
+le due pagine pubblicate prima di `PUBLIC_LEGAL_RELEASE_OK` e riscontro HTTPS.
+Le correzioni frontend di campagne/inviti restano su GitHub, non vengono
+incluse automaticamente in questo rilascio statico.
