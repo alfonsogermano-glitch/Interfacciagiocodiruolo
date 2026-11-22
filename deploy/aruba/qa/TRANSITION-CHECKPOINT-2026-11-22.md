@@ -48,3 +48,13 @@ riescono. Non aggirare il problema con upload a servizi terzi.
 
 I report di parità/certificazione precedenti restano documenti storici.
 Lavoro preservato non significa funzionalità completata o pubblicata.
+
+### Aggiornamento: sincronizzazione GitHub completata
+
+Dopo il ripristino della connessione segnalato dall'utente, push atomico
+riuscito del branch `tmp/aruba-transition-20261122` (checkpoint `d6cee3d1`)
+e dei due tag di archivio. Verifica `ls-remote` successiva conferma branch
+e target dei tag; `main` remoto resta a `e9f31ab6` e il precedente branch
+foundation a `531c7484`. Upstream configurato, working tree pulito.
+Il blocco di rete sopra descrive il primo tentativo ed è ora superato.
+Nessun force push, merge, deploy o modifica dati in questa operazione.
