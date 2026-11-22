@@ -1,7 +1,7 @@
 # Privacy / Elimina dati — V2, integrità attraverso Cloudflare
 
 Stesso perimetro autorizzato: due HTML originali e route legali nel gateway
-pubblico. **Preparata e provata, non ancora applicata.** Nessun deploy VTT/API,
+pubblico. **Pubblicata con esito positivo e verificata via HTTPS.** Nessun deploy VTT/API,
 SQL, OAuth o modifica del gateway staging isolato. V1 non viene cancellata né
 rieseguita: backup, risposta HTTPS osservata e installer originali restano.
 
@@ -64,10 +64,45 @@ PUBLIC_LEGAL_V2_REAL_CADDY_ROLLBACK_OK — disposable loopback only; v1 evidence
 Questa prova non attraversa Cloudflare. La verifica effettiva HTTPS passa
 ancora dal gate obbligatorio del runner dopo reload, con rollback in caso di
 header assenti, byte diversi o variazioni dei servizi/configurazioni protetti.
-Non rappresentare la V2 come pubblicata prima di `PUBLIC_LEGAL_RELEASE_OK` e
-verifica esterna. L'applicazione richiede ancora sudo dell'operatore.
+Il completamento richiede `PUBLIC_LEGAL_RELEASE_OK` e verifica esterna:
+entrambi acquisiti nell'esito sotto. Non equivale a recupero completo del VTT.
 
 Upload V2 e pin verificati sul VPS. Work e installer V1 presenti, target
 legale e work/installer V2 assenti; configurazioni vive ancora uguali ai pin
 del rollback. Marker dell'ultima verifica agente:
 `PUBLIC_LEGAL_V2_BUNDLE_VERIFIED_V1_PRESERVED_NOT_APPLIED`.
+
+## Esito attivo e verifica esterna
+
+L'operatore ha applicato il runner autorizzato tramite sudo e riportato:
+
+```text
+PUBLIC_LEGAL_PREFLIGHT_AND_BACKUP_OK
+PUBLIC_LEGAL_CADDY_RELOADED
+PUBLIC_LEGAL_RELEASE_OK — v2 original pages and no-transform verified over HTTPS; VTT entry/containers/staging config unchanged; no SQL/API/OAuth deployment
+```
+
+Verifica successiva dell'agente sul sito pubblico, attraversando Cloudflare:
+
+| URL | Stato | Byte | Script | Cache-Control |
+|---|---|---|---|---|
+| `/privacy` | 200, text/html | 234673 | 0 | no-transform |
+| `/elimina-dati` | 200, text/html | 233361 | 0 | no-transform |
+
+Titoli originali corretti; nessuna offuscazione email o script decode iniettato.
+Una seconda lettura HTTPS dal VPS, confrontata con gli input immutabili,
+conferma gli stessi SHA-256 per originale e risposta pubblica:
+
+- Privacy: `c3a9d89ebe0695f2dc762cc0653d5f98247b19e1cc1035b8a09c3c27a7f5fe3b`.
+- Elimina dati: `b10270341fcaede0f3ff2b684398cd48b96996b4ede67ee37d5a624617cff76c`.
+
+Config condivisa attiva = candidato V2 `95562a44…`; staging isolato ancora
+`968b1d40e466df0b5900a3b6894e2df2090616c496fa63e62552d2285f07d3ee`.
+`/ready`, `/login` e `/vtt/` rispondono 200. No-transform NON compare sulle
+risposte login/VTT (readiness mantiene il suo no-store): header confinato.
+Queste GET non costituiscono un nuovo test funzionale di login/OAuth/gioco.
+Le invarianti di entry VTT/container sono passate nel runner, secondo l'esito
+riportato dall'utente; nessun SQL o deploy API/OAuth è stato eseguito.
+
+Non rieseguire il runner completato. I fix VTT campagne/inviti e il resto
+della parità sono ancora attività separate, non pubblicate da questo rilascio.

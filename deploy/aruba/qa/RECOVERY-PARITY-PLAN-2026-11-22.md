@@ -43,7 +43,7 @@ ottenere un PASS. Non calcolare percentuali dal numero di file o test.
 
 | Ordine | Area / sorgente originale | Lavoro da chiudere prima di dichiarare parità |
 |---|---|---|
-| 1 | Affidabilità caricamento + pagine `src/app/legal/*` | Tranche A sotto: preparata, non pubblicata |
+| 1 | Affidabilità caricamento + pagine `src/app/legal/*` | Pagine legali pubblicate e verificate; fix caricamento/inviti VTT preparati, non pubblicati |
 | 2 | `MyCharactersPage.tsx`, `charactersService`, `entitiesService` | Catalogo globale completo PG/PNG/Mostri, non placeholder: ricerca, filtri gerarchici campagna/capitolo e regole, paginazione, creazione, duplicazione/copia, assegnazione/distacco, disponibilità/claim/release, archivio e schede originali. Verificare proprietà logica dei PG vs proprietà fisica GM, dati storici senza campagna e ogni copia delle note/media. Nessun «0» o pulsante disabilitato inventato |
 | 3 | `SettingsModal`, `dashboardSettings`, `ReportBugModal`, notifiche originali | Ripristinare modali e salvataggio reale di profilo/preferenze, impostazioni dashboard, notifiche/inviti originali e segnalazioni. Conservare link OAuth espliciti già funzionanti; niente account collegati per email |
 | 4 | `HomeScreen`, `CampaignsPage`, `CampaignHome`, `App.tsx` | Stessa navigazione e azioni; ripristino della vista/tab dopo F5 come nell'originale (non confondere con persistenza dei dati); creazione/modifica/branding, inviti, adesione e revoca con vecchi account e dati attuali |
@@ -56,7 +56,11 @@ ottenere un PASS. Non calcolare percentuali dal numero di file o test.
 | 11 | `NewsPage.tsx` | Route pubblica e contenuti reali con immagini, composizione/pubblicazione/eliminazione admin autorizzata dal server. Non esporre un Supabase client o usare solo un ID admin hardcoded nel browser. I 339 record della migrazione storica non provano il recupero di news/posts |
 | 12 | Verifica finale integrata | Confronto schermata/azione/ruolo, test non distruttivi su dati storici e nuovi, Firefox/Chromium/mobile, TURN e Android su reti reali, navigazione e stato dopo refresh, nessun placeholder/stub o gate senza prova. Solo qui valutare la parità completa |
 
-## Tranche A: implementata e provata, NON pubblicata
+## Tranche A: implementata e provata, con stato distinto per flusso
+
+**Aggiornamento attuale:** soltanto Privacy / Elimina dati sono pubblicate e
+verificate in HTTPS. Le correzioni di caricamento campagne/inviti del VTT
+restano nel codice condiviso, non incluse nel rilascio statico.
 
 ### Caricamento campagne e inviti
 
@@ -180,3 +184,18 @@ GET/HEAD, header confinato, hash esatti e rollback su porte temporanee. La
 prova non attraversa Cloudflare: il gate HTTPS vivo resta obbligatorio.
 V2 non ancora applicata; dettagli e pin in
 `../production/PUBLIC-LEGAL-RELEASE-V2.md`. Nessuna correzione VTT inclusa.
+
+### Esito successivo: V2 legale pubblicata e verificata
+
+L'utente ha riportato `PUBLIC_LEGAL_RELEASE_OK` con invarianti superate.
+Verifica esterna dell'agente: entrambe le pagine 200 text/html, titoli originali,
+header no-transform, zero script/offuscazione Cloudflare. Hash pubblici
+identici ai due HTML preparati, confermati via seconda GET HTTPS dal VPS.
+Readiness/login/VTT 200, header confinato ai due URL, config staging isolata
+invariata. Dettagli e digest nel runbook V2.
+
+Nessun deploy frontend VTT/API/SQL/OAuth. Non richiedere all'utente di ripetere
+i test staging/produzione per queste pagine statiche già verificate.
+Prossima verticale sostanziale: catalogo globale completo PG/PNG/Mostri
+(ordine 2 sopra), da confrontare con il componente originale e non sostituire
+con un ulteriore elenco semplificato. Parità complessiva ancora non raggiunta.
