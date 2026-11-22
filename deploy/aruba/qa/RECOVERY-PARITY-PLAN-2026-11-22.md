@@ -157,3 +157,12 @@ Pacchetto caricato e hash verificati sul VPS; marker ricevuto dall'agente:
 le due pagine pubblicate prima di `PUBLIC_LEGAL_RELEASE_OK` e riscontro HTTPS.
 Le correzioni frontend di campagne/inviti restano su GitHub, non vengono
 incluse automaticamente in questo rilascio statico.
+
+### Primo tentativo legale: non riuscito, rollback OK
+
+Esito utente: preflight e reload passati, confronto del contenuto HTTPS
+fallito, rollback precedente riuscito. Pagine ancora non pubblicate.
+Readiness/login esterni 200 e route legali 404 confermati dopo il rollback.
+Conservare work e risposta HTTPS privati, acquisire soltanto diagnosi
+sanitizzata. Trasformazione CDN/email è un'ipotesi non ancora provata; non
+promuovere il rilascio o allentare il gate. Dettagli nel runbook legale.

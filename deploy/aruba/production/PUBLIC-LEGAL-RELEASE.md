@@ -1,6 +1,7 @@
 # Rilascio Privacy / Elimina dati — 22 novembre 2026
 
-**Autorizzato dall'utente, non ancora eseguito sul gateway attivo.**
+**Autorizzato dall'utente. Primo tentativo annullato con rollback riuscito;
+pagine non pubblicate, diagnosi in corso.**
 La riuscita della preparazione/rehearsal non è una pubblicazione.
 
 ## Perimetro
@@ -86,9 +87,38 @@ file di configurazione attivo o root web pubblico modificato dalla rehearsal.
 La validazione del Caddyfile COMPLETO nel gateway vivo resta obbligatoria nel
 preflight del runner: la rehearsal non legge le secret del gateway staging.
 
-## Esito da acquisire
+## Esito atteso dal runner
 
 Richiede sudo interattivo dell'operatore, senza allargare i permessi:
 `PUBLIC_LEGAL_PREFLIGHT_AND_BACKUP_OK`, `PUBLIC_LEGAL_CADDY_RELOADED`, infine
 `PUBLIC_LEGAL_RELEASE_OK`. In caso contrario acquisire STOP/ERROR/ROLLBACK
 senza ripetere il comando o ripristinare dump.
+
+## Esito del primo tentativo: rollback completato, pagine NON pubblicate
+
+L'utente ha eseguito il runner e riportato:
+
+```text
+PUBLIC_LEGAL_PREFLIGHT_AND_BACKUP_OK
+PUBLIC_LEGAL_CADDY_RELOADED
+PUBLIC_LEGAL_STOP: public HTTPS content hash differs
+PUBLIC_LEGAL_ROLLBACK_OK — previous routing restored; VTT/API/data untouched
+```
+
+Il gate di contenuto HTTPS ha fermato il rilascio dopo il reload. Non ripetere
+questo runner: installazione e work privato esistono e conservano l'evidenza.
+Il file `privacy.https.html` nel work contiene la risposta osservata; leggerlo
+soltanto per diagnosi sanitizzata, senza stampare HTML/script o token CDN.
+
+Controllo HTTPS esterno successivo dell'agente: `/ready` 200, `/login` 200,
+`/privacy` 404 e `/elimina-dati` 404; risposte Cloudflare DYNAMIC. Conferma il
+ritorno al routing precedente, non il completamento del rilascio.
+
+Trasformazione email/HTML da parte di Cloudflare è un'ipotesi da verificare
+sulla risposta salvata, NON una causa già dimostrata. La documentazione
+Cloudflare indica che Email Address Obfuscation modifica HTML/introduce lo
+script email-decode e non si applica con Cache-Control: no-transform:
+https://developers.cloudflare.com/waf/tools/scrape-shield/email-address-obfuscation/
+Non disabilitare il confronto esatto né modificare impostazioni globali CDN
+prima di identificare la differenza. Nessun nuovo tentativo autorizzato da
+un semplice successo di test locali.
