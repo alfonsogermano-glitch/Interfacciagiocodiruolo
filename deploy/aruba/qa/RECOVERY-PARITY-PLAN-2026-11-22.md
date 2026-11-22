@@ -58,6 +58,13 @@ ottenere un PASS. Non calcolare percentuali dal numero di file o test.
 
 ## Tranche A: implementata e provata, con stato distinto per flusso
 
+Per la verticale successiva dei cataloghi: confronto sorgenti, invarianti e
+incremento locale in `GLOBAL-CATALOG-RECOVERY-2026-11-22.md`. Diagnosi read-only
+con 7 test PostgreSQL e fix del trasporto date PG (suite VTT 490/490, build
+passata). Nessuna SQL eseguita sul VPS e nessun catalogo originale ancora
+montato/pubblicato. Resta da implementare il modello/API globale, compreso
+rilascio di PG precompilati dopo il distacco dalla campagna.
+
 **Aggiornamento attuale:** soltanto Privacy / Elimina dati sono pubblicate e
 verificate in HTTPS. Le correzioni di caricamento campagne/inviti del VTT
 restano nel codice condiviso, non incluse nel rilascio statico.

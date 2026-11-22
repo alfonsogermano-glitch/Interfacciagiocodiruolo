@@ -307,8 +307,15 @@ export function validateCharacterDraft(data){
   !/^[0-9a-f-]{36}$/i.test(data.ownerId)||typeof data.name!=='string'||data.name.length<1||
   !['draft','active'].includes(data.status)||!data.sheetData||Array.isArray(data.sheetData)||typeof data.sheetData!=='object')
   throw new Error('Scheda personaggio non valida');
+ const timestamps={};
+ for(const field of ['createdAt','updatedAt']){
+  if(data[field]===undefined)continue;
+  if(typeof data[field]!=='string'||data[field].length>64||!Number.isFinite(Date.parse(data[field])))
+   throw new Error('Data personaggio non valida');
+  timestamps[field]=data[field];
+ }
  return Object.freeze({id:data.id,campaignId:data.campaignId,ownerId:data.ownerId,name:data.name,
-   status:data.status,sheetData:data.sheetData});
+   status:data.status,sheetData:data.sheetData,...timestamps});
 }
 async function characterApiJson(response){
  const mime=response.headers?.get?.('content-type')??'';
