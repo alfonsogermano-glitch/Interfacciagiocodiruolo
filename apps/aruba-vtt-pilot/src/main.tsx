@@ -1,6 +1,7 @@
 import {useEffect,useRef,useState,type FormEvent} from 'react';
 import {createRoot} from 'react-dom/client';
-import {loadPilotSession,logoutPilot,listOwnedCampaigns,listJoinedPlayerCampaigns,createOwnedCampaign,updateOwnedCampaign,RULESETS} from './client.mjs';
+import {loadPilotSession,logoutPilot,createOwnedCampaign,updateOwnedCampaign,RULESETS} from './client.mjs';
+import {loadCampaignCollections} from './campaign-collections.mjs';
 import './styles.css';
 import './legacy-wizard.css';
 import IconStudy from './icon-study';
@@ -162,14 +163,14 @@ function App(){
   setSessionCharacterRequest({kind:'pg',id,requestId:++requestSequence.current});
  }
  useEffect(()=>{
-  if(!user?.campaignsEnabled&&!user?.playerCharactersEnabled)return;
+  // Identity/capability changes must never retain the previous account's data.
+  setCampaigns([]);setJoinedCampaigns([]);setCampaignError(null);
+  if(!user?.campaignsEnabled&&!user?.playerCharactersEnabled){setActiveCampaignId(null);setCampaignLoading(false);return;}
   let alive=true;
-  setCampaignLoading(true);setCampaignError(null);
-  void Promise.all([
-   user.campaignsEnabled?listOwnedCampaigns(fetcher,user.id):Promise.resolve([]),
-   user.playerCharactersEnabled?listJoinedPlayerCampaigns(fetcher):Promise.resolve([]),
-  ]).then(([owned,joined])=>{
+  setCampaignLoading(true);
+  void loadCampaignCollections(fetcher,user).then(({owned,joined,errors})=>{
     if(alive){setCampaigns(owned);setJoinedCampaigns(joined);
+     setCampaignError(errors.length?errors.join(' '):null);
      setActiveCampaignId(id=>[...owned,...joined].some(c=>c.id===id)?id:null);}
   }).catch(error=>{
     if(alive){setCampaigns([]);setJoinedCampaigns([]);setActiveCampaignId(null);setCampaignError(error instanceof Error?error.message:'Errore campagne');}
@@ -323,6 +324,7 @@ function App(){
       <section className="home-section" aria-labelledby="home-recent-title">
        <div className="home-section-heading"><ScrollIcon size={20} weight="duotone" aria-hidden="true"/><h2 id="home-recent-title">Campagne recenti</h2></div>
        <HomeRecentCampaign campaign={availableCampaigns[0]??null} loading={campaignLoading} enabled={user.campaignsEnabled||user.playerCharactersEnabled} onOpen={openCampaign}/>
+       {campaignError&&<p className="error" role="alert">{campaignError}</p>}
       </section>
     </>}
     {section==='campaigns'&&<>

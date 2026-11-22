@@ -148,11 +148,21 @@ export function validateCampaign(data){
     createdAt:data.createdAt,logoUrl:brandingUrl(data.logoUrl),coverImageUrl:brandingUrl(data.coverImageUrl),
   });
 }
+export class CampaignSessionExpiredError extends Error {
+  constructor(){super('Sessione scaduta: effettua nuovamente il login.');this.name='CampaignSessionExpiredError';}
+}
+async function campaignApiJson(response){
+  const mime=response.headers?.get?.('content-type')??'';
+  if(mime&&!/^application\/json(?:\s*;|$)/i.test(mime))
+    throw new Error('Il server ha restituito una pagina invece dei dati campagna: controllare il routing API.');
+  try{return await response.json();}
+  catch{throw new Error('Risposta API campagne non valida.');}
+}
 export async function listOwnedCampaigns(fetchImpl,ownerId){
   const r=await fetchImpl('/vtt/campaigns',{method:'GET',credentials:'same-origin',cache:'no-store',redirect:'error'});
-  if(r.status===401)throw new Error('Sessione scaduta: effettua nuovamente il login.');
+  if(r.status===401)throw new CampaignSessionExpiredError();
   if(!r.ok)throw new Error('Impossibile caricare le campagne');
-  const result=await r.json();
+  const result=await campaignApiJson(r);
   if(!Array.isArray(result.campaigns)||result.campaigns.length>100)throw new Error('Elenco campagne non valido');
   return result.campaigns.map(validateCampaign).filter(c=>c.ownerId===ownerId);
 }
@@ -227,10 +237,21 @@ const normalizeInviteCode=value=>{
  if(!INVITE_CODE.test(code))throw new Error('Codice invito non valido');
  return code;
 };
-const inviteError=(response,fallback)=>{
+const inviteError=async(response,fallback)=>{
  if(response.status===401)return new Error('Sessione scaduta: effettua nuovamente il login.');
  if(response.status===403)return new Error('Operazione invito non autorizzata');
- if(response.status===404)return new Error('Codice invito non valido o scaduto');
+ if(response.status===404){
+   // A static Caddy 404 or an absent API is not evidence of an expired code.
+   const mime=response.headers?.get?.('content-type')??'';
+   if(/^application\/json(?:\s*;|$)/i.test(mime)){
+     try{
+       const data=await response.json();
+       if(data?.error==='Codice invito non valido o scaduto')return new Error(data.error);
+       if(data?.error==='Campagna non trovata')return new Error('Campagna non trovata o non autorizzata');
+     }catch{ /* Never echo an untrusted response body or the invitation code. */ }
+   }
+   return new Error('Servizio inviti non disponibile: controllare il routing API.');
+ }
  return new Error(fallback);
 };
 
@@ -240,8 +261,8 @@ export async function rotateCampaignInvite(fetchImpl,campaignId,ownerId){
  const response=await fetchImpl('/vtt/campaigns/'+campaignId+'/invite-code',{
   method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',
  });
- if(!response.ok)throw inviteError(response,'Impossibile generare il codice invito');
- const data=await response.json();
+ if(!response.ok)throw await inviteError(response,'Impossibile generare il codice invito');
+ const data=await campaignApiJson(response);
  if(!data?.invite||Object.keys(data).join(',')!=='invite'||
   Object.keys(data.invite).sort().join(',')!=='campaignId,code,expiresAt'||
   data.invite.campaignId!==campaignId||!INVITE_CODE.test(data.invite.code)||
@@ -257,8 +278,8 @@ export async function previewCampaignInvite(fetchImpl,codeValue,userId){
  const response=await fetchImpl('/vtt/campaign-invites/preview?code='+encodeURIComponent(code),{
   method:'GET',credentials:'same-origin',cache:'no-store',redirect:'error',
  });
- if(!response.ok)throw inviteError(response,'Impossibile verificare il codice invito');
- const data=await response.json();
+ if(!response.ok)throw await inviteError(response,'Impossibile verificare il codice invito');
+ const data=await campaignApiJson(response);
  if(!data||Object.keys(data).join(',')!=='campaign')throw new Error('Anteprima invito non valida');
  const campaign=validateCampaign(data.campaign);
  if(campaign.ownerId===userId)throw new Error('Invito non valido per il proprietario');
@@ -272,8 +293,8 @@ export async function joinCampaignInvite(fetchImpl,codeValue,userId){
   method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',
   headers:{'Content-Type':'application/json'},body:JSON.stringify({code}),
  });
- if(!response.ok)throw inviteError(response,'Impossibile unirsi alla campagna');
- const data=await response.json();
+ if(!response.ok)throw await inviteError(response,'Impossibile unirsi alla campagna');
+ const data=await campaignApiJson(response);
  if(!data||Object.keys(data).join(',')!=='campaign')throw new Error('Adesione invito non valida');
  const campaign=validateCampaign(data.campaign);
  if(campaign.ownerId===userId)throw new Error('Adesione proprietario non valida');
@@ -515,9 +536,9 @@ export async function saveClaimedCharacterSheet(fetchImpl,campaignId,characterId
 export async function listJoinedPlayerCampaigns(fetchImpl){
  const r=await fetchImpl('/vtt/player-campaigns',{method:'GET',credentials:'same-origin',
   cache:'no-store',redirect:'error'});
- if(r.status===401)throw Error('Sessione scaduta');
+ if(r.status===401)throw new CampaignSessionExpiredError();
  if(!r.ok)throw Error('Impossibile caricare le campagne a cui partecipi');
- const data=await characterApiJson(r);
+ const data=await campaignApiJson(r);
  if(!Array.isArray(data.campaigns)||data.campaigns.length>100)
   throw Error('Elenco campagne non valido');
  const seen=new Set();

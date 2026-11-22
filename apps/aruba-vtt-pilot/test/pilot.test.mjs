@@ -96,7 +96,9 @@ test('Aruba pilot preserves the original Hollowgate left/right rail positions',(
 test('campaign selection is only offered for Aruba-authorized owned or joined campaigns',()=>{
  const code=readFileSync(new URL('../src/main.tsx',import.meta.url),'utf8');
  assert.match(code,/availableCampaigns\.some\(c=>c\.id===id\)/);
- assert.match(code,/listJoinedPlayerCampaigns\(fetcher\)/);
+  assert.match(code,/loadCampaignCollections\(fetcher,user\)/);
+  const collections=readFileSync(new URL('../src/campaign-collections.mjs',import.meta.url),'utf8');
+  assert.match(collections,/user\.playerCharactersEnabled\?listJoinedPlayerCampaigns\(fetchImpl\)/);
  assert.match(code,/availableCampaigns\.find\(c=>c\.id===activeCampaignId\)/);
  assert.match(code,/setActiveCampaignId\(id=>\[\.\.\.owned,\.\.\.joined\]\.some\(c=>c\.id===id\)\?id:null\)/);
  assert.match(code,/activeCampaignOwned=!!\(user&&activeCampaign&&activeCampaign\.ownerId===user\.id/);

@@ -40,7 +40,13 @@ const linkStyle: React.CSSProperties = {
   textDecoration: 'underline',
 };
 
-export function PrivacyPolicy() {
+// Defaults preserve the original site's copy. Aruba supplies factual hosting
+// and provider names without forking the original layout or enabling Supabase.
+export function PrivacyPolicy({
+  storageProvider = 'Supabase (infrastruttura cloud)',
+  socialProviders = 'Google, Discord o Facebook',
+  updatedAt = 'giugno 2026',
+}: { storageProvider?: string; socialProviders?: string; updatedAt?: string } = {}) {
   return (
     <div style={containerStyle}>
       <div style={contentStyle}>
@@ -54,13 +60,13 @@ export function PrivacyPolicy() {
         </p>
 
         <p style={paragraphStyle}>
-          I dati sono salvati su Supabase (infrastruttura cloud) e utilizzati esclusivamente per il
+          I dati sono salvati su {storageProvider} e utilizzati esclusivamente per il
           funzionamento dell'app: autenticazione, salvataggio dei progressi di gioco,
           sincronizzazione tra dispositivi.
         </p>
 
         <p style={paragraphStyle}>
-          Se l'utente effettua il login tramite Google, Discord o Facebook, Hollow Gate riceve solo
+          Se l'utente effettua il login tramite {socialProviders}, Hollow Gate riceve solo
           le informazioni base del profilo (nome, email, immagine) necessarie per creare l'account,
           secondo le autorizzazioni concesse dall'utente su quella piattaforma.
         </p>
@@ -84,7 +90,7 @@ export function PrivacyPolicy() {
         </p>
 
         <p style={{ ...paragraphStyle, color: '#888', marginTop: '2rem' }}>
-          Ultimo aggiornamento: giugno 2026
+          Ultimo aggiornamento: {updatedAt}
         </p>
       </div>
     </div>

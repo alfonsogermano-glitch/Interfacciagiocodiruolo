@@ -47,7 +47,29 @@ test('invite join sends only code and accepts only an authorized player campaign
  assert.equal(request.options.method,'POST');
  assert.equal(request.options.credentials,'same-origin');
  assert.deepEqual(JSON.parse(request.options.body),{code});
- await assert.rejects(()=>joinCampaignInvite(async()=>({status:404,ok:false}),code,player),/scaduto/);
+  await assert.rejects(()=>joinCampaignInvite(async()=>new Response(JSON.stringify({error:'Codice invito non valido o scaduto'}),{status:404,headers:{'Content-Type':'application/json'}}),code,player),/scaduto/);
  await assert.rejects(()=>joinCampaignInvite(async()=>response({campaign,memberRole:'player'}),code,player),/Adesione invito/);
  await assert.rejects(()=>joinCampaignInvite(async()=>response({campaign}),code,owner),/proprietario/);
+});
+
+test('static/missing-route 404 is technical, not an expired invitation',async()=>{
+ for(const operation of [previewCampaignInvite,joinCampaignInvite]){
+  for(const response of [
+   ()=>new Response('<h1>Not Found</h1>',{status:404,headers:{'Content-Type':'text/html'}}),
+   ()=>new Response('Not Found',{status:404}),
+   ()=>new Response(JSON.stringify({error:'Not Found'}),{status:404,headers:{'Content-Type':'application/json'}}),
+   ()=>new Response('{broken',{status:404,headers:{'Content-Type':'application/json'}}),
+  ])await assert.rejects(()=>operation(async()=>response(),code,player),error=>
+    /routing API/.test(error.message)&&!error.message.includes(code)&&!/scaduto/.test(error.message));
+ }
+});
+
+test('owner rotation 404 describes the campaign, never a nonexistent expired code',async()=>{
+ await assert.rejects(()=>rotateCampaignInvite(async()=>new Response(JSON.stringify({error:'Campagna non trovata'}),
+  {status:404,headers:{'Content-Type':'application/json; charset=utf-8'}}),campaignId,owner),/Campagna non trovata/);
+});
+
+test('invitation success cannot parse an HTML fallback as API data',async()=>{
+ await assert.rejects(()=>previewCampaignInvite(async()=>new Response('<html>SPA</html>',
+  {headers:{'Content-Type':'text/html'}}),code,player),/routing API/);
 });

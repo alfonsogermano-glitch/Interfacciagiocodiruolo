@@ -5,7 +5,8 @@ const read=file=>readFileSync(new URL(file,import.meta.url),'utf8');
 
 test('joined campaigns enter CampaignHome without owner transports',()=>{
  const main=read('../src/main.tsx'),home=read('../src/ArubaCampaignHome.tsx');
- assert.match(main,/listJoinedPlayerCampaigns\(fetcher\)/);
+  assert.match(main,/loadCampaignCollections\(fetcher,user\)/);
+  assert.match(read('../src/campaign-collections.mjs'),/user\.playerCharactersEnabled\?listJoinedPlayerCampaigns\(fetchImpl\)/);
  assert.match(main,/availableCampaigns=\[\.\.\.campaigns,\.\.\.joinedCampaigns/);
  assert.match(main,/activeCampaignOwned/);
  assert.match(home,/!isOwner&&viewer\.playerCharactersEnabled\?listAssignedPlayerCharacters/);

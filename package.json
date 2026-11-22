@@ -4,6 +4,8 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
+    "build:aruba-public-pages": "node apps/aruba-public-web/build.mjs",
+    "test:aruba-public-pages": "node --test apps/aruba-public-web/test/*.test.mjs",
     "generate:note-icons": "node scripts/extract-lucide-icons.mjs",
     "prebuild": "npm run generate:note-icons",
     "build": "vite build",

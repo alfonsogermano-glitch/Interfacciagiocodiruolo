@@ -1,0 +1,44 @@
+name: Aruba recovery (tests only)
+on:
+  push:
+    branches: ['tmp/aruba-transition-*']
+    paths:
+      - 'apps/aruba-public-web/**'
+      - 'apps/aruba-vtt-pilot/**'
+      - 'src/app/legal/**'
+      - 'deploy/aruba/qa/*legal*'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/aruba-recovery.yml'
+  pull_request:
+    paths:
+      - 'apps/aruba-public-web/**'
+      - 'apps/aruba-vtt-pilot/**'
+      - 'src/app/legal/**'
+      - 'deploy/aruba/qa/*legal*'
+      - '.github/workflows/aruba-recovery.yml'
+permissions:
+  contents: read
+jobs:
+  original-pages-and-campaign-recovery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm run test:aruba-public-pages
+      - run: npm run build:aruba-public-pages
+      - run: python -B -m unittest discover -s deploy/aruba/qa -p 'test_prepare_public_legal_routes.py' -v
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+        working-directory: apps/aruba-vtt-pilot
+      - run: npm test
+        working-directory: apps/aruba-vtt-pilot
+      - run: npm run build
+        working-directory: apps/aruba-vtt-pilot
+      # No deployment credentials, database or remote write operations.
