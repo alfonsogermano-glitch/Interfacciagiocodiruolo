@@ -1,5 +1,6 @@
 import {CatalogRejected,catalogId,catalogKind,catalogMediaRole,validateUnassignedCatalogBody,validateCatalogMedia} from './unassigned-catalog-contract.mjs';
 import {catalogDuplicateBody} from './unassigned-catalog-notes-contract.mjs';
+import {catalogCopyToCampaignBody} from './unassigned-catalog-notes-contract.mjs';
 
 // Not instantiated by index.mjs. New native unassigned content only; never
 // masquerades as a complete listing of historical/campaign/claimed entities.
@@ -57,6 +58,17 @@ export function createUnassignedCatalogService({pool}){
    if(result.item.id===args[2])throw new Error('Invalid catalog duplicate identity');
    return result;
   },
+   async copyToCampaign(actor,kind,id,body){
+    const args=scope(actor,kind,id),draft=catalogCopyToCampaignBody(body);
+    const result=await query('SELECT hollowgate_vtt.copy_unassigned_catalog_to_campaign($1,$2,$3,$4,$5) AS item',
+     [...args,draft.targetCampaignId,draft.revision]);
+    if(!result.rows[0]?.item)throw new CatalogRejected('Contenuto non trovato o non autorizzato',404);
+    const row=result.rows[0].item;
+    if(row.ownerId!==args[0]||row.kind!==args[1]||!Number.isInteger(row.revision)||row.revision<1||row.revision>=2147483647)
+     throw new Error('Invalid unassigned catalog result');
+    try{catalogId(row.id);}catch{throw new Error('Invalid catalog identity');}
+    return {item:row};
+   },
   async saveMedia(actor,kind,id,role,body){
    const args=scope(actor,kind,id),draft=validateCatalogMedia(role,body);
    return item(await query('SELECT hollowgate_vtt.save_unassigned_catalog_media($1,$2,$3,$4,$5,$6,$7) AS item',

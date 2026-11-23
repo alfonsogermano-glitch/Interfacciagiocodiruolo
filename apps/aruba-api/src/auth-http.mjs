@@ -325,11 +325,12 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         const media=tail&&/^\/media\/(portrait|source|cover)$/.exec(tail);
         const notes=tail&&/^\/notes(?:\/([0-9a-f-]{36})(\/order)?)?$/i.exec(tail);
         const duplicate=tail==='/duplicate';
-        if(tail&&!media&&!notes&&!duplicate)throw new HttpProblem(400,'Percorso catalogo non valido');
-        if(notes&&!unassignedCatalogNotes||duplicate&&typeof unassignedCatalog.duplicate!=='function')
+        const copyToCampaign=tail==='/campaign'&&id;
+        if(tail&&!media&&!notes&&!duplicate&&!copyToCampaign)throw new HttpProblem(400,'Percorso catalogo non valido');
+        if(notes&&!unassignedCatalogNotes||duplicate&&typeof unassignedCatalog.duplicate!=='function'||copyToCampaign&&typeof unassignedCatalog.copyToCampaign!=='function')
           return response(res,404,{error:'Not found'});
         const role=media?.[1];
-        const methods=duplicate?['POST']:notes?(notes[2]?['PUT']:notes[1]?['PUT','DELETE']:['GET','POST']):['GET',id?'PUT':'POST'];
+        const methods=duplicate||copyToCampaign?['POST']:notes?(notes[2]?['PUT']:notes[1]?['PUT','DELETE']:['GET','POST']):['GET',id?'PUT':'POST'];
         if(!methods.includes(req.method))throw new HttpProblem(405,'Metodo non consentito');
         const keys=[...url.searchParams.keys()];
         const allowedQuery=notes&&!notes[1]?'parentId':!id?'after':null;
@@ -347,6 +348,7 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         }
         if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
         const body=await readJson(req,role?2800000:notes?1100000:100000);
+        if(copyToCampaign)return response(res,200,await unassignedCatalog.copyToCampaign(user.id,kind,id,body));
         if(duplicate)return response(res,200,await unassignedCatalog.duplicate(user.id,kind,id,body));
         if(notes){
           if(!notes[1])return response(res,201,await unassignedCatalogNotes.create(user.id,kind,id,body));

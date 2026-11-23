@@ -44,3 +44,7 @@ export function catalogDuplicateBody(body){
  exact(body,'requestId,revision');
  return {revision:catalogRevision(body.revision),requestId:catalogId(body.requestId)};
 }
+export function catalogCopyToCampaignBody(body){
+ exact(body,'revision,targetCampaignId');
+ return {revision:catalogRevision(body.revision),targetCampaignId:catalogId(body.targetCampaignId)};
+}
