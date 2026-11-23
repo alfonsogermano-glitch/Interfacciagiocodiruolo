@@ -46,7 +46,30 @@ export default defineConfig({
   plugins:[...(process.env.HG_LOCAL_FULL==='1'?[localLandingPlugin({root})]:[]),{
     name:'aruba-original-game-map-isolation',
     enforce:'pre',
-    resolveId(id,importer){
+    generateBundle(_options,bundle){
+      if(process.env.HG_CATALOG_CONTRACT!=='1')return;
+      for(const chunk of Object.values(bundle)){
+       if(chunk.type!=='chunk')continue;
+       for(const id of Object.keys(chunk.modules)){
+        if(/\/src\/lib\/supabaseClient\.[jt]s$|\/node_modules\/@supabase\//.test(id))
+          this.error('Legacy Supabase runtime: '+id+' imported by '+this.getModuleInfo(id)?.importers.join(', '));
+       }
+      }
+    },
+     resolveId(id,importer){
+      if(id==='aruba-original-catalog-entry')return resolve(root,
+        process.env.HG_CATALOG_CONTRACT==='1'?'src/ArubaOriginalCatalog.tsx':'src/ArubaCatalogUnavailable.tsx');
+      if(importer?.endsWith('/src/hooks/useJoinByCodeFlow.ts')){
+        if(id==='../app/auth/AuthContext')return originalTopbarAdapter;
+        if(id==='../app/campaigns/CampaignContext')return resolve(root,'src/ArubaOriginalCatalog.tsx');
+        if(id==='../services/supabase/charactersService')return resolve(root,'src/ArubaCatalogService.ts');
+        if(id==='/utils/supabase/info')return resolve(root,'src/ArubaNoSupabaseInfo.ts');
+      }
+      if(importer?.endsWith('/src/app/components/gm/MyCharactersPage.tsx')){
+        if(id==='../../campaigns/CampaignContext')return resolve(root,'src/ArubaOriginalCatalog.tsx');
+        if(id==='../../../services/realtime/campaignChannel')return resolve(root,'src/ArubaCatalogRealtime.ts');
+        if(id==='../../../services/storage/persistenceMode')return resolve(root,'src/ArubaEncounterPersistenceMode.ts');
+      }
       if(importer?.includes('/src/app/components/session/')&&id.endsWith('/DiceAppearanceContext'))return resolve(root,'src/ArubaDiceAppearanceContext.tsx');
       if((importer?.includes('/src/app/')||importer?.includes('/src/services/'))&&/(?:\.\.\/)+(?:app\/)?auth\/AuthContext$/.test(id))return resolve(root,'src/ArubaOriginalTopBarAdapter.tsx');
       if(importer?.includes('/src/app/')&&/(?:\.\.\/)+campaigns\/CampaignContext$/.test(id))return resolve(root,'src/ArubaCampaignScopeContext.tsx');
@@ -88,6 +111,15 @@ export default defineConfig({
       if(importer?.endsWith('/src/app/components/gm/VisualAssetsManager.tsx')&&id==='../../../services/storage/visualAssetsStorage')return resolve(root,'src/ArubaVisualAssetsStorage.ts');
       if(importer?.endsWith('/src/app/components/gm/VisualAssetsManager.tsx')&&id==='../../../lib/supabaseClient')return resolve(root,'src/ArubaVisualAssetsSupabase.ts');
       if(importer?.endsWith('/src/app/components/gm/VisualAssetsManager.tsx')&&id==='../../auth/AuthContext')return resolve(root,'src/ArubaVisualAssetsAuth.ts');
+      if(importer?.endsWith('/src/app/components/gm/MyCharactersPage.tsx')){
+        if(id==='../../../services/supabase/charactersService')return resolve(root,'src/ArubaCatalogService.ts');
+        if(id==='../../../services/supabase/entitiesService')return resolve(root,'src/ArubaCatalogService.ts');
+        if(id==='../../../services/supabase/entityNotesService')return resolve(root,'src/ArubaCatalogService.ts');
+        if(id==='../../auth/AuthContext')return resolve(root,'src/ArubaOriginalTopBarAdapter.tsx');
+        if(id==='../../campaigns/CampaignContext')return resolve(root,'src/ArubaCampaignScopeContext.tsx');
+        if(id==='../../campaigns/RulesetContext')return resolve(root,'src/ArubaEntityDependencies.tsx');
+        if(id==='/utils/supabase/info')return resolve(root,'src/ArubaNoSupabaseInfo.ts');
+      }
       if(importer?.endsWith('/src/app/components/shared/useCampaignDocument.ts')&&id==='../../../services/storage/campaignDocuments')return resolve(root,'src/ArubaCampaignDocuments.ts');
       return null;
     },
@@ -95,6 +127,11 @@ export default defineConfig({
     name:'aruba-original-shell-assets',
     enforce:'pre',
     transform(code,id){
+      if(id.endsWith('/src/app/components/gm/MyCharactersPage.tsx')||id.endsWith('/src/hooks/useJoinByCodeFlow.ts')){
+        const legacy='const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;';
+        if(!code.includes(legacy))throw Error('Original catalog server contract changed');
+        return code.replace(legacy,"const SERVER_BASE = '/vtt';");
+      }
       if(id.endsWith('/src/app/layout/LeftSidebar.tsx')){
         if(!code.includes('src="/hollowgate-logo.png"'))throw Error('Original LeftSidebar logo contract changed');
         if(!code.includes('src="/icon-source-1024.png"'))throw Error('Original LeftSidebar campaign icon contract changed');
@@ -130,6 +167,8 @@ export default defineConfig({
     name:'aruba-legacy-image-safety',
     enforce:'pre',
     async resolveId(id,importer){
+      if(importer?.includes('/src/services/')&&/(?:\.\.\/)+lib\/supabaseClient$/.test(id))
+        return resolve(root,'src/ArubaBlockedLegacyClient.ts');
       // Original sources live above the isolated VTT npm project. Resolve
       // their TipTap imports from this project's real dependency tree; do NOT
       // force nested TipTap extension imports into nonexistent top-level dirs.

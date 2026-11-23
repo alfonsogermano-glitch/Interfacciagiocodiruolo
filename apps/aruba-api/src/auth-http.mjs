@@ -709,7 +709,8 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         return response(res,200,await characterAvailability.set(user.id,
           body.campaignId,charId,body.availableForPlayers));
       }
-      if(logicalCharacters && (req.url==='/vtt/characters'||req.url?.startsWith('/vtt/characters?')) && req.method==='GET'){
+      if(logicalCharacters && (req.url==='/vtt/characters'||req.url?.startsWith('/vtt/characters?')) &&
+         req.method==='GET'&&!new URL(req.url,origin).searchParams.has('campaignId')){
         const token=extractSession(req);
         if(!token)return response(res,401,{error:'Non autenticato'});
         const user=await getSessionUser(token);

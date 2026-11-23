@@ -33,7 +33,11 @@ test('logical character listing and assignment use cookie identity only',async()
   assert.equal((await fetch(list+'?after='+character,{headers:cookie})).status,200);
   assert.equal((await fetch(list+'?after=not-a-uuid',{headers:cookie})).status,400);
   assert.equal((await fetch(list+'?after='+character+'&after='+character,{headers:cookie})).status,400);
-  assert.equal((await fetch(list+'?unknown=1',{headers:cookie})).status,400);
+   assert.equal((await fetch(list+'?unknown=1',{headers:cookie})).status,400);
+   // Enabling global logical ownership must not shadow existing campaign reads.
+   assert.equal((await fetch(list+'?campaignId='+campaign,{headers:cookie})).status,200);
+   assert.equal((await fetch(list+'?campaignId='+campaign+'&after='+character,{headers:cookie})).status,400);
+   assert.equal((await fetch(list+'?campaignId='+campaign+'&campaignId='+campaign,{headers:cookie})).status,400);
   const assign=`${base}/vtt/characters/${character}/campaign`;
   assert.equal((await fetch(assign,{method:'PATCH',headers:{...cookie,origin,'content-type':'application/json'},body:JSON.stringify({campaignId:campaign})})).status,200);
   assert.equal((await fetch(assign,{method:'PATCH',headers:{...cookie,origin,'content-type':'application/json'},body:JSON.stringify({campaignId:null})})).status,200);

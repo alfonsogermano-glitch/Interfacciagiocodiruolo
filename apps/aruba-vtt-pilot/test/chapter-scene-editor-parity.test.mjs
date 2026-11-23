@@ -59,5 +59,10 @@ test('accepts real HTTPS map URLs and rejects legacy or insecure transports',()=
 test('mounts the Chapter and Scene editor from the real pilot navigation',()=>{
  assert.match(pilot,/section==='chapters'&&activeCampaign&&\s*<ArubaChapterSceneEditor/);
  assert.match(pilot,/enabled=\{user\.chaptersEnabled&&user\.scenesEnabled\}/);
- assert.match(pilot,/type Section='home'\|'campaigns'\|'characters'\|'session'\|'chapters'\|'preparation'\|'sheets'\|'npcs'\|'monsters'\|'clues'\|'equipment'\|'map'\|'situations'\|'phases'\|'combat'\|'assets';/);
+ const sectionType=pilot.match(/type Section=([^;]+);/)?.[1];
+ assert.ok(sectionType,'Section type missing');
+ for(const section of ['home','campaigns','characters','session','chapters','preparation','sheets',
+  'npcs','monsters','clues','equipment','map','situations','phases','combat','assets']){
+  assert.ok(sectionType.split('|').includes(`'${section}'`),`Missing existing section: ${section}`);
+ }
 });
