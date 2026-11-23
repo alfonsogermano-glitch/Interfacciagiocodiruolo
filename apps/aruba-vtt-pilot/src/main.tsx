@@ -44,7 +44,7 @@ import {ArubaTopBarQaIdentity} from './ArubaOriginalTopBarAdapter';
 import type {Campaign as OriginalCampaign} from '../../../src/app/campaigns/campaignTypes';
 import {HouseIcon,UsersThreeIcon,ScrollIcon,GitBranchIcon,PlayIcon,FileTextIcon,IdentificationBadgeIcon,GhostIcon,LightbulbIcon,BookmarkSimpleIcon,MapTrifoldIcon,ImageIcon,SwordIcon,LightningIcon,UserCircleIcon,DoorOpenIcon} from '@phosphor-icons/react';
 
-type PilotUser={id:string;email:string;displayName:string;role:'admin'|'standard';characterAvailabilityEnabled:boolean;characterAssignmentsEnabled:boolean;playerCharactersEnabled:boolean;characterClaimsEnabled:boolean;characterPortraitsEnabled:boolean;campaignsEnabled:boolean;campaignInvitesEnabled:boolean;charactersEnabled:boolean;chaptersEnabled:boolean;scenesEnabled:boolean;narrativeContentEnabled:boolean;narrativeEntityNotesEnabled:boolean;equipmentCatalogEnabled:boolean;visualAssetsEnabled:boolean;campaignDocumentsEnabled:boolean;campaignChatEnabled:boolean;diceFormulasEnabled:boolean;entityNotesEnabled:boolean;campaignNotesEnabled:boolean;campaignNoteFoldersEnabled:boolean;originalNotesPanelEnabled:boolean;campaignRosterEnabled:boolean;gameSessionEnabled:boolean;campaignMemberships:{userId:string;campaignId:string;role:'gm'|'player'}[]};
+type PilotUser={id:string;email:string;displayName:string;role:'admin'|'standard';characterAvailabilityEnabled:boolean;characterAssignmentsEnabled:boolean;playerCharactersEnabled:boolean;characterClaimsEnabled:boolean;characterPortraitsEnabled:boolean;logicalCharactersEnabled:boolean;campaignsEnabled:boolean;campaignInvitesEnabled:boolean;charactersEnabled:boolean;chaptersEnabled:boolean;scenesEnabled:boolean;narrativeContentEnabled:boolean;narrativeEntityNotesEnabled:boolean;equipmentCatalogEnabled:boolean;visualAssetsEnabled:boolean;campaignDocumentsEnabled:boolean;campaignChatEnabled:boolean;diceFormulasEnabled:boolean;entityNotesEnabled:boolean;campaignNotesEnabled:boolean;campaignNoteFoldersEnabled:boolean;originalNotesPanelEnabled:boolean;campaignRosterEnabled:boolean;gameSessionEnabled:boolean;campaignMemberships:{userId:string;campaignId:string;role:'gm'|'player'}[]};
 type Campaign={id:string;ownerId:string;name:string;description:string;ruleset:string;createdAt:string;updatedAt?:string;logoUrl?:string|null;coverImageUrl?:string|null};
 type Status={state:'loading'}|{state:'unauthorized'}|{state:'error'}|{state:'ready';user:PilotUser};
 type Section='home'|'campaigns'|'characters'|'session'|'chapters'|'preparation'|'sheets'|'npcs'|'monsters'|'clues'|'equipment'|'map'|'situations'|'phases'|'combat'|'assets';
@@ -370,6 +370,7 @@ function App(){
          characterPortraitsEnabled:user.characterPortraitsEnabled,
          playerCharactersEnabled:user.playerCharactersEnabled,
          characterClaimsEnabled:user.characterClaimsEnabled,
+         logicalCharactersEnabled:user.logicalCharactersEnabled,
          campaignMemberships:user.campaignMemberships}}/>
        {sessionPanel==='combat'&&activeCampaignOwned&&user.campaignDocumentsEnabled&&user.narrativeContentEnabled&&
         <ArubaSessionCombatPanel campaign={{...activeCampaign,ruleset:activeCampaign.ruleset as OriginalCampaign['ruleset'],updatedAt:activeCampaign.updatedAt??activeCampaign.createdAt}} onClose={()=>setSessionPanel(null)}/>}

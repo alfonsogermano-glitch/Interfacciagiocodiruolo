@@ -1080,6 +1080,7 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
             playerCharacters:{read:!!playerCharacters,write:false},
             characterClaims:{read:!!characterClaims,write:!!characterClaims},
             characterPortraits:{read:!!characterPortraits,write:!!characterPortraits},
+            logicalCharacters:{read:!!logicalCharacters,write:!!logicalCharacters},
             entityNotes:{read:!!entityNotes,write:!!entityNotes},
             narrativeEntityNotes:{read:!!narrativeEntityNotes,write:!!narrativeEntityNotes},
             campaignNotes:{read:!!campaignNotes,write:!!campaignNotes},

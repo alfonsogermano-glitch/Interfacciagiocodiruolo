@@ -119,6 +119,7 @@ test('VTT pilot bootstrap only accepts an active Aruba cookie; game capabilities
         playerCharacters:{read:false,write:false},
         characterClaims:{read:false,write:false},
         characterPortraits:{read:false,write:false},
+        logicalCharacters:{read:false,write:false},
         entityNotes:{read:false,write:false},
         narrativeEntityNotes:{read:false,write:false},
         campaignNotes:{read:false,write:false},

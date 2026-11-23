@@ -25,6 +25,7 @@ import {createCharacterAvailabilityService} from './character-availability-servi
 import {createCharacterAssignmentService} from './character-assignment-service.mjs';
 import {createPlayerCharacterService} from './player-character-service.mjs';
 import {createCharacterClaimService} from './character-claim-service.mjs';
+import {createLogicalCharacterService} from './logical-character-service.mjs';
 import {createGameSessionBootstrap} from './game-session-bootstrap.mjs';
 import {createCharacterPortraitService} from './character-portrait-service.mjs';
 import {createEntityNotesService} from './entity-notes-service.mjs';
@@ -182,6 +183,12 @@ async function main() {
       throw new Error('Unsupported AUTH_VTT_CHARACTERS_ENABLED value');
     if(characterFlag==='true' && !campaigns)throw new Error('Characters require campaigns');
     const characters=characterFlag==='true'?createCharacterService({pool}):null;
+    const logicalFlag=process.env.AUTH_VTT_CHARACTER_LOGIC_ENABLED;
+    if(logicalFlag&&!['true','false'].includes(logicalFlag))
+      throw new Error('Unsupported AUTH_VTT_CHARACTER_LOGIC_ENABLED value');
+    if(logicalFlag==='true'&&!characters)
+      throw new Error('Character logical ownership requires staging characters');
+    const logicalCharacters=logicalFlag==='true'?createLogicalCharacterService({pool}):null;
     const availabilityFlag=process.env.AUTH_VTT_CHARACTER_AVAILABILITY_ENABLED;
     if(availabilityFlag&&!['true','false'].includes(availabilityFlag))
       throw new Error('Unsupported AUTH_VTT_CHARACTER_AVAILABILITY_ENABLED value');
@@ -278,7 +285,7 @@ async function main() {
         identity:signalingIdentity,sharedSecret:secret,urls,
       });
     }
-    authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession, oauth,passwordReset,signupService,campaigns,campaignInvites,chapters,scenes,narrativeContent,equipmentCatalog,campaignDocuments,campaignChat,diceFormulas,visualAssets,characters,entityNotes,narrativeEntityNotes,campaignNotes,campaignFolders,notesPanelEnabled,campaignRoster,characterAvailability,characterAssignments,playerCharacters,characterClaims,characterPortraits,turnCredentials,gameSessionBootstrap});
+    authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession, oauth,passwordReset,signupService,campaigns,campaignInvites,chapters,scenes,narrativeContent,equipmentCatalog,campaignDocuments,campaignChat,diceFormulas,visualAssets,characters,entityNotes,narrativeEntityNotes,campaignNotes,campaignFolders,notesPanelEnabled,campaignRoster,characterAvailability,characterAssignments,playerCharacters,characterClaims,characterPortraits,logicalCharacters,turnCredentials,gameSessionBootstrap});
   } else if (process.env.AUTH_VTT_NARRATIVE_CONTENT_ENABLED === 'true') {
     throw new Error('Narrative content requires dedicated auth staging');
   } else if (process.env.AUTH_VTT_SCENES_ENABLED === 'true') {
@@ -299,6 +306,8 @@ async function main() {
     throw new Error('Character assignments require dedicated auth staging');
   } else if (process.env.AUTH_VTT_CHARACTER_AVAILABILITY_ENABLED === 'true') {
     throw new Error('Character availability requires dedicated auth staging');
+  } else if (process.env.AUTH_VTT_CHARACTER_LOGIC_ENABLED === 'true') {
+    throw new Error('Character logical ownership requires dedicated auth staging');
   } else if (process.env.AUTH_VTT_CAMPAIGN_ROSTER_ENABLED === 'true') {
     throw new Error('Campaign roster requires dedicated auth staging');
   } else if (process.env.AUTH_VTT_ORIGINAL_NOTES_PANEL_ENABLED === 'true') {

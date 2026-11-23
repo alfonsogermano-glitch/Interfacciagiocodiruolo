@@ -60,6 +60,10 @@ export function validateBootstrap(data){
     (c.characterClaims!==undefined&&(typeof c.characterClaims.read!=='boolean'||
       c.characterClaims.read!==c.characterClaims.write||
       (c.characterClaims.read&&(c.playerCharacters?.read!==true||c.characterAssignments?.read!==true))))||
+    (c.logicalCharacters!==undefined&&(
+      typeof c.logicalCharacters.read!=='boolean'||
+      c.logicalCharacters.read!==c.logicalCharacters.write||
+      (c.logicalCharacters.read&&c.characters?.read!==true)))||
     (c.campaignRoster!==undefined&&(
       typeof c.campaignRoster.read!=='boolean'||c.campaignRoster.write!==false||
       (c.campaignRoster.read&&!c.campaigns.read)))||
@@ -110,6 +114,7 @@ export function validateBootstrap(data){
     characterAssignmentsEnabled:c.characterAssignments?.read===true,
     playerCharactersEnabled:c.playerCharacters?.read===true,
     characterClaimsEnabled:c.characterClaims?.read===true,
+    logicalCharactersEnabled:c.logicalCharacters?.read===true,
     characterPortraitsEnabled:c.characterPortraits?.read===true,
     campaignRosterEnabled:c.campaignRoster?.read===true,
     entityNotesEnabled:c.entityNotes?.read===true,

@@ -44,6 +44,7 @@ export function ArubaCampaignHome({campaign,viewer,revision,onOpenCharacter,onOp
   characterAvailabilityEnabled:boolean;characterAssignmentsEnabled:boolean;
   narrativeContentEnabled:boolean;characterPortraitsEnabled:boolean;
   playerCharactersEnabled:boolean;characterClaimsEnabled:boolean;
+  logicalCharactersEnabled:boolean;
   campaignMemberships:{userId:string;campaignId:string;role:'gm'|'player'}[]};
  revision:number;
  onOpenCharacter:(id:string)=>void;
