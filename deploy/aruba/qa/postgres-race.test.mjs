@@ -25,7 +25,7 @@ before(async()=>{
   await pool.query(readFileSync(new URL(name,directory),'utf8'));
  }
  for(const name of ['001_unassigned_catalog.sql','002_notes_and_duplication.sql',
-  '003_catalog_assign_copy.sql','004_catalog_copy_authorization.sql']){
+  '003_catalog_assign_copy.sql','004_catalog_copy_authorization.sql','005_native_catalog_lifecycle.sql']){
   await pool.query(readFileSync(new URL('catalog/'+name,directory),'utf8'));
  }
 });

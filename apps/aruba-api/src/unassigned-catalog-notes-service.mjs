@@ -1,13 +1,14 @@
 import {CatalogRejected,catalogId,catalogKind} from './unassigned-catalog-contract.mjs';
 import {catalogNoteCreate,catalogNoteSave,catalogNoteOrder,catalogRevisionBody} from './unassigned-catalog-notes-contract.mjs';
 
-export function createUnassignedCatalogNotesService({pool}){
+export function createUnassignedCatalogNotesService({pool,native=false}){
+ if(typeof native!=='boolean')throw new TypeError('Invalid native catalog notes mode');
  if(typeof pool?.query!=='function')throw new TypeError('PostgreSQL pool required');
  const scope=(actor,kind,id)=>[catalogId(actor),catalogKind(kind),catalogId(id)];
  const returnedId=value=>{try{return catalogId(value);}catch{throw new Error('Invalid catalog note identity');}};
  async function query(sql,args,expected){
   let result;
-  try{result=await pool.query(sql,args);}
+   try{result=await pool.query(native?sql.replaceAll('_unassigned_catalog_','_native_catalog_'):sql,args);}
   catch(error){
    if(error.code==='40001')throw new CatalogRejected('Il contenuto è cambiato: ricarica prima di salvare.',409);
    if(['23514','23502','22023','22001'].includes(error.code))throw new CatalogRejected('Dati nota catalogo non validi');
@@ -16,10 +17,14 @@ export function createUnassignedCatalogNotesService({pool}){
   const value=result.rows[0]?.result;
   if(!value)throw new CatalogRejected('Nota o contenuto non trovato o non autorizzato',404);
   const item=value.item;
-  if(!item||item.ownerId!==args[0]||item.kind!==args[1]||item.id!==args[2]||item.campaignId!==null||
+   if(!item||item.ownerId!==args[0]||item.kind!==args[1]||item.id!==args[2]||
+    (!native&&item.campaignId!==null)||(native&&item.status!=='active')||
    !Number.isInteger(item.revision)||item.revision<1||item.revision>=2147483647)
    throw new Error('Invalid catalog notes context');
-  if(expected&&value.note?.id!==expected)throw new Error('Invalid catalog note acknowledgement');
+   if(expected&&value.note?.id!==expected)throw new Error('Invalid catalog note acknowledgement');
+   if(native&&item.campaignId!==null){
+    try{catalogId(item.campaignId);}catch{throw new Error('Invalid native notes campaign identity');}
+   }
   return value;
  }
  return {

@@ -4,7 +4,7 @@
 import {createCatalogClient,catalogData,originalCatalogEntity,unavailableCatalogAction} from './catalog-client.mjs';
 import type {NPC,Monster} from '../../../src/services/supabase/entitiesService';
 export type {NPC,Monster};
-const client=createCatalogClient((...args:Parameters<typeof fetch>)=>fetch(...args));
+const client=createCatalogClient((...args:Parameters<typeof fetch>)=>fetch(...args),{native:true});
 const entries=new Map<string,any>();
 const duplicatedNotes=new Set<string>();
 let actorId:string|null=null;
@@ -36,6 +36,9 @@ async function nativeList(kind:string,ownerId:string){
 }
 async function saveNative(kind:string,entity:any,ruleset?:string){
  const ownerId=actor(),known=entries.get(entity.id);
+ if(entity.ownerProfileId!==undefined&&entity.ownerProfileId!==ownerId)
+  throw Error('Sessione catalogo cambiata: nessuna modifica eseguita.');
+ if(known?.status==='archived')throw Error('Contenuto archiviato: nessuna modifica eseguita.');
  // Never flatten a historical/logical record into the native unassigned table.
  if(known&&known.storage!=='native')return unavailableCatalogAction();
  if(known?.kind&&known.kind!==kind)throw Error('Tipo contenuto non coerente');
@@ -88,7 +91,7 @@ export async function saveCharacter(_campaignId:string|null,character:any,ownerI
  if(ownerId!==actor())throw Error('Proprietario catalogo non coerente');
  await saveNative('characters',character,ruleset);
 }
-export const deleteCharacter=unavailableCatalogAction;
+export const deleteCharacter=(id:string)=>archiveNative('characters',id);
 export const loadAvailableCharactersForInvite=unavailableCatalogAction;
 export async function assignCharacterToCampaign(id:string,_base:string,_token:string,body:any){
  actor();const source=observed('characters',id);
@@ -134,13 +137,24 @@ export async function loadChapters(campaignId:string){
  if(!Array.isArray(page.chapters))throw Error('Elenco capitoli non valido');
  return page.chapters;
 }
-// Assignment is NOT copy. Missing move/archive transactions must not be faked.
-export const assignNPCToCampaign=unavailableCatalogAction;
-export const assignMonsterToCampaign=unavailableCatalogAction;
-export const unassignNPCFromCampaign=unavailableCatalogAction;
-export const unassignMonsterFromCampaign=unavailableCatalogAction;
-export const deleteNPC=unavailableCatalogAction;
-export const deleteMonster=unavailableCatalogAction;
+async function assignNative(kind:string,id:string,target:string|null){
+ const ownerId=actor(),source=observed(kind,id);
+ if(source.storage!=='native')return unavailableCatalogAction();
+ return remember(await client.assign(kind,id,ownerId,source.revision,target));
+}
+async function archiveNative(kind:string,id:string){
+ const ownerId=actor(),source=observed(kind,id);
+ if(source.storage!=='native')return unavailableCatalogAction();
+ const result=await client.archive(kind,id,ownerId,source.revision);
+ // Keep a tombstone: a delayed autosave must not recreate the deleted record.
+ entries.set(id,{...result.item,storage:'native'});
+}
+export const assignNPCToCampaign=(id:string,_ruleset:unknown,campaign:{id:string})=>assignNative('npcs',id,campaign.id);
+export const assignMonsterToCampaign=(id:string,_ruleset:unknown,campaign:{id:string})=>assignNative('monsters',id,campaign.id);
+export const unassignNPCFromCampaign=(id:string)=>assignNative('npcs',id,null);
+export const unassignMonsterFromCampaign=(id:string)=>assignNative('monsters',id,null);
+export const deleteNPC=(id:string)=>archiveNative('npcs',id);
+export const deleteMonster=(id:string)=>archiveNative('monsters',id);
 export const copyNPCToCampaign=(id:string,target:string)=>copy('npcs',id,target);
 export const copyMonsterToCampaign=(id:string,target:string)=>copy('monsters',id,target);
 export const duplicateNPC=(id:string)=>duplicate('npcs',id);

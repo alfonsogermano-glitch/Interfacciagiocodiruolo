@@ -101,7 +101,7 @@ class HttpProblem extends Error {
   }
 }
 
-export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, oauth = null, passwordReset = null, signupService = null, campaigns = null,campaignInvites = null,chapters = null,scenes = null,narrativeContent = null,unassignedCatalog = null,unassignedCatalogNotes = null,equipmentCatalog = null,campaignDocuments = null,campaignChat = null,diceFormulas = null,visualAssets = null,characters = null,entityNotes = null,narrativeEntityNotes = null,campaignNotes = null,campaignFolders = null,notesPanelEnabled = false,campaignRoster = null,characterAvailability = null,characterAssignments = null,playerCharacters = null,characterClaims = null,characterPortraits = null, logicalCharacters = null, turnCredentials = null, gameSessionBootstrap = null }) {
+export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, oauth = null, passwordReset = null, signupService = null, campaigns = null,campaignInvites = null,chapters = null,scenes = null,narrativeContent = null,unassignedCatalog = null,unassignedCatalogNotes = null,equipmentCatalog = null,campaignDocuments = null,campaignChat = null,diceFormulas = null,visualAssets = null,characters = null,entityNotes = null,narrativeEntityNotes = null,campaignNotes = null,campaignFolders = null,notesPanelEnabled = false,campaignRoster = null,characterAvailability = null,characterAssignments = null,playerCharacters = null,characterClaims = null,characterPortraits = null, logicalCharacters = null, turnCredentials = null, gameSessionBootstrap = null,nativeCatalog = null,nativeCatalogNotes = null }) {
   if(typeof notesPanelEnabled!=='boolean'||(notesPanelEnabled&&(!campaignNotes||!campaignFolders)))
     throw new TypeError('Original Notes panel requires both authenticated Notes and folders');
   const allowedOrigin = new URL(origin);
@@ -131,6 +131,10 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
     throw new TypeError('Narrative content endpoints require scenes and a valid service');
   if(unassignedCatalog!==null&&['list','read','create','save','saveMedia','readMedia'].some(k=>typeof unassignedCatalog[k]!=='function'))
     throw new TypeError('Invalid unassigned catalog service');
+  if(nativeCatalog!==null&&['list','read','create','save','saveMedia','readMedia','duplicate','copyToCampaign','assign','archive'].some(k=>typeof nativeCatalog[k]!=='function'))
+    throw new TypeError('Invalid native catalog service');
+  if(nativeCatalogNotes!==null&&(!nativeCatalog||['list','create','save','archive','reorder'].some(k=>typeof nativeCatalogNotes[k]!=='function')))
+    throw new TypeError('Invalid native catalog notes service');
   if(unassignedCatalogNotes!==null&&(!unassignedCatalog||['list','create','save','archive','reorder'].some(k=>typeof unassignedCatalogNotes[k]!=='function')))
     throw new TypeError('Catalog notes require unassigned catalog and a valid notes service');
   if(campaignChat!==null&&(!campaigns||['list','send','remove','clear','react','participants','privateList','privateSend','privateRemove','privateClear','saveAttachment','readAttachment','removeAttachment'].some(k=>typeof campaignChat[k]!=='function')))
@@ -316,20 +320,26 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         return response(res,200,await scenes.save(user.id,match[1],await readJson(req,100000)));
       }
       // Explicit native catalog opt-in. This is NOT the complete global catalog.
-      if(unassignedCatalog&&req.url?.startsWith('/vtt/catalog/unassigned/')){
-        const url=new URL(req.url,origin);
-        const match=/^\/vtt\/catalog\/unassigned\/(characters|npcs|monsters)(?:\/([0-9a-f-]{36})(\/.*)?)?$/i.exec(url.pathname);
+      if(unassignedCatalog&&req.url?.startsWith('/vtt/catalog/unassigned/')||
+         nativeCatalog&&req.url?.startsWith('/vtt/catalog/native/')){
+         const isNative=req.url.startsWith('/vtt/catalog/native/');
+         const catalog=isNative?nativeCatalog:unassignedCatalog;
+         const catalogNotes=isNative?nativeCatalogNotes:unassignedCatalogNotes;
+         const url=new URL(req.url,origin);
+         const match=/^\/vtt\/catalog\/(?:unassigned|native)\/(characters|npcs|monsters)(?:\/([0-9a-f-]{36})(\/.*)?)?$/i.exec(url.pathname);
         if(!match)throw new HttpProblem(400,'Percorso catalogo non valido');
         const [,kind,id,tail]=match;
         const media=tail&&/^\/media\/(portrait|source|cover)$/.exec(tail);
         const notes=tail&&/^\/notes(?:\/([0-9a-f-]{36})(\/order)?)?$/i.exec(tail);
         const duplicate=tail==='/duplicate';
-        const copyToCampaign=tail==='/campaign'&&id;
-        if(tail&&!media&&!notes&&!duplicate&&!copyToCampaign)throw new HttpProblem(400,'Percorso catalogo non valido');
-        if(notes&&!unassignedCatalogNotes||duplicate&&typeof unassignedCatalog.duplicate!=='function'||copyToCampaign&&typeof unassignedCatalog.copyToCampaign!=='function')
-          return response(res,404,{error:'Not found'});
+         const copyToCampaign=tail==='/campaign'&&id;
+         const assign=isNative&&tail==='/assignment'&&id;
+         const archive=isNative&&id&&!tail&&req.method==='DELETE';
+         if(tail&&!media&&!notes&&!duplicate&&!copyToCampaign&&!assign)throw new HttpProblem(400,'Percorso catalogo non valido');
+         if(notes&&!catalogNotes||duplicate&&typeof catalog.duplicate!=='function'||copyToCampaign&&typeof catalog.copyToCampaign!=='function')
+           return response(res,404,{error:'Not found'});
         const role=media?.[1];
-        const methods=duplicate||copyToCampaign?['POST']:notes?(notes[2]?['PUT']:notes[1]?['PUT','DELETE']:['GET','POST']):['GET',id?'PUT':'POST'];
+         const methods=assign?['PATCH']:archive?['DELETE']:duplicate||copyToCampaign?['POST']:notes?(notes[2]?['PUT']:notes[1]?['PUT','DELETE']:['GET','POST']):['GET',id?'PUT':'POST'];
         if(!methods.includes(req.method))throw new HttpProblem(405,'Metodo non consentito');
         const keys=[...url.searchParams.keys()];
         const allowedQuery=notes&&!notes[1]?'parentId':!id?'after':null;
@@ -340,24 +350,26 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         const user=await getSessionUser(token);
         if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
         if(req.method==='GET'){
-          if(notes)return response(res,200,await unassignedCatalogNotes.list(user.id,kind,id,url.searchParams.get('parentId')));
-          if(role)return response(res,200,await unassignedCatalog.readMedia(user.id,kind,id,role));
-          if(id)return response(res,200,await unassignedCatalog.read(user.id,kind,id));
-          return response(res,200,await unassignedCatalog.list(user.id,kind,url.searchParams.get('after')));
+           if(notes)return response(res,200,await catalogNotes.list(user.id,kind,id,url.searchParams.get('parentId')));
+           if(role)return response(res,200,await catalog.readMedia(user.id,kind,id,role));
+           if(id)return response(res,200,await catalog.read(user.id,kind,id));
+           return response(res,200,await catalog.list(user.id,kind,url.searchParams.get('after')));
         }
         if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
         const body=await readJson(req,role?2800000:notes?1100000:100000);
-        if(copyToCampaign)return response(res,200,await unassignedCatalog.copyToCampaign(user.id,kind,id,body));
-        if(duplicate)return response(res,200,await unassignedCatalog.duplicate(user.id,kind,id,body));
+         if(assign)return response(res,200,await catalog.assign(user.id,kind,id,body));
+         if(archive)return response(res,200,await catalog.archive(user.id,kind,id,body));
+         if(copyToCampaign)return response(res,200,await catalog.copyToCampaign(user.id,kind,id,body));
+         if(duplicate)return response(res,200,await catalog.duplicate(user.id,kind,id,body));
         if(notes){
-          if(!notes[1])return response(res,201,await unassignedCatalogNotes.create(user.id,kind,id,body));
-          if(notes[2])return response(res,200,await unassignedCatalogNotes.reorder(user.id,kind,id,notes[1],body));
-          if(req.method==='DELETE')return response(res,200,await unassignedCatalogNotes.archive(user.id,kind,id,notes[1],body));
-          return response(res,200,await unassignedCatalogNotes.save(user.id,kind,id,notes[1],body));
+           if(!notes[1])return response(res,201,await catalogNotes.create(user.id,kind,id,body));
+           if(notes[2])return response(res,200,await catalogNotes.reorder(user.id,kind,id,notes[1],body));
+           if(req.method==='DELETE')return response(res,200,await catalogNotes.archive(user.id,kind,id,notes[1],body));
+           return response(res,200,await catalogNotes.save(user.id,kind,id,notes[1],body));
         }
-        if(role)return response(res,200,await unassignedCatalog.saveMedia(user.id,kind,id,role,body));
-        if(id)return response(res,200,await unassignedCatalog.save(user.id,kind,id,body));
-        return response(res,201,await unassignedCatalog.create(user.id,kind,body));
+         if(role)return response(res,200,await catalog.saveMedia(user.id,kind,id,role,body));
+         if(id)return response(res,200,await catalog.save(user.id,kind,id,body));
+         return response(res,201,await catalog.create(user.id,kind,body));
       }
       // Original NPC, Monster, Clue and Situation documents. Explicit staging opt-in only.
       if(narrativeContent&&/^\/vtt\/campaigns\/[^/]+\/narrative\/(?:npcs|monsters|clues|events)(?:\/[^/]+)?$/.test(req.url??'')){
@@ -1083,7 +1095,7 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
             characterClaims:{read:!!characterClaims,write:!!characterClaims},
             characterPortraits:{read:!!characterPortraits,write:!!characterPortraits},
             logicalCharacters:{read:!!logicalCharacters,write:!!logicalCharacters},
-            ...(campaigns&&unassignedCatalog&&unassignedCatalogNotes?{nativeCatalog:{read:true,write:true}}:{}),
+            ...(campaigns&&nativeCatalog&&nativeCatalogNotes?{nativeCatalog:{read:true,write:true}}:{}),
             entityNotes:{read:!!entityNotes,write:!!entityNotes},
             narrativeEntityNotes:{read:!!narrativeEntityNotes,write:!!narrativeEntityNotes},
             campaignNotes:{read:!!campaignNotes,write:!!campaignNotes},

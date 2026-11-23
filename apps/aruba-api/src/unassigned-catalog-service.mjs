@@ -1,32 +1,57 @@
 import {CatalogRejected,catalogId,catalogKind,catalogMediaRole,validateUnassignedCatalogBody,validateCatalogMedia} from './unassigned-catalog-contract.mjs';
-import {catalogDuplicateBody} from './unassigned-catalog-notes-contract.mjs';
+import {catalogDuplicateBody,catalogRevisionBody} from './unassigned-catalog-notes-contract.mjs';
 import {catalogCopyToCampaignBody} from './unassigned-catalog-notes-contract.mjs';
 
-// Explicit opt-in startup only. New native unassigned content; never masquerades
+// Explicit opt-in startup only. Native content (optionally assigned); never masquerades
 // as a complete listing of historical/campaign/claimed entities.
-export function createUnassignedCatalogService({pool}){
+export function createUnassignedCatalogService({pool,native=false}){
+ if(typeof native!=='boolean')throw new TypeError('Invalid native catalog mode');
  if(typeof pool?.query!=='function')throw new TypeError('PostgreSQL pool required');
  const scope=(actor,kind,id)=>[catalogId(actor),catalogKind(kind),...(id===undefined?[]:[catalogId(id)])];
  async function query(text,args){
-  try{return await pool.query(text,args);}
+   try{return await pool.query(native?text.replaceAll('_unassigned_catalog_','_native_catalog_'):text,args);}
   catch(error){
    if(error.code==='40001')throw new CatalogRejected('Il contenuto è cambiato: ricarica prima di salvare.',409);
    if(['23514','23502','22023','22001'].includes(error.code))throw new CatalogRejected('Contenuto catalogo non valido');
    throw error;
   }
  }
- function assertContext(row,args){
-  if(!row||row.ownerId!==args[0]||row.kind!==args[1]||row.campaignId!==null||
+  function assertContext(row,args,status='active'){
+   if(!row||row.ownerId!==args[0]||row.kind!==args[1]||(!native&&row.campaignId!==null)||
+    (native&&row.status!==status)||
    (args[2]!==undefined&&row.id!==args[2])||!Number.isInteger(row.revision)||row.revision<1||row.revision>=2147483647)
    throw new Error('Invalid unassigned catalog result');
-  try{catalogId(row.id);}catch{throw new Error('Invalid unassigned catalog identity');}
+   try{catalogId(row.id);}catch{throw new Error('Invalid unassigned catalog identity');}
+   if(row.campaignId!==null)try{catalogId(row.campaignId);}catch{throw new Error('Invalid native campaign identity');}
  }
  const item=(result,args)=>{
   if(!result.rows[0]?.item)throw new CatalogRejected('Contenuto non trovato o non autorizzato',404);
   assertContext(result.rows[0].item,args);
   return {item:result.rows[0].item};
  };
- return {
+  return {
+   ...(native?{
+    async assign(actor,kind,id,body){
+     const args=scope(actor,kind,id);
+     if(!body||Object.keys(body).sort().join(',')!=='campaignId,revision')
+      throw new CatalogRejected('Assegnazione catalogo non valida');
+     const revision=catalogRevisionBody({revision:body.revision});
+     const campaign=body.campaignId===null?null:catalogId(body.campaignId);
+     const result=item(await query('SELECT hollowgate_vtt.assign_native_catalog_entry($1,$2,$3,$4,$5) AS item',
+      [...args,revision,campaign]),args);
+     if(result.item.campaignId!==campaign||result.item.revision!==revision+1)throw new Error('Invalid native assignment acknowledgement');
+     return result;
+    },
+    async archive(actor,kind,id,body){
+     const args=scope(actor,kind,id),revision=catalogRevisionBody(body);
+     const result=await query('SELECT hollowgate_vtt.archive_native_catalog_entry($1,$2,$3,$4) AS item',[...args,revision]);
+     const row=result.rows[0]?.item;
+     if(!row)throw new CatalogRejected('Contenuto non trovato o non autorizzato',404);
+     assertContext(row,args,'archived');
+     if(row.revision!==revision+1)throw new Error('Invalid native archive acknowledgement');
+     return {item:row,archivedId:args[2]};
+    },
+   }:{}),
   async list(actor,kind,after=null){
    const args=scope(actor,kind);args.push(after===null?null:catalogId(after));
    const {rows}=await query('SELECT hollowgate_vtt.list_unassigned_catalog_entries($1,$2,$3) AS item',args);
@@ -64,7 +89,8 @@ export function createUnassignedCatalogService({pool}){
      [...args,draft.targetCampaignId,draft.revision]);
     if(!result.rows[0]?.item)throw new CatalogRejected('Contenuto non trovato o non autorizzato',404);
     const row=result.rows[0].item;
-     if(row.ownerId!==args[0]||row.kind!==args[1]||row.campaignId!==draft.targetCampaignId||
+      if(row.ownerId!==args[0]||row.kind!==args[1]||row.campaignId!==draft.targetCampaignId||
+       (native&&row.status!=='active')||
       row.id===args[2]||!Number.isInteger(row.revision)||row.revision<1||row.revision>=2147483647)
      throw new Error('Invalid unassigned catalog result');
     try{catalogId(row.id);}catch{throw new Error('Invalid catalog identity');}

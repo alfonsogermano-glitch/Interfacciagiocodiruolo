@@ -11,7 +11,7 @@ const npcId='22222222-2222-4222-8222-222222222222',monsterId='33333333-3333-4333
 const createdId='44444444-4444-4444-8444-444444444444';
 const date='2026-11-23T12:00:00.000Z';
 const entry=(kind,id,name,data={})=>({kind,id,name,data,ownerId:owner,campaignId:null,ruleset:'hsc',
- revision:1,media:[],createdAt:date,updatedAt:date});
+ revision:1,status:'active',media:[],createdAt:date,updatedAt:date});
 const entries={characters:[],npcs:[entry('npcs',npcId,'Custode QA',{description:'PNG originale',notes:'',freschezza:12})],
  monsters:[entry('monsters',monsterId,'Ombra QA',{description:'Mostro originale',notes:'',freschezza:12,attacco:'Base'})]};
 const executablePath=process.env.HG_BROWSER_EXECUTABLE??
@@ -53,7 +53,7 @@ try{
   else if(path==='/vtt/campaigns'||path==='/vtt/player-campaigns')payload={campaigns:[]};
   else if(path==='/vtt/characters')payload={characters:[],nextCursor:null};
   else{
-   const match=/^\/vtt\/catalog\/unassigned\/(characters|npcs|monsters)$/.exec(path);
+   const match=/^\/vtt\/catalog\/native\/(characters|npcs|monsters)$/.exec(path);
    if(match&&request.method()==='GET')payload={items:entries[match[1]],nextCursor:null};
    else if(match&&request.method()==='POST'){
     creates++;
@@ -63,7 +63,7 @@ try{
     assert.equal(body.revision,undefined);assert.equal(body.data.ownerProfileId,undefined);
     const item=entry('npcs',createdId,body.name,body.data);
     entries.npcs.push(item);payload={item};
-   }else if(path===`/vtt/catalog/unassigned/npcs/${createdId}`&&request.method()==='PUT'){
+   }else if(path===`/vtt/catalog/native/npcs/${createdId}`&&request.method()==='PUT'){
     updates++;
     const body=request.postDataJSON();
     assert.equal(body.revision,1);assert.equal(body.name,'PNG modificato QA');
@@ -93,7 +93,7 @@ try{
  assert.equal(entries.npcs.length,1,'Failed create must not become a saved card');
  await page.getByRole('button',{name:'Crea PNG',exact:true}).click();
  await page.getByRole('button',{name:'Crea PNG',exact:true}).waitFor({state:'detached'});
- const saved=page.waitForResponse(response=>response.url().endsWith(`/vtt/catalog/unassigned/npcs/${createdId}`)&&response.request().method()==='PUT');
+ const saved=page.waitForResponse(response=>response.url().endsWith(`/vtt/catalog/native/npcs/${createdId}`)&&response.request().method()==='PUT');
  await page.getByPlaceholder('Nome del PNG',{exact:true}).fill('PNG modificato QA');
  await saved;
  await page.getByRole('button',{name:'Torna ai PNG',exact:true}).click();

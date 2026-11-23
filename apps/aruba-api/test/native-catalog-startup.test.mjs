@@ -5,7 +5,7 @@ test('native catalog default/false never probe the DB or construct services',asy
  const pool={query:async()=>{throw Error('must not query');}};
  for(const flag of [undefined,'','false']){
   assert.deepEqual(await configureNativeCatalog({flag,pool}),
-   {unassignedCatalog:null,unassignedCatalogNotes:null});
+   {unassignedCatalog:null,unassignedCatalogNotes:null,nativeCatalog:null,nativeCatalogNotes:null});
  }
 });
 test('native catalog validates flag, authentication and dependencies before DB access',async()=>{
@@ -25,6 +25,6 @@ test('native startup requires secure schema and constructs catalog plus notes to
  assert.doesNotMatch(sql[0],/\b(?:CREATE|ALTER|GRANT|INSERT|UPDATE|DELETE)\b/);
  for(const ready of [false,null,undefined]){
   await assert.rejects(configureNativeCatalog({flag:'true',authEnabled:true,campaigns:{},
-   pool:{query:async()=>({rows:[{ready}]})}}),/migrations 001-004/);
+   pool:{query:async()=>({rows:[{ready}]})}}),/migrations 001-005/);
  }
 });

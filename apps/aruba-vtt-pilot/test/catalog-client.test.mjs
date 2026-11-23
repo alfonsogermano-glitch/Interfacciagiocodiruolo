@@ -52,7 +52,7 @@ test('HTTP failures never become successful deletes, releases or saves',async()=
  const client=createCatalogClient(async()=>({ok:false,status:409}));
  await assert.rejects(client.save('npcs',first,owner,{revision:7}),{status:409});
  assert.throws(unavailableCatalogAction,/nessuna modifica eseguita/);
- assert.equal(client.remove,undefined);assert.equal(client.assign,undefined);
+ await assert.rejects(client.assign('npcs',first,owner,7,campaign),/nessuna modifica eseguita/);
 });
 test('copy validates target context and never impersonates assignment',async()=>{
  const client=createCatalogClient(async()=>ok({item:{...entry(second),campaignId:campaign}}));

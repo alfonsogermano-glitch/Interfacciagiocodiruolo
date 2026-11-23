@@ -1,6 +1,27 @@
 # Checkpoint riparazione catalogo — 23 novembre 2026
 
-## Ultimo incremento (dopo `ced244dc`)
+## Ultimo incremento (dopo `740e695d`)
+- Migrazione nativa 005 e API `/vtt/catalog/native/*`: lista/lettura/salvataggio,
+  immagini, note, duplicazione e copia anche per record assegnati; PNG/Mostri
+  assegnabili, spostabili e staccabili mantenendo lo stesso ID e tutti i dati.
+- Archiviazione non distruttiva: conserva scheda, immagini e gerarchia note;
+  chiude anche le vecchie API unassigned. Nessun contenuto storico modificato.
+- La migrazione riusa le routine 001-004 con trasformazioni DB controllate:
+  sorgenti univoche, anchor di scope esatto, fallimento atomico su drift,
+  nuovi helper privati senza grant runtime. Trigger impedisce modifiche di
+  record archiviati e campagne/ruleset non autorizzati.
+- Startup nativo richiede ora 001-005 e verifica entrambi i set di routine.
+- Adapter originale collegato a move/detach/archive PNG/Mostri e archive PG
+  nativi. I PG logici/claimati NON passano dal lifecycle nativo.
+- Tombstone browser e controllo proprietario impediscono che autosave tardivi
+  ricreino contenuti archiviati o salvino bozze dell'account precedente.
+- Verifiche: API 293/293, frontend 515/515, QA DB/HTTP/provenienza 45 passati,
+  0 falliti, 3 race PG saltate. Build originale superata senza SDK Supabase.
+- **Rilascio ancora bloccato**: storico/logical PG completo, proiezione dei
+  nativi nei consumer di campagna, editor media/note, realtime e test browser
+  puliti/reti/PG reale. Nessuna modifica a configurazione o database VPS.
+
+## Incremento precedente (`740e695d`)
 - Avvio API nativo finalmente collegato, ma SOLO con
   `AUTH_VTT_NATIVE_CATALOG_ENABLED=true`; nessuno script/configurazione attiva
   è stato modificato per abilitarlo. `configureNativeCatalog` verifica
@@ -85,8 +106,8 @@
 1. Mantenere verdi entrambe le build e i test dopo le prossime modifiche.
 2. Completare listing globale PNG/Mostri storici e assegnati: l'adapter attuale
    legge solo il catalogo nativo non assegnato e NON deve nasconderlo all'utente.
-3. Implementare transazioni distinte per assegnazione/spostamento, rimozione
-   dalla campagna e archiviazione catalogo; oggi falliscono esplicitamente.
+3. Lifecycle nativo implementato e testato; completare le corrispondenti azioni
+   sui contenuti storici con provenienza e ownership autorevoli.
 4. Completare salvataggio/duplicazione PG logici e reclamati, media, note,
    inviti con scelta del PG, presenza e aggiornamenti live. Non aggirare i
    controlli delle revisioni né le autorizzazioni.

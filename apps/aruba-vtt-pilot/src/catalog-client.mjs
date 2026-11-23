@@ -1,4 +1,5 @@
-// Native unassigned catalog only. This is NOT a historical/global-owner listing.
+// Native catalog only: default unassigned, {native:true} includes assigned records.
+// This is NOT a historical/global-owner listing.
 // Never convert assignment into copy, or make unavailable writes look successful.
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const KINDS=['characters','npcs','monsters'];
@@ -35,12 +36,12 @@ export function validateCatalogImage(role,media){
  if(!valid)throw Error('Formato immagine catalogo non coerente');
  return {mimeType:media.mimeType,dataBase64:media.dataBase64};
 }
-export function createCatalogClient(fetchImpl){
+export function createCatalogClient(fetchImpl,{native=false}={}){
  if(typeof fetchImpl!=='function')throw TypeError('fetch required');
  const id=value=>{if(typeof value!=='string'||!UUID.test(value))throw Error('Identificatore catalogo non valido');return value;};
  const path=(kind,entityId)=>{
   if(!KINDS.includes(kind))throw Error('Tipo catalogo non valido');
-  return `/vtt/catalog/unassigned/${kind}${entityId===undefined?'':'/'+id(entityId)}`;
+  return `/vtt/catalog/${native?'native':'unassigned'}/${kind}${entityId===undefined?'':'/'+id(entityId)}`;
  };
  const revision=value=>{
   if(!Number.isInteger(value)||value<1||value>=2147483647)throw Error('Ricarica il contenuto prima di modificarlo.');
@@ -56,11 +57,13 @@ export function createCatalogClient(fetchImpl){
   }
   return response.json();
  }
- function check(item,kind,ownerId,entityId){
-  if(!item||item.kind!==kind||item.ownerId!==ownerId||item.campaignId!==null||
+ function check(item,kind,ownerId,entityId,status='active'){
+  if(!item||item.kind!==kind||item.ownerId!==ownerId||(!native&&item.campaignId!==null)||
+   (native&&item.status!==status)||
    !item.data||typeof item.data!=='object'||Array.isArray(item.data)||
    (entityId!==undefined&&item.id!==entityId))throw Error('Risposta catalogo non coerente');
   id(item.id);revision(item.revision);
+  if(item.campaignId!==null)id(item.campaignId);
   return item;
  }
  function note(value,parentId){
@@ -84,6 +87,24 @@ export function createCatalogClient(fetchImpl){
   return result;
  }
  return {
+  async assign(kind,entityId,ownerId,expectedRevision,campaignId){
+   if(!native||!['npcs','monsters'].includes(kind))return unavailableCatalogAction();
+   id(ownerId);revision(expectedRevision);if(campaignId!==null)id(campaignId);
+   const result=await request(path(kind,entityId)+'/assignment','PATCH',
+    {revision:expectedRevision,campaignId});
+   ack(result,kind,entityId,ownerId,expectedRevision);
+   if(result.item.campaignId!==campaignId)throw Error('Assegnazione catalogo non confermata');
+   return result.item;
+  },
+  async archive(kind,entityId,ownerId,expectedRevision){
+   if(!native)return unavailableCatalogAction();
+   id(ownerId);revision(expectedRevision);
+   const result=await request(path(kind,entityId),'DELETE',{revision:expectedRevision});
+   check(result.item,kind,ownerId,entityId,'archived');
+   if(result.archivedId!==entityId||result.item.revision!==expectedRevision+1)
+    throw Error('Archiviazione catalogo non confermata');
+   return result;
+  },
   async list(kind,ownerId){
    id(ownerId);const items=[],seen=new Set(),cursors=new Set();let cursor=null;
    do{
@@ -131,6 +152,7 @@ export function createCatalogClient(fetchImpl){
    const {item}=await request(path(kind,entityId)+'/campaign','POST',
     {revision:revision(expectedRevision),targetCampaignId});
    if(!item||item.kind!==kind||item.ownerId!==ownerId||item.campaignId!==targetCampaignId||
+    (native&&item.status!=='active')||
     item.id===entityId)throw Error('Risposta copia catalogo non coerente');
    id(item.id);revision(item.revision);
    return item;

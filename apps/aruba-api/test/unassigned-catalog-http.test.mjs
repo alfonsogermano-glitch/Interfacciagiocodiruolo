@@ -57,10 +57,10 @@ test('unexpected catalog failures are generic and never disclose SQL, payloads o
 });
 
 test('native bootstrap advertises only the native capability when catalog and notes are both wired',async()=>{
- const service=Object.fromEntries(['list','read','create','save','saveMedia','readMedia'].map(name=>[name,async()=>({})]));
+ const service=Object.fromEntries(['list','read','create','save','saveMedia','readMedia','duplicate','copyToCampaign','assign','archive'].map(name=>[name,async()=>({})]));
  const notes=Object.fromEntries(['list','create','save','reorder','archive'].map(name=>[name,async()=>({})]));
  const campaigns={list:async()=>({campaigns:[]}),create:async()=>{},update:async()=>{}};
- await server(createAuthHttpHandler({...config,campaigns,unassignedCatalog:service,unassignedCatalogNotes:notes}),async base=>{
+ await server(createAuthHttpHandler({...config,campaigns,nativeCatalog:service,nativeCatalogNotes:notes}),async base=>{
   const bootstrap=await fetch(base+'/vtt/bootstrap',{headers:cookie}).then(response=>response.json());
   assert.deepEqual(bootstrap.capabilities.nativeCatalog,{read:true,write:true});
   assert.equal(bootstrap.capabilities.globalCatalog,undefined);
