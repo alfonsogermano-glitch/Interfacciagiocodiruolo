@@ -2,8 +2,8 @@ import {CatalogRejected,catalogId,catalogKind,catalogMediaRole,validateUnassigne
 import {catalogDuplicateBody} from './unassigned-catalog-notes-contract.mjs';
 import {catalogCopyToCampaignBody} from './unassigned-catalog-notes-contract.mjs';
 
-// Not instantiated by index.mjs. New native unassigned content only; never
-// masquerades as a complete listing of historical/campaign/claimed entities.
+// Explicit opt-in startup only. New native unassigned content; never masquerades
+// as a complete listing of historical/campaign/claimed entities.
 export function createUnassignedCatalogService({pool}){
  if(typeof pool?.query!=='function')throw new TypeError('PostgreSQL pool required');
  const scope=(actor,kind,id)=>[catalogId(actor),catalogKind(kind),...(id===undefined?[]:[catalogId(id)])];
@@ -64,7 +64,8 @@ export function createUnassignedCatalogService({pool}){
      [...args,draft.targetCampaignId,draft.revision]);
     if(!result.rows[0]?.item)throw new CatalogRejected('Contenuto non trovato o non autorizzato',404);
     const row=result.rows[0].item;
-    if(row.ownerId!==args[0]||row.kind!==args[1]||!Number.isInteger(row.revision)||row.revision<1||row.revision>=2147483647)
+     if(row.ownerId!==args[0]||row.kind!==args[1]||row.campaignId!==draft.targetCampaignId||
+      row.id===args[2]||!Number.isInteger(row.revision)||row.revision<1||row.revision>=2147483647)
      throw new Error('Invalid unassigned catalog result');
     try{catalogId(row.id);}catch{throw new Error('Invalid catalog identity');}
     return {item:row};

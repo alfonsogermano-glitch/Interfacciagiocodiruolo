@@ -12,16 +12,18 @@ async function server(handler,fn){
  try{await fn('http://127.0.0.1:'+app.address().port);}finally{await new Promise(resolve=>app.close(resolve));}
 }
 
-test('partial catalog stays off by default, with no startup wiring or advertised global capability',async()=>{
+test('partial catalog stays off by default with opt-in startup and no advertised global capability',async()=>{
  const handler=createAuthHttpHandler(config);
  await server(handler,async base=>{
   assert.equal((await fetch(base+'/vtt/catalog/unassigned/npcs',{headers:cookie})).status,404);
   const bootstrap=await fetch(base+'/vtt/bootstrap',{headers:cookie}).then(r=>r.json());
   assert.equal(bootstrap.capabilities.unassignedCatalog,undefined);
-  assert.equal(bootstrap.capabilities.globalCatalog,undefined);
+   assert.equal(bootstrap.capabilities.globalCatalog,undefined);
+   assert.equal(bootstrap.capabilities.nativeCatalog,undefined);
  });
  const source=readFileSync(new URL('../src/index.mjs',import.meta.url),'utf8');
- assert.doesNotMatch(source,/createUnassignedCatalogService|unassignedCatalog\s*:/);
+  assert.match(source,/configureNativeCatalog/);
+  assert.match(source,/AUTH_VTT_NATIVE_CATALOG_ENABLED/);
  assert.throws(()=>createAuthHttpHandler({...config,unassignedCatalog:{}}),/Invalid unassigned catalog service/);
 });
 
@@ -51,5 +53,20 @@ test('unexpected catalog failures are generic and never disclose SQL, payloads o
  await server(createAuthHttpHandler({...config,unassignedCatalog:service}),async base=>{
   const response=await fetch(base+'/vtt/catalog/unassigned/npcs',{headers:cookie});
   assert.equal(response.status,500);assert.doesNotMatch(await response.text(),/private-diagnostic-secret/);
+ });
+});
+
+test('native bootstrap advertises only the native capability when catalog and notes are both wired',async()=>{
+ const service=Object.fromEntries(['list','read','create','save','saveMedia','readMedia'].map(name=>[name,async()=>({})]));
+ const notes=Object.fromEntries(['list','create','save','reorder','archive'].map(name=>[name,async()=>({})]));
+ const campaigns={list:async()=>({campaigns:[]}),create:async()=>{},update:async()=>{}};
+ await server(createAuthHttpHandler({...config,campaigns,unassignedCatalog:service,unassignedCatalogNotes:notes}),async base=>{
+  const bootstrap=await fetch(base+'/vtt/bootstrap',{headers:cookie}).then(response=>response.json());
+  assert.deepEqual(bootstrap.capabilities.nativeCatalog,{read:true,write:true});
+  assert.equal(bootstrap.capabilities.globalCatalog,undefined);
+ });
+ await server(createAuthHttpHandler({...config,unassignedCatalog:service}),async base=>{
+  const bootstrap=await fetch(base+'/vtt/bootstrap',{headers:cookie}).then(response=>response.json());
+  assert.equal(bootstrap.capabilities.nativeCatalog,undefined);
  });
 });

@@ -3,6 +3,11 @@
 Richiesta del proprietario: copia completa del vecchio sito su Aruba, non una
 versione semplificata. **Lavoro in corso, parità non raggiunta.**
 
+Checkpoint operativo più recente:
+`CATALOG-REPAIR-CHECKPOINT-2026-11-23.md`. Mantiene stato effettivo, gate e
+prossima unità di lavoro; le tranche storiche sotto non certificano un rilascio
+attuale del catalogo o dell'intero VTT.
+
 ## Baseline e regole
 
 - Vecchio codice conservato dal tag `archive/legacy-pre-aruba-20261122`

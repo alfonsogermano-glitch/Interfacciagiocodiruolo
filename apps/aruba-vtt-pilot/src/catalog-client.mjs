@@ -19,6 +19,22 @@ export function originalCatalogEntity(item){
 export function unavailableCatalogAction(){
  throw Error('Azione catalogo non ancora migrata: nessuna modifica eseguita.');
 }
+export function validateCatalogImage(role,media){
+ if(!['portrait','source','cover'].includes(role))throw Error('Tipo immagine catalogo non valido');
+ const max=role==='portrait'?524288:2097152;
+ if(!media||!['image/png','image/jpeg','image/webp'].includes(media.mimeType)||
+  typeof media.dataBase64!=='string'||media.dataBase64.length<16||
+  media.dataBase64.length>4*Math.ceil(max/3)||media.dataBase64.length%4!==0||
+  !/^[A-Za-z0-9+/]+={0,2}$/.test(media.dataBase64))throw Error('Immagine catalogo non valida');
+ const binary=atob(media.dataBase64);
+ if(binary.length<12||binary.length>max||btoa(binary)!==media.dataBase64)
+  throw Error('Dimensione immagine catalogo non valida');
+ const valid=media.mimeType==='image/png'?binary.slice(0,8)==='\x89PNG\r\n\x1a\n':
+  media.mimeType==='image/jpeg'?binary.slice(0,3)==='\xff\xd8\xff':
+  binary.slice(0,4)==='RIFF'&&binary.slice(8,12)==='WEBP';
+ if(!valid)throw Error('Formato immagine catalogo non coerente');
+ return {mimeType:media.mimeType,dataBase64:media.dataBase64};
+}
 export function createCatalogClient(fetchImpl){
  if(typeof fetchImpl!=='function')throw TypeError('fetch required');
  const id=value=>{if(typeof value!=='string'||!UUID.test(value))throw Error('Identificatore catalogo non valido');return value;};
@@ -46,6 +62,26 @@ export function createCatalogClient(fetchImpl){
    (entityId!==undefined&&item.id!==entityId))throw Error('Risposta catalogo non coerente');
   id(item.id);revision(item.revision);
   return item;
+ }
+ function note(value,parentId){
+  if(!value||typeof value.tab_name!=='string'||typeof value.content!=='string'||
+   !Number.isInteger(value.position)||value.position<0||value.position>10000||
+   typeof value.hidden!=='boolean'||!['all','private'].includes(value.visibility)||
+   !(value.content_rich===null||value.content_rich&&typeof value.content_rich==='object'&&!Array.isArray(value.content_rich))||
+   (parentId!==undefined&&value.parent_note_id!==parentId))throw Error('Risposta nota catalogo non valida');
+  id(value.id);
+  if(value.parent_note_id!==null)id(value.parent_note_id);
+  if(value.tab_order!==null){
+   if(!Array.isArray(value.tab_order)||value.tab_order.length>100||
+    new Set(value.tab_order).size!==value.tab_order.length)throw Error('Ordine note catalogo non valido');
+   value.tab_order.forEach(id);
+  }
+  return value;
+ }
+ function ack(result,kind,entityId,ownerId,expectedRevision){
+  check(result.item,kind,ownerId,entityId);
+  if(result.item.revision!==expectedRevision+1)throw Error('Revisione catalogo non confermata');
+  return result;
  }
  return {
   async list(kind,ownerId){
@@ -80,7 +116,7 @@ export function createCatalogClient(fetchImpl){
   async save(kind,entityId,ownerId,draft){
    id(ownerId);revision(draft.revision);
    const {item}=await request(path(kind,entityId),'PUT',draft);
-   return check(item,kind,ownerId,entityId);
+   return ack({item},kind,entityId,ownerId,draft.revision).item;
   },
   async duplicate(kind,entityId,ownerId,expectedRevision,requestId){
    id(ownerId);id(requestId);
@@ -99,5 +135,65 @@ export function createCatalogClient(fetchImpl){
    id(item.id);revision(item.revision);
    return item;
   },
+  async readMedia(kind,entityId,role){
+   validateCatalogImageRole(role);
+   const result=await request(path(kind,entityId)+'/media/'+role);
+   revision(result.revision);validateCatalogImage(role,result);
+   return result;
+  },
+  async saveMedia(kind,entityId,ownerId,expectedRevision,role,media){
+   id(ownerId);revision(expectedRevision);
+   const body={...validateCatalogImage(role,media),revision:expectedRevision};
+   const result=await request(path(kind,entityId)+'/media/'+role,'PUT',body);
+   return ack(result,kind,entityId,ownerId,expectedRevision).item;
+  },
+  async listNotes(kind,entityId,ownerId,parentId=null){
+   id(ownerId);if(parentId!==null)id(parentId);
+   const result=await request(path(kind,entityId)+'/notes'+(parentId===null?'':'?parentId='+parentId));
+   check(result.item,kind,ownerId,entityId);
+   if(!Array.isArray(result.notes)||result.notes.length>100||
+    new Set(result.notes.map(n=>n?.id)).size!==result.notes.length)throw Error('Elenco note catalogo non valido');
+   result.notes.forEach(value=>note(value,parentId));
+   return result;
+  },
+  async createNote(kind,entityId,ownerId,expectedRevision,tabName,parentId=null){
+   id(ownerId);revision(expectedRevision);if(parentId!==null)id(parentId);
+   if(typeof tabName!=='string'||!tabName.trim()||tabName.trim().length>120)throw Error('Nome nota catalogo non valido');
+   const result=await request(path(kind,entityId)+'/notes','POST',
+    {revision:expectedRevision,tabName:tabName.trim(),...(parentId===null?{}:{parentId})});
+   ack(result,kind,entityId,ownerId,expectedRevision);note(result.note,parentId);
+   return result;
+  },
+  async saveNote(kind,entityId,ownerId,expectedRevision,noteId,value){
+   id(ownerId);id(noteId);revision(expectedRevision);
+   const result=await request(path(kind,entityId)+'/notes/'+noteId,'PUT',
+    {revision:expectedRevision,tabName:value.tab_name,content:value.content,contentRich:value.content_rich,
+     position:value.position,hidden:value.hidden,visibility:value.visibility});
+   ack(result,kind,entityId,ownerId,expectedRevision);note(result.note);
+   if(result.note.id!==noteId)throw Error('Salvataggio nota catalogo non confermato');
+   return result;
+  },
+  async archiveNote(kind,entityId,ownerId,expectedRevision,noteId){
+   id(ownerId);id(noteId);revision(expectedRevision);
+   const result=await request(path(kind,entityId)+'/notes/'+noteId,'DELETE',{revision:expectedRevision});
+   ack(result,kind,entityId,ownerId,expectedRevision);
+   if(result.archivedId!==noteId)throw Error('Archiviazione nota catalogo non confermata');
+   return result;
+  },
+  async reorderNotes(kind,entityId,ownerId,expectedRevision,parentId,tabOrder){
+   id(ownerId);id(parentId);revision(expectedRevision);
+   if(!Array.isArray(tabOrder)||tabOrder.length>100||new Set(tabOrder).size!==tabOrder.length)
+    throw Error('Ordine sottoschede non valido');
+   tabOrder.forEach(id);
+   const result=await request(path(kind,entityId)+'/notes/'+parentId+'/order','PUT',
+    {revision:expectedRevision,tabOrder});
+   ack(result,kind,entityId,ownerId,expectedRevision);note(result.note,null);
+   if(result.note.id!==parentId||JSON.stringify(result.note.tab_order)!==JSON.stringify(tabOrder))
+    throw Error('Ordine sottoschede non confermato');
+   return result;
+  },
  };
+}
+function validateCatalogImageRole(role){
+ if(!['portrait','source','cover'].includes(role))throw Error('Tipo immagine catalogo non valido');
 }

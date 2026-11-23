@@ -6,6 +6,7 @@ import {resolve,dirname} from 'node:path';
 import {readFileSync} from 'node:fs';
 import {maskArubaTrashRow,maskArubaSessionNotesTrashHeader,maskArubaTrashItemPreview} from './src/ArubaSafeNotesTransforms.mjs';
 import {localLandingPlugin} from './local-landing-plugin.mjs';
+import {acknowledgeOriginalCatalogCreation} from './src/ArubaCatalogTransforms.mjs';
 const root=dirname(fileURLToPath(import.meta.url));
 const localHttps=process.env.HG_LOCAL_HTTPS==='1'?{
   key:readFileSync(resolve(root,'../../certs/local/localhost-key.pem')),
@@ -130,7 +131,8 @@ export default defineConfig({
       if(id.endsWith('/src/app/components/gm/MyCharactersPage.tsx')||id.endsWith('/src/hooks/useJoinByCodeFlow.ts')){
         const legacy='const SERVER_BASE = `https://${projectId}.supabase.co/functions/v1/make-server-771c5bfd`;';
         if(!code.includes(legacy))throw Error('Original catalog server contract changed');
-        return code.replace(legacy,"const SERVER_BASE = '/vtt';");
+        const isolated=code.replace(legacy,"const SERVER_BASE = '/vtt';");
+        return id.endsWith('/MyCharactersPage.tsx')?acknowledgeOriginalCatalogCreation(isolated):isolated;
       }
       if(id.endsWith('/src/app/layout/LeftSidebar.tsx')){
         if(!code.includes('src="/hollowgate-logo.png"'))throw Error('Original LeftSidebar logo contract changed');

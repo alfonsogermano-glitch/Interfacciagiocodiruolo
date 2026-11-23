@@ -35,7 +35,7 @@ import {ArubaOriginalPlayerSessionWorkspace} from './ArubaOriginalPlayerSessionW
 import {ArubaOriginalGamePhases} from './ArubaOriginalGamePhases';
 import {ArubaOriginalCombatTracker} from './ArubaOriginalCombatTracker';
 import {ArubaOriginalVisualAssets} from './ArubaOriginalVisualAssets';
-import {ArubaOriginalCatalog} from 'aruba-original-catalog-entry';
+import {ArubaOriginalCatalog,catalogContractEnabled} from 'aruba-original-catalog-entry';
 import {LeftSidebar} from '../../../src/app/layout/LeftSidebar';
 import {TopBar} from '../../../src/app/layout/TopBar';
 import {AppShell} from '../../../src/app/layout/AppShell';
@@ -48,7 +48,7 @@ import {HouseIcon,UsersThreeIcon,ScrollIcon,GitBranchIcon,PlayIcon,FileTextIcon,
 type PilotUser={id:string;email:string;displayName:string;role:'admin'|'standard';characterAvailabilityEnabled:boolean;characterAssignmentsEnabled:boolean;playerCharactersEnabled:boolean;characterClaimsEnabled:boolean;characterPortraitsEnabled:boolean;logicalCharactersEnabled:boolean;campaignsEnabled:boolean;campaignInvitesEnabled:boolean;charactersEnabled:boolean;chaptersEnabled:boolean;scenesEnabled:boolean;narrativeContentEnabled:boolean;narrativeEntityNotesEnabled:boolean;equipmentCatalogEnabled:boolean;visualAssetsEnabled:boolean;campaignDocumentsEnabled:boolean;campaignChatEnabled:boolean;diceFormulasEnabled:boolean;entityNotesEnabled:boolean;campaignNotesEnabled:boolean;campaignNoteFoldersEnabled:boolean;originalNotesPanelEnabled:boolean;campaignRosterEnabled:boolean;gameSessionEnabled:boolean;campaignMemberships:{userId:string;campaignId:string;role:'gm'|'player'}[]};
 type Campaign={id:string;ownerId:string;name:string;description:string;ruleset:string;createdAt:string;updatedAt?:string;logoUrl?:string|null;coverImageUrl?:string|null};
 type Status={state:'loading'}|{state:'unauthorized'}|{state:'error'}|{state:'ready';user:PilotUser};
-type Section='home'|'campaigns'|'characters'|'session'|'chapters'|'preparation'|'sheets'|'npcs'|'monsters'|'clues'|'equipment'|'map'|'situations'|'phases'|'combat'|'assets'|'catalog';
+type Section='home'|'campaigns'|'characters'|'session'|'chapters'|'preparation'|'sheets'|'npcs'|'monsters'|'clues'|'equipment'|'map'|'situations'|'phases'|'combat'|'assets';
 const fetcher=fetch.bind(window);
 // Keep the independently tested original Hollowgate left/right navigation contract.
 const leftMenu=[
@@ -347,7 +347,7 @@ function App(){
       {campaignError&&<p className="error" role="alert">{campaignError}</p>}
        {activeCampaign&&<section className="selected-campaign" aria-label="Campagna selezionata"><div className="overline">CAMPAGNA SELEZIONATA · {activeCampaignOwned?'GAME MASTER':'GIOCATORE'}</div><h2>{activeCampaign.name}</h2><p>{activeCampaign.description||'Nessuna descrizione'}</p><p>Regolamento: {RULESETS[activeCampaign.ruleset as keyof typeof RULESETS]}</p><p className="footnote">Campagna riletta dall’API Aruba con accesso {activeCampaignOwned?'proprietario':'giocatore in sola lettura'}.</p><button type="button" onClick={()=>{setSessionPanel(null);setSection('session');}}>Entra nella campagna</button>{activeCampaignOwned&&<button type="button" onClick={()=>setShowEdit(true)}>Modifica nome e descrizione</button>}<button type="button" onClick={()=>{setActiveCampaignId(null);setSessionPanel(null);setShowEdit(false);}}>Chiudi selezione</button></section>}
     </>}
-    {section==='characters'&&<>
+    {section==='characters'&&!catalogContractEnabled&&<>
       {user.playerCharactersEnabled&&<ArubaAssignedCharacterPanel portraitsEnabled={user.characterPortraitsEnabled} visualAssetsEnabled={user.visualAssetsEnabled} claimsEnabled={user.characterClaimsEnabled} />}
       {user.charactersEnabled?
        <ArubaCharacterDrafts campaigns={campaigns} activeCampaignId={activeCampaignId} ownerId={user.id}
@@ -445,7 +445,7 @@ function App(){
     {section==='combat'&&activeCampaign&&<ArubaOriginalCombatTracker campaign={{...activeCampaign,ruleset:activeCampaign.ruleset as OriginalCampaign['ruleset'],updatedAt:activeCampaign.createdAt}} enabled={user.campaignDocumentsEnabled&&user.narrativeContentEnabled}/>}
     {section==='combat'&&!activeCampaign&&<div className="placeholder"><span className="placeholder-mark">✧</span><h2>Seleziona prima una campagna</h2><p>Il Combattimento richiede una campagna Aruba selezionata.</p></div>}
     {section==='assets'&&activeCampaign&&<ArubaOriginalVisualAssets campaignId={activeCampaign.id} enabled={user.visualAssetsEnabled}/>}
-    {section==='catalog'&&<ArubaOriginalCatalog user={user}
+    {section==='characters'&&catalogContractEnabled&&<ArubaOriginalCatalog user={user}
      campaigns={campaigns.map(c=>({...c,ruleset:c.ruleset as OriginalCampaign['ruleset'],updatedAt:c.updatedAt??c.createdAt}))}
      joinedCampaigns={joinedCampaigns.map(c=>({...c,ruleset:c.ruleset as OriginalCampaign['ruleset'],updatedAt:c.updatedAt??c.createdAt}))}
      refreshCampaigns={refreshCatalogCampaigns} refreshJoinedCampaigns={refreshCatalogCampaigns}/>}

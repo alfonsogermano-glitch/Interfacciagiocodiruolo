@@ -46,7 +46,7 @@ async function saveNative(kind:string,entity:any,ruleset?:string){
  const item=known?
   await client.save(kind,known.id,ownerId,{...body,revision:known.revision}):
   await client.create(kind,ownerId,body);
- remember(item);
+ return remember(item);
 }
 async function duplicate(kind:string,id:string){
  const ownerId=actor(),source=observed(kind,id);

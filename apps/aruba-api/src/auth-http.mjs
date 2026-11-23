@@ -315,8 +315,7 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         if(req.method==='DELETE')return response(res,200,await scenes.remove(user.id,match[1],match[2]));
         return response(res,200,await scenes.save(user.id,match[1],await readJson(req,100000)));
       }
-      // LOCAL opt-in only: native unassigned entities, not the complete global
-      // catalog. index.mjs deliberately does not construct/inject this service.
+      // Explicit native catalog opt-in. This is NOT the complete global catalog.
       if(unassignedCatalog&&req.url?.startsWith('/vtt/catalog/unassigned/')){
         const url=new URL(req.url,origin);
         const match=/^\/vtt\/catalog\/unassigned\/(characters|npcs|monsters)(?:\/([0-9a-f-]{36})(\/.*)?)?$/i.exec(url.pathname);
@@ -1084,6 +1083,7 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
             characterClaims:{read:!!characterClaims,write:!!characterClaims},
             characterPortraits:{read:!!characterPortraits,write:!!characterPortraits},
             logicalCharacters:{read:!!logicalCharacters,write:!!logicalCharacters},
+            ...(campaigns&&unassignedCatalog&&unassignedCatalogNotes?{nativeCatalog:{read:true,write:true}}:{}),
             entityNotes:{read:!!entityNotes,write:!!entityNotes},
             narrativeEntityNotes:{read:!!narrativeEntityNotes,write:!!narrativeEntityNotes},
             campaignNotes:{read:!!campaignNotes,write:!!campaignNotes},

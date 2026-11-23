@@ -1,5 +1,45 @@
 # Checkpoint riparazione catalogo — 23 novembre 2026
 
+## Ultimo incremento (dopo `ced244dc`)
+- Avvio API nativo finalmente collegato, ma SOLO con
+  `AUTH_VTT_NATIVE_CATALOG_ENABLED=true`; nessuno script/configurazione attiva
+  è stato modificato per abilitarlo. `configureNativeCatalog` verifica
+  migrazioni 001-004 e privilegi ristretti prima di costruire catalogo+note.
+- Bootstrap espone `nativeCatalog` solo quando configurato; NON `globalCatalog`.
+  Il client valida la capability senza attivare automaticamente la UI.
+- Nuova migrazione catalogo 004: chiude un difetto della 003, che controllava
+  l'esistenza della campagna target ma non il suo GM/ruleset. Ora sorgente e
+  destinazione sono bloccate, target deve appartenere all'attore ed essere
+  compatibile. La vecchia implementazione non è più eseguibile dal runtime.
+- Trasporto frontend immagini e note completo per i nuovi contenuti nativi:
+  firma/MIME/base64/dimensioni, note/sotto-tab/ordine/archivio, controllo
+  identità e revisione aggiornata. Non ancora collegato a tutti gli editor UI.
+- Build di contratto monta il componente originale nella sezione Personaggi,
+  senza nuova voce di menu né requisito di campagna selezionata. La build
+  pubblica mantiene la UI precedente: nessuna attivazione del catalogo parziale.
+- `ArubaCatalogTransforms.mjs`: creazione PNG/Mostro attende conferma e ID
+  canonico del server; errore conserva bozza, doppio click bloccato, modifica
+  successiva usa PUT sul nuovo ID e non una seconda POST. Sorgente originale
+  invariata; trasformazione controllata e testata contro cambi upstream.
+- Harness race riscritto: il vecchio aveva placeholder errati, più istruzioni
+  in query parametrizzate, ruolo persistente nel pool, migrazioni ripetute e
+  nessun guard sufficiente sul DB. Ora richiede `HG_DISPOSABLE_PG_RACE=1`,
+  DB vuoto dedicato `hollowgate_race_*`, verifica identità reale e connessioni
+  separate con transazioni e `SET LOCAL ROLE`. NON eseguito con PostgreSQL reale.
+- Browser contract aggiunto, con `playwright-core` pinned e browser installato,
+  server statico locale e API sintetiche. Le asserzioni applicative arrivano a
+  verifica di tab, bozza fallita conservata, retry e modifica dell'ID canonico.
+  **Il test integrale NON passa**: Chrome ed Edge locali ricevono script inline
+  estranei con richieste a `filtering.adblock360.com` (già osservate nelle vecchie
+  prove del repository). Richieste bloccate e errore `Failed to fetch`; nessuna
+  occorrenza del dominio nel bundle. Non sopprimere genericamente gli errori
+  applicativi per ottenere verde. Usare un browser/ambiente pulito per il gate.
+- Verifiche finali: API 293/293, VTT 511/511; entrambe le build superate.
+  QA DB/provenienza/lifecycle/catalogo/configurazione race: 39 passati,
+  0 falliti, 3 prove multi-connessione PG saltate. Tra questi, 6 verificano
+  SQL catalogo 004 e preflight con ruolo runtime reale, incluso rifiuto quando
+  manca il grant media o la vecchia implementazione risulta accessibile.
+
 ## Vincoli e autorizzazioni
 - Branch di lavoro: `tmp/aruba-transition-20261122`; non modificare `main`.
 - Commit/push GitHub autorizzati; rilascio catalogo autorizzato separatamente
@@ -32,7 +72,7 @@
 - Test frontend aggiunti: trasporto catalogo, validità TSX/codifica,
   isolamento pubblico e rifiuto esplicito delle operazioni non migrate.
 
-## Verifiche
+## Verifiche della prima tranche (`ced244dc`)
 - API: 288/288 superati dopo la correzione del routing.
 - Frontend: 501/501 superati nell'ultima esecuzione prima del checkpoint.
 - Build pubblica riparata: superata anche dopo il boundary di blocco.
@@ -50,13 +90,13 @@
 4. Completare salvataggio/duplicazione PG logici e reclamati, media, note,
    inviti con scelta del PG, presenza e aggiornamenti live. Non aggirare i
    controlli delle revisioni né le autorizzazioni.
-5. Collegare servizi catalogo e note in `index.mjs` con capability API reale,
-   opt-in e test di avvio; attualmente volutamente non istanziati.
-6. Montare il catalogo nella sezione originale Personaggi, senza inventare
-   un nuovo requisito di campagna selezionata o una voce GM aggiuntiva.
+5. Avvio/capability nativi collegati; completare il servizio globale storico,
+   la proiezione delle copie native nei consumer di campagna e relativi test.
+6. Montaggio nella sezione Personaggi fatto nella build di contratto; completare
+   ogni azione esposta prima di promuoverlo nella build pubblica.
 7. Test end-to-end browser con account GM/giocatore e PG/PNG/Mostri;
    prove race su PostgreSQL usa-e-getta, non sul DB operativo.
-8. Solo dopo: commit/push verificati, procedura rilascio con backup/rollback,
+8. Solo dopo: procedura rilascio con backup/rollback,
    eventuale comando sudo per operatore VPS, smoke test sull'origine pubblica.
 
 ## Comunicazione e risparmio contesto

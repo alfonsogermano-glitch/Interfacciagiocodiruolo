@@ -7,6 +7,7 @@ import {unavailableCatalogAction} from './catalog-client.mjs';
 type Scope={campaigns:Campaign[];joinedCampaigns:Campaign[];
  refreshCampaigns:()=>Promise<void>;refreshJoinedCampaigns:()=>Promise<void>};
 const Context=createContext<Scope|null>(null);
+export const catalogContractEnabled=true;
 export function useCampaign(){
  const scope=useContext(Context);
  if(!scope)throw Error('Contesto catalogo Aruba mancante');

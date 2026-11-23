@@ -1,13 +1,14 @@
 // In-memory PostgreSQL, actual SQL + restricted role + real service/HTTP.
 // No VPS, credentials, exports or active databases are used.
 // Applies migrations 001-038 (excluding 35/36/37 staging-only DO blocks) plus
-// native catalog migrations 001-003 (assign/copy to campaign).
+// native catalog migrations 001-004 (copy + target authorization).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync,readdirSync} from 'node:fs';
 import {PGlite} from '@electric-sql/pglite';
 import {createUnassignedCatalogService} from '../../../apps/aruba-api/src/unassigned-catalog-service.mjs';
 import {createUnassignedCatalogNotesService} from '../../../apps/aruba-api/src/unassigned-catalog-notes-service.mjs';
+import {configureNativeCatalog} from '../../../apps/aruba-api/src/native-catalog-startup.mjs';
 const owner='00000000-0000-4000-8000-000000000001';
 const unknownCampaign='00000000-0000-4000-8000-000000000099';
 const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a6l8AAAAASUVORK5CYII=';
@@ -21,7 +22,8 @@ async function fixture(){
   await db.exec(readFileSync(new URL(name,directory),'utf8'));
  await db.exec(readFileSync(new URL('catalog/001_unassigned_catalog.sql',directory),'utf8'));
  await db.exec(readFileSync(new URL('catalog/002_notes_and_duplication.sql',directory),'utf8'));
- await db.exec(readFileSync(new URL('catalog/003_catalog_assign_copy.sql',directory),'utf8'));
+  await db.exec(readFileSync(new URL('catalog/003_catalog_assign_copy.sql',directory),'utf8'));
+  await db.exec(readFileSync(new URL('catalog/004_catalog_copy_authorization.sql',directory),'utf8'));
  await db.query(`INSERT INTO hollowgate_auth.users(id,email,display_name,status,email_verified_at,source)
   VALUES($1,'catalog-owner@example.invalid','Catalog Owner','active',now(),'local')`,[owner]);
  const campaignId=(await db.query(`INSERT INTO hollowgate_vtt.campaigns(owner_id,name,description,ruleset)
@@ -90,5 +92,67 @@ test('copy to campaign refuses unknown campaign and unowned source',async()=>{
   await assert.rejects(()=>service.copyToCampaign(owner,'monsters',src.id,{revision:1,targetCampaignId:unknownCampaign}),rejected(404));
   const other='00000000-0000-4000-8000-000000000002';
   await assert.rejects(()=>service.copyToCampaign(other,'monsters',src.id,{revision:1,targetCampaignId:campaignId}),rejected(404));
+ }finally{await db.close();}
+});
+
+test('copy rejects another GM campaign for all kinds without copying anything',async()=>{
+ const {db,service,campaignId}=await fixture();
+ try{
+  const other='00000000-0000-4000-8000-000000000002';
+  await db.exec('RESET ROLE');
+  await db.query(`INSERT INTO hollowgate_auth.users(id,email,display_name,status,email_verified_at,source)
+   VALUES($1,'other@example.invalid','Other','active',now(),'local')`,[other]);
+  const target=(await db.query(`INSERT INTO hollowgate_vtt.campaigns(owner_id,name,description,ruleset)
+   VALUES($1,'Other Campaign','','hsc') RETURNING id`,[other])).rows[0].id;
+  await db.exec('SET ROLE hollowgate_api_runtime');
+  for(const kind of ['characters','npcs','monsters']){
+   const {item}=await service.create(owner,kind,body(kind));
+   await assert.rejects(service.copyToCampaign(owner,kind,item.id,{revision:item.revision,targetCampaignId:target}),rejected(404));
+   assert.equal((await service.read(owner,kind,item.id)).item.revision,item.revision);
+  }
+  await db.exec('RESET ROLE');
+  assert.equal((await db.query('SELECT count(*)::int AS n FROM hollowgate_vtt.catalog_entities WHERE campaign_id IS NOT NULL')).rows[0].n,0);
+  assert.equal((await db.query(`SELECT has_function_privilege('hollowgate_api_runtime',
+   'hollowgate_vtt.copy_unassigned_catalog_to_campaign_v003(uuid,text,uuid,uuid,integer)','EXECUTE') AS allowed`)).rows[0].allowed,false);
+ }finally{await db.close();}
+});
+
+test('copy rejects incompatible rulesets without modifying notes or media',async()=>{
+ const {db,service,notes}=await fixture();
+ try{
+  await db.exec('RESET ROLE');
+  const target=(await db.query(`INSERT INTO hollowgate_vtt.campaigns(owner_id,name,description,ruleset)
+   VALUES($1,'Custom Campaign','','custom') RETURNING id`,[owner])).rows[0].id;
+  await db.exec('SET ROLE hollowgate_api_runtime');
+  const {item}=await service.create(owner,'npcs',body('npcs'));
+  const media=await service.saveMedia(owner,'npcs',item.id,'portrait',{revision:item.revision,mimeType:'image/png',dataBase64:png});
+  const note=await notes.create(owner,'npcs',item.id,{revision:media.item.revision,tabName:'Privata'});
+  await assert.rejects(service.copyToCampaign(owner,'npcs',item.id,
+   {revision:note.item.revision,targetCampaignId:target}),rejected(400));
+  assert.equal((await service.read(owner,'npcs',item.id)).item.revision,note.item.revision);
+  assert.equal((await notes.list(owner,'npcs',item.id)).notes.length,1);
+  await db.exec('RESET ROLE');
+  assert.equal((await db.query('SELECT count(*)::int AS n FROM hollowgate_vtt.catalog_entities')).rows[0].n,1);
+ }finally{await db.close();}
+});
+
+test('startup preflight accepts the real secure schema under restricted runtime only',async()=>{
+ const {db}=await fixture();
+ try{
+  const config={flag:'true',authEnabled:true,campaigns:{},pool:{query:(text,args)=>db.query(text,args)}};
+  const services=await configureNativeCatalog(config);
+  assert.equal(typeof services.unassignedCatalog.copyToCampaign,'function');
+  await db.exec('RESET ROLE');
+  await db.exec(`REVOKE EXECUTE ON FUNCTION hollowgate_vtt.save_unassigned_catalog_media(uuid,text,uuid,integer,text,text,bytea)
+   FROM hollowgate_api_runtime`);
+  await db.exec('SET ROLE hollowgate_api_runtime');
+  await assert.rejects(configureNativeCatalog(config),/restricted runtime grants/);
+  await db.exec('RESET ROLE');
+  await db.exec(`GRANT EXECUTE ON FUNCTION hollowgate_vtt.save_unassigned_catalog_media(uuid,text,uuid,integer,text,text,bytea)
+   TO hollowgate_api_runtime`);
+  await db.exec(`GRANT EXECUTE ON FUNCTION hollowgate_vtt.copy_unassigned_catalog_to_campaign_v003(uuid,text,uuid,uuid,integer)
+   TO hollowgate_api_runtime`);
+  await db.exec('SET ROLE hollowgate_api_runtime');
+  await assert.rejects(configureNativeCatalog(config),/restricted runtime grants/);
  }finally{await db.close();}
 });

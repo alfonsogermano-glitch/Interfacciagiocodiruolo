@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {build,transform} from 'esbuild';
+import {acknowledgeOriginalCatalogCreation} from '../src/ArubaCatalogTransforms.mjs';
 const source=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
 test('real pilot entry remains valid TSX with intact Italian text',async()=>{
  const pilot=source('src/main.tsx');
@@ -24,4 +25,15 @@ test('original adapter unavailable actions reject instead of returning fake succ
   assert.throws(()=>adapter[name](),/nessuna modifica eseguita/,name);
  }
  await assert.rejects(adapter.duplicateEntityNotes('npc','source','target'));
+});
+test('original draft transport waits for canonical identity and preserves failed drafts',async()=>{
+ const original=readFileSync(new URL('../../../src/app/components/gm/MyCharactersPage.tsx',import.meta.url),'utf8');
+ const isolated=acknowledgeOriginalCatalogCreation(original);
+ await transform(isolated,{loader:'tsx'});
+ assert.match(isolated,/const saved = await saveNPC/);
+ assert.match(isolated,/const saved = await saveMonster/);
+ assert.match(isolated,/onOpenDetail\('npc', saved.id\)/);
+ assert.match(isolated,/onOpenDetail\('monster', saved.id\)/);
+ assert.match(isolated,/disabled=\{catalogCreating \|\| !detailData.name.trim\(\)\}/);
+ assert.throws(()=>acknowledgeOriginalCatalogCreation('upstream changed'),/contract changed/);
 });
