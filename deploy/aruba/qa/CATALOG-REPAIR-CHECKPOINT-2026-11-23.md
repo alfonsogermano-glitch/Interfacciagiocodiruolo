@@ -1,6 +1,6 @@
 # Checkpoint riparazione catalogo — 23 novembre 2026
 
-## Ultimo incremento (`787d3c80`, dopo `bc4c4c13`)
+## Ultimo incremento (`f2d6eb53`, dopo `787d3c80`)
 - Nuovo catalogo PG logici `/vtt/catalog/logical-characters`: lettura paginata,
   creazione senza campagna, salvataggio CAS e archiviazione non distruttiva.
   Le nuove creazioni PG passano da questo modello, non dal catalogo nativo
@@ -188,10 +188,8 @@
    prove race su PostgreSQL usa-e-getta, non sul DB operativo.
 8. Solo dopo: procedura rilascio con backup/rollback,
    eventuale comando sudo per operatore VPS, smoke test sull'origine pubblica.
-9. Continuazione: storico PNG/Mostri (estrazione storica, zero dirasee nel
-   catalogo nativo); proiettare i nativi nei consumer di campagna; editor
-   media/note globali; completare duplicazione del reclamato con proiezione
-   approvata; poi E2E browser/PG reale; poi procedura rilascio.
+9. Storico PNG/Mostri (estrazione storica): DONE - endpoint read-only `'/vtt/storico/png-mostri`, vista SQL 040_vtt_storico_png_mostri.sql, funzioni list_storico_png_mostri/read_storico_png_mostri, transport adapter loadStoricoPngMostri. Verdi: API 299/299, frontend 520/520, DB storico 1/1.
+10. Proiettare i nativi nei consumer di campagna; editor media/note globali; completare duplicazione del reclamato con proiezione approvata; poi E2E browser/PG reale; poi procedura rilascio.
 
 ## Comunicazione e risparmio contesto
 Risposte brevi in italiano. Riportare soltanto verifiche realmente eseguite.
