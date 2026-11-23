@@ -101,7 +101,7 @@ class HttpProblem extends Error {
   }
 }
 
-export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, oauth = null, passwordReset = null, signupService = null, campaigns = null,campaignInvites = null,chapters = null,scenes = null,narrativeContent = null,unassignedCatalog = null,unassignedCatalogNotes = null,equipmentCatalog = null,campaignDocuments = null,campaignChat = null,diceFormulas = null,visualAssets = null,characters = null,entityNotes = null,narrativeEntityNotes = null,campaignNotes = null,campaignFolders = null,notesPanelEnabled = false,campaignRoster = null,characterAvailability = null,characterAssignments = null,playerCharacters = null,characterClaims = null,characterPortraits = null, logicalCharacters = null, turnCredentials = null, gameSessionBootstrap = null,nativeCatalog = null,nativeCatalogNotes = null }) {
+export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, oauth = null, passwordReset = null, signupService = null, campaigns = null,campaignInvites = null,chapters = null,scenes = null,narrativeContent = null,unassignedCatalog = null,unassignedCatalogNotes = null,equipmentCatalog = null,campaignDocuments = null,campaignChat = null,diceFormulas = null,visualAssets = null,characters = null,entityNotes = null,narrativeEntityNotes = null,campaignNotes = null,campaignFolders = null,notesPanelEnabled = false,campaignRoster = null,characterAvailability = null,characterAssignments = null,playerCharacters = null,characterClaims = null,characterPortraits = null, logicalCharacters = null, turnCredentials = null, gameSessionBootstrap = null,nativeCatalog = null,nativeCatalogNotes = null,storicoPngMostri = null }) {
   if(typeof notesPanelEnabled!=='boolean'||(notesPanelEnabled&&(!campaignNotes||!campaignFolders)))
     throw new TypeError('Original Notes panel requires both authenticated Notes and folders');
   const allowedOrigin = new URL(origin);
@@ -344,6 +344,24 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         if(req.method==='DELETE')return response(res,200,await catalog.archive(user.id,id,body));
         if(id)return response(res,200,await catalog.save(user.id,id,body));
         return response(res,201,await catalog.create(user.id,body));
+      }
+      // Read-only historical PNG/Mostri of the old site. Historical rows stay
+      // in npcs/monsters; the native catalog is never written.
+      if(storicoPngMostri&&req.url?.startsWith('/vtt/storico/png-mostri')){
+        const url=new URL(req.url,origin);
+        const match=/^\/vtt\/storico\/png-mostri(?:\/([0-9a-f-]{36}))?$/i.exec(url.pathname);
+        if(!match)throw new HttpProblem(400,'Percorso storico PNG/Mostri non valido');
+        const [,id]=match;
+        if(req.method!=='GET')throw new HttpProblem(405,'Metodo non consentito');
+        const keys=[...url.searchParams.keys()];
+        if(id&&keys.length||!id&&(keys.length>1||(keys[0]&&keys[0]!=='after')))
+          throw new HttpProblem(400,'Query storico non valida');
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        return response(res,200,id?await storicoPngMostri.read(user.id,id):
+          await storicoPngMostri.list(user.id,url.searchParams.get('after')));
       }
       // Explicit native catalog opt-in. This is NOT the complete global catalog.
       if(unassignedCatalog&&req.url?.startsWith('/vtt/catalog/unassigned/')||

@@ -28,6 +28,7 @@ import {createCharacterClaimService} from './character-claim-service.mjs';
 import {createLogicalCharacterService} from './logical-character-service.mjs';
 import {configureNativeCatalog} from './native-catalog-startup.mjs';
 import {configureLogicalCharacterCatalog,requireLogicalCharacterSafety} from './logical-character-catalog-startup.mjs';
+import {createStoricoPngMostriService} from './storico-png-mostri-service.mjs';
 import {createGameSessionBootstrap} from './game-session-bootstrap.mjs';
 import {createCharacterPortraitService} from './character-portrait-service.mjs';
 import {createEntityNotesService} from './entity-notes-service.mjs';
@@ -192,6 +193,7 @@ async function main() {
       throw new Error('Character logical ownership requires staging characters');
     const logicalCharacters=logicalFlag==='true'?createLogicalCharacterService({pool}):null;
     if(logicalCharacters)await requireLogicalCharacterSafety({pool});
+    const storicoPngMostri=createStoricoPngMostriService({pool});
     const logicalCatalog=await configureLogicalCharacterCatalog({
       flag:process.env.AUTH_VTT_CHARACTER_CATALOG_ENABLED,logicalCharacters,pool});
     if(logicalCatalog)logicalCharacters.catalog=logicalCatalog;
@@ -293,7 +295,7 @@ async function main() {
         identity:signalingIdentity,sharedSecret:secret,urls,
       });
     }
-    authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession, oauth,passwordReset,signupService,campaigns,campaignInvites,chapters,scenes,narrativeContent,equipmentCatalog,campaignDocuments,campaignChat,diceFormulas,visualAssets,characters,entityNotes,narrativeEntityNotes,campaignNotes,campaignFolders,notesPanelEnabled,campaignRoster,characterAvailability,characterAssignments,playerCharacters,characterClaims,characterPortraits,logicalCharacters,unassignedCatalog,unassignedCatalogNotes,nativeCatalog,nativeCatalogNotes,turnCredentials,gameSessionBootstrap});
+    authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession, oauth,passwordReset,signupService,campaigns,campaignInvites,chapters,scenes,narrativeContent,equipmentCatalog,campaignDocuments,campaignChat,diceFormulas,visualAssets,characters,entityNotes,narrativeEntityNotes,campaignNotes,campaignFolders,notesPanelEnabled,campaignRoster,characterAvailability,characterAssignments,playerCharacters,characterClaims,characterPortraits,logicalCharacters,unassignedCatalog,unassignedCatalogNotes,nativeCatalog,nativeCatalogNotes,storicoPngMostri,turnCredentials,gameSessionBootstrap});
   } else if (process.env.AUTH_VTT_NATIVE_CATALOG_ENABLED === 'true') {
     throw new Error('Native catalog requires authenticated runtime');
   } else if (process.env.AUTH_VTT_CHARACTER_CATALOG_ENABLED === 'true') {

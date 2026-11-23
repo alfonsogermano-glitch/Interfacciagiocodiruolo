@@ -150,6 +150,22 @@ export function isLastActiveCharacterForOwner<T extends {id:string;ownerProfileI
 }
 export const loadNPCsByOwner=(ownerId:string)=>nativeList('npcs',ownerId);
 export const loadMonstersByOwner=(ownerId:string)=>nativeList('monsters',ownerId);
+const STORICO_ID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function validateStoricoPage(page:any){
+ if(!page||typeof page!=='object'||!Array.isArray(page.items)||page.items.length>100||
+    (page.nextCursor!==null&&typeof page.nextCursor!=='string'))
+  throw Error('Pagina storico PNG/Mostri non valida');
+ for(const item of page.items){
+  if(!item||typeof item!=='object'||!STORICO_ID.test(item.id)||
+     (item.campaignId!==null&&!STORICO_ID.test(item.campaignId))||
+     !['npcs','monsters'].includes(item.storicoType)||!item.name)
+   throw Error('Elemento storico PNG/Mostri non valido');
+ }
+ return {items:page.items,nextCursor:page.nextCursor};
+}
+export async function loadStoricoPngMostri(){
+ return validateStoricoPage(await json('/vtt/storico/png-mostri'));
+}
 export async function loadChapters(campaignId:string){
  actor();const page=await json(`/vtt/campaigns/${campaignId}/chapters`);
  if(!Array.isArray(page.chapters))throw Error('Elenco capitoli non valido');
