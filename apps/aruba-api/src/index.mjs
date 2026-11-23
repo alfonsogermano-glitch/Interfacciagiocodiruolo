@@ -27,6 +27,7 @@ import {createPlayerCharacterService} from './player-character-service.mjs';
 import {createCharacterClaimService} from './character-claim-service.mjs';
 import {createLogicalCharacterService} from './logical-character-service.mjs';
 import {configureNativeCatalog} from './native-catalog-startup.mjs';
+import {configureLogicalCharacterCatalog,requireLogicalCharacterSafety} from './logical-character-catalog-startup.mjs';
 import {createGameSessionBootstrap} from './game-session-bootstrap.mjs';
 import {createCharacterPortraitService} from './character-portrait-service.mjs';
 import {createEntityNotesService} from './entity-notes-service.mjs';
@@ -190,6 +191,10 @@ async function main() {
     if(logicalFlag==='true'&&!characters)
       throw new Error('Character logical ownership requires staging characters');
     const logicalCharacters=logicalFlag==='true'?createLogicalCharacterService({pool}):null;
+    if(logicalCharacters)await requireLogicalCharacterSafety({pool});
+    const logicalCatalog=await configureLogicalCharacterCatalog({
+      flag:process.env.AUTH_VTT_CHARACTER_CATALOG_ENABLED,logicalCharacters,pool});
+    if(logicalCatalog)logicalCharacters.catalog=logicalCatalog;
     const {unassignedCatalog,unassignedCatalogNotes,nativeCatalog,nativeCatalogNotes}=await configureNativeCatalog({
       flag:process.env.AUTH_VTT_NATIVE_CATALOG_ENABLED,authEnabled:true,campaigns,pool});
     const availabilityFlag=process.env.AUTH_VTT_CHARACTER_AVAILABILITY_ENABLED;
@@ -291,6 +296,8 @@ async function main() {
     authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession, oauth,passwordReset,signupService,campaigns,campaignInvites,chapters,scenes,narrativeContent,equipmentCatalog,campaignDocuments,campaignChat,diceFormulas,visualAssets,characters,entityNotes,narrativeEntityNotes,campaignNotes,campaignFolders,notesPanelEnabled,campaignRoster,characterAvailability,characterAssignments,playerCharacters,characterClaims,characterPortraits,logicalCharacters,unassignedCatalog,unassignedCatalogNotes,nativeCatalog,nativeCatalogNotes,turnCredentials,gameSessionBootstrap});
   } else if (process.env.AUTH_VTT_NATIVE_CATALOG_ENABLED === 'true') {
     throw new Error('Native catalog requires authenticated runtime');
+  } else if (process.env.AUTH_VTT_CHARACTER_CATALOG_ENABLED === 'true') {
+    throw new Error('Character catalog requires authenticated runtime');
   } else if (process.env.AUTH_VTT_NARRATIVE_CONTENT_ENABLED === 'true') {
     throw new Error('Narrative content requires dedicated auth staging');
   } else if (process.env.AUTH_VTT_SCENES_ENABLED === 'true') {

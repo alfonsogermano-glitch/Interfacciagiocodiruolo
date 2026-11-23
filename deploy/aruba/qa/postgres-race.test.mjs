@@ -21,7 +21,7 @@ before(async()=>{
  await assertEmptyRaceDatabase(pool,config.database);
  const directory=new URL('../sql/',import.meta.url);
  for(const name of readdirSync(directory).filter(name=>/^\d{3}_.*\.sql$/.test(name)&&
-  Number(name.slice(0,3))<=38&&![35,36,37].includes(Number(name.slice(0,3)))).sort()){
+  Number(name.slice(0,3))<=39&&![35,36,37].includes(Number(name.slice(0,3)))).sort()){
   await pool.query(readFileSync(new URL(name,directory),'utf8'));
  }
  for(const name of ['001_unassigned_catalog.sql','002_notes_and_duplication.sql',

@@ -2,9 +2,11 @@
 // Native catalog and logical characters have different identities/lifecycles.
 // Missing migrations fail explicitly instead of issuing the wrong mutation.
 import {createCatalogClient,catalogData,originalCatalogEntity,unavailableCatalogAction} from './catalog-client.mjs';
+import {createLogicalCharacterCatalogClient} from './logical-character-catalog-client.mjs';
 import type {NPC,Monster} from '../../../src/services/supabase/entitiesService';
 export type {NPC,Monster};
 const client=createCatalogClient((...args:Parameters<typeof fetch>)=>fetch(...args),{native:true});
+const logicalClient=createLogicalCharacterCatalogClient((...args:Parameters<typeof fetch>)=>fetch(...args));
 const entries=new Map<string,any>();
 const duplicatedNotes=new Set<string>();
 let actorId:string|null=null;
@@ -29,6 +31,14 @@ function observed(kind:string,id:string){
  const row=entries.get(id);
  if(!row||row.kind!==kind)throw Error('Ricarica il contenuto prima di modificarlo.');
  return row;
+}
+function rememberLogical(row:any){
+ if(row.logicalOwnerId!==actor())throw Error('Sessione catalogo cambiata');
+ entries.set(row.id,{...row,kind:'characters',storage:'logical'});
+ return {...row.sheetData,id:row.id,name:row.name,campaignId:row.campaignId,
+  ownerProfileId:row.logicalOwnerId,originalOwnerProfileId:row.originalOwnerId,
+  availableForPlayers:row.availableForPlayers,claimableOrigin:row.claimableOrigin,
+  ruleset:row.ruleset,createdAt:row.createdAt,updatedAt:row.updatedAt,_arubaRevision:row.revision};
 }
 async function nativeList(kind:string,ownerId:string){
  if(ownerId!==actor())throw Error('Proprietario catalogo non coerente');
@@ -66,49 +76,57 @@ async function copy(kind:string,id:string,targetCampaignId:string){
 export async function loadCharactersByOwner(ownerId:string){
  if(ownerId!==actor())throw Error('Proprietario catalogo non coerente');
  const native=await nativeList('characters',ownerId);
- const characters:any[]=[],cursors=new Set<string>();
- let cursor:string|null=null;
- do{
-  const page=await json('/vtt/characters'+(cursor?'?after='+encodeURIComponent(cursor):''));
-  if(!Array.isArray(page.characters))throw Error('Elenco personaggi non valido');
-  for(const row of page.characters){
-   if(actor()!==ownerId||row.logicalOwnerId!==ownerId)throw Error('Proprietà logica non coerente');
-   entries.set(row.id,{...row,kind:'characters',storage:'logical'});
-   characters.push({...row.sheetData,id:row.id,name:row.name,campaignId:row.campaignId,
-    ownerProfileId:row.logicalOwnerId,originalOwnerProfileId:row.originalOwnerId,
-    availableForPlayers:row.availableForPlayers,claimableOrigin:row.claimableOrigin,
-    ruleset:row.ruleset,createdAt:row.createdAt,updatedAt:row.updatedAt});
-  }
-  cursor=page.nextCursor;
-  if(cursor!==null){
-   if(typeof cursor!=='string'||page.characters.length===0||cursors.has(cursor))throw Error('Cursore personaggi non valido');
-   cursors.add(cursor);
-  }
- }while(cursor!==null);
+ const characters=(await logicalClient.list(ownerId)).map(rememberLogical);
+ if(new Set([...characters,...native].map(row=>row.id)).size!==characters.length+native.length)
+  throw Error('Identità personaggio ambigua');
  return [...characters,...native];
 }
 export async function saveCharacter(_campaignId:string|null,character:any,ownerId:string,ruleset?:string){
  if(ownerId!==actor())throw Error('Proprietario catalogo non coerente');
- await saveNative('characters',character,ruleset);
+ if(character.ownerProfileId!==undefined&&character.ownerProfileId!==ownerId)
+  throw Error('Sessione catalogo cambiata: nessuna modifica eseguita.');
+ const source=entries.get(character.id);
+ if(source?.status==='archived')throw Error('Personaggio archiviato: nessuna modifica eseguita.');
+ if(source?.storage==='native')return saveNative('characters',character,ruleset);
+ const body={name:character.name,ruleset:source?source.ruleset:ruleset??character.ruleset,sheetData:catalogData(character)};
+ const saved=source?await logicalClient.save(ownerId,source.id,{...body,revision:source.revision}):
+  await logicalClient.create(ownerId,body);
+ return rememberLogical(saved);
 }
-export const deleteCharacter=(id:string)=>archiveNative('characters',id);
+export async function deleteCharacter(id:string){
+ const ownerId=actor(),source=observed('characters',id);
+ if(source.storage==='native')return archiveNative('characters',id);
+ const archived=await logicalClient.archive(ownerId,id,source.revision);
+ if(actor()!==ownerId)throw Error('Sessione catalogo cambiata');
+ entries.set(id,{...archived,kind:'characters',storage:'logical'});
+}
 export const loadAvailableCharactersForInvite=unavailableCatalogAction;
 export async function assignCharacterToCampaign(id:string,_base:string,_token:string,body:any){
  actor();const source=observed('characters',id);
  if(source.storage!=='logical'||!Object.hasOwn(body,'campaignId'))return unavailableCatalogAction();
  const result=await json(`/vtt/characters/${id}/campaign`,'PATCH',{campaignId:body.campaignId});
- source.campaignId=result.assignment.campaignId;
+ rememberLogical(await logicalClient.read(actor(),id));
  return {campaignId:result.assignment.campaignId};
 }
 export async function unassignCharacterFromCampaign(id:string,base:string,token:string){
  await assignCharacterToCampaign(id,base,token,{campaignId:null});
 }
-export const duplicateCharacter=(id:string,_ownerId:string)=>duplicate('characters',id);
+export async function duplicateCharacter(id:string,ownerId:string){
+ if(ownerId!==actor())throw Error('Proprietario catalogo non coerente');
+ const source=observed('characters',id);
+ if(source.storage==='native')return duplicate('characters',id);
+ const saved=await logicalClient.duplicate(ownerId,id,source.revision,crypto.randomUUID());
+ duplicatedNotes.add(`characters:${id}:${saved.id}`);
+ return rememberLogical(saved);
+}
 export async function setCharacterAvailableForPlayers(id:string,available:boolean){
  actor();const source=observed('characters',id);
  if(source.storage!=='logical'||!source.campaignId)return unavailableCatalogAction();
  await json(`/vtt/character-availability/${id}`,'PATCH',
   {campaignId:source.campaignId,availableForPlayers:available});
+ const fresh=await logicalClient.read(actor(),id);
+ if(fresh.availableForPlayers!==available)throw Error('Disponibilità personaggio non confermata');
+ rememberLogical(fresh);
 }
 export async function loadAvailableCharactersInCampaigns(campaignIds:string[]){
  actor();const result:any[]=[];
@@ -146,6 +164,7 @@ async function archiveNative(kind:string,id:string){
  const ownerId=actor(),source=observed(kind,id);
  if(source.storage!=='native')return unavailableCatalogAction();
  const result=await client.archive(kind,id,ownerId,source.revision);
+ if(actor()!==ownerId)throw Error('Sessione catalogo cambiata');
  // Keep a tombstone: a delayed autosave must not recreate the deleted record.
  entries.set(id,{...result.item,storage:'native'});
 }

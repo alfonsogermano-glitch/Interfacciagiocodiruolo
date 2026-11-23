@@ -1,6 +1,6 @@
 // In-memory PostgreSQL, actual SQL + restricted role + real services.
 // No VPS, credentials, exports or active databases are used. Migration 038 is
-// applied here; the incremental catalog migrations are not part of this scope.
+// applied with 039 as a regression; native catalog migrations are out of scope.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync,readdirSync} from 'node:fs';
@@ -21,7 +21,7 @@ const bad=status=>error=>error.status===status;
 async function fixture(){
  const db=new PGlite();
  const directory=new URL('../sql/',import.meta.url);
- const names=readdirSync(directory).filter(name=>/^\d{3}_.*\.sql$/.test(name)&&Number(name.slice(0,3))<=38&&![35,36,37].includes(Number(name.slice(0,3)))).sort();
+  const names=readdirSync(directory).filter(name=>/^\d{3}_.*\.sql$/.test(name)&&Number(name.slice(0,3))<=39&&![35,36,37].includes(Number(name.slice(0,3)))).sort();
  for(const name of names) await db.exec(readFileSync(new URL(name,directory),'utf8'));
  const routines=[
   ['hollowgate_vtt.create_owned_campaign','uuid,text,text,text'],

@@ -43,5 +43,11 @@ export function acknowledgeOriginalCatalogCreation(input){
  once('const handleCloseDetail = () => {','const handleCloseDetail = () => {\n    if (catalogCreationLockRef.current) return;');
  once('disabled={!detailData.name.trim()}','disabled={catalogCreating || !detailData.name.trim()}');
  once('onUpdate={(updated) => {','onUpdate={(updated) => {\n                if (catalogCreationLockRef.current) return;');
+ once("console.error('Errore salvataggio personaggio su Supabase:', error);",
+  "showToast(error instanceof Error ? error.message : 'Scheda non salvata: ricarica prima di riprovare.');");
+ once("saveNPC(updated.campaignId ?? '', updated as NPC).catch(err => console.error('Errore salvataggio PNG:', err));",
+  "saveNPC(updated.campaignId ?? '', updated as NPC).catch(err => showToast(err instanceof Error ? err.message : 'PNG non salvato.'));");
+ once("saveMonster(updated.campaignId ?? '', updated as Monster).catch(err => console.error('Errore salvataggio mostro:', err));",
+  "saveMonster(updated.campaignId ?? '', updated as Monster).catch(err => showToast(err instanceof Error ? err.message : 'Mostro non salvato.'));");
  return code;
 }

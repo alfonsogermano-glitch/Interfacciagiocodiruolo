@@ -49,9 +49,9 @@ try{
   if(path==='/vtt/bootstrap')payload={backend:'aruba-staging',
    user:{id:owner,email:'qa@example.invalid',displayName:'GM QA',role:'standard'},
    capabilities:{campaigns:{read:true,write:true},characters:{read:true,write:true},
-    logicalCharacters:{read:true,write:true},nativeCatalog:{read:true,write:true},gameSession:false}};
+    logicalCharacters:{read:true,write:true},logicalCharacterCatalog:{read:true,write:true},nativeCatalog:{read:true,write:true},gameSession:false}};
   else if(path==='/vtt/campaigns'||path==='/vtt/player-campaigns')payload={campaigns:[]};
-  else if(path==='/vtt/characters')payload={characters:[],nextCursor:null};
+  else if(path==='/vtt/catalog/logical-characters')payload={characters:[],nextCursor:null};
   else{
    const match=/^\/vtt\/catalog\/native\/(characters|npcs|monsters)$/.exec(path);
    if(match&&request.method()==='GET')payload={items:entries[match[1]],nextCursor:null};

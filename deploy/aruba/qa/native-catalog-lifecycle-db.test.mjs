@@ -12,7 +12,7 @@ const png='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCA
 const draft={name:'Custode',ruleset:'hsc',data:{description:'Originale',notes:'Conservare',tabOrder:['scheda']}};
 async function fixture(){
  const db=new PGlite(),directory=new URL('../sql/',import.meta.url);
- for(const name of readdirSync(directory).filter(n=>/^\d{3}_.*\.sql$/.test(n)&&Number(n.slice(0,3))<=38&&![35,36,37].includes(Number(n.slice(0,3)))).sort())
+ for(const name of readdirSync(directory).filter(n=>/^\d{3}_.*\.sql$/.test(n)&&Number(n.slice(0,3))<=39&&![35,36,37].includes(Number(n.slice(0,3)))).sort())
   await db.exec(readFileSync(new URL(name,directory),'utf8'));
  for(const name of readdirSync(new URL('catalog/',directory)).filter(n=>/^00[1-5]_.*\.sql$/.test(n)).sort())
   await db.exec(readFileSync(new URL('catalog/'+name,directory),'utf8'));

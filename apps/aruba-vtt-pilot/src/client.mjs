@@ -64,6 +64,9 @@ export function validateBootstrap(data){
       typeof c.logicalCharacters.read!=='boolean'||
       c.logicalCharacters.read!==c.logicalCharacters.write||
        (c.logicalCharacters.read&&c.characters?.read!==true)))||
+    (c.logicalCharacterCatalog!==undefined&&(
+      typeof c.logicalCharacterCatalog.read!=='boolean'||c.logicalCharacterCatalog.read!==c.logicalCharacterCatalog.write||
+      (c.logicalCharacterCatalog.read&&c.logicalCharacters?.read!==true)))||
     (c.nativeCatalog!==undefined&&(
       typeof c.nativeCatalog.read!=='boolean'||c.nativeCatalog.read!==c.nativeCatalog.write||
       (c.nativeCatalog.read&&c.campaigns?.read!==true)))||
@@ -118,6 +121,7 @@ export function validateBootstrap(data){
     playerCharactersEnabled:c.playerCharacters?.read===true,
     characterClaimsEnabled:c.characterClaims?.read===true,
     logicalCharactersEnabled:c.logicalCharacters?.read===true,
+    logicalCharacterCatalogEnabled:c.logicalCharacterCatalog?.read===true,
     nativeCatalogEnabled:c.nativeCatalog?.read===true,
     characterPortraitsEnabled:c.characterPortraits?.read===true,
     campaignRosterEnabled:c.campaignRoster?.read===true,

@@ -133,6 +133,8 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
     throw new TypeError('Invalid unassigned catalog service');
   if(nativeCatalog!==null&&['list','read','create','save','saveMedia','readMedia','duplicate','copyToCampaign','assign','archive'].some(k=>typeof nativeCatalog[k]!=='function'))
     throw new TypeError('Invalid native catalog service');
+  if(logicalCharacters?.catalog&&['list','read','create','save','duplicate','archive'].some(k=>typeof logicalCharacters.catalog[k]!=='function'))
+    throw new TypeError('Invalid logical character catalog service');
   if(nativeCatalogNotes!==null&&(!nativeCatalog||['list','create','save','archive','reorder'].some(k=>typeof nativeCatalogNotes[k]!=='function')))
     throw new TypeError('Invalid native catalog notes service');
   if(unassignedCatalogNotes!==null&&(!unassignedCatalog||['list','create','save','archive','reorder'].some(k=>typeof unassignedCatalogNotes[k]!=='function')))
@@ -318,6 +320,30 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
         if(req.method==='DELETE')return response(res,200,await scenes.remove(user.id,match[1],match[2]));
         return response(res,200,await scenes.save(user.id,match[1],await readJson(req,100000)));
+      }
+      if(logicalCharacters?.catalog&&req.url?.startsWith('/vtt/catalog/logical-characters')){
+        const url=new URL(req.url,origin);
+        const match=/^\/vtt\/catalog\/logical-characters(?:\/([0-9a-f-]{36})(\/duplicate)?)?$/i.exec(url.pathname);
+        if(!match)throw new HttpProblem(400,'Percorso catalogo PG non valido');
+        const [,id,duplicate]=match;
+        const methods=duplicate?['POST']:id?['GET','PUT','DELETE']:['GET','POST'];
+        if(!methods.includes(req.method))throw new HttpProblem(405,'Metodo non consentito');
+        const keys=[...url.searchParams.keys()];
+        if(keys.length&&(req.method!=='GET'||id||keys.length!==1||keys[0]!=='after'))
+          throw new HttpProblem(400,'Query catalogo PG non valida');
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        const catalog=logicalCharacters.catalog;
+        if(req.method==='GET')return response(res,200,id?await catalog.read(user.id,id):
+          await catalog.list(user.id,url.searchParams.get('after')));
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        const body=await readJson(req,100000);
+        if(duplicate)return response(res,200,await catalog.duplicate(user.id,id,body));
+        if(req.method==='DELETE')return response(res,200,await catalog.archive(user.id,id,body));
+        if(id)return response(res,200,await catalog.save(user.id,id,body));
+        return response(res,201,await catalog.create(user.id,body));
       }
       // Explicit native catalog opt-in. This is NOT the complete global catalog.
       if(unassignedCatalog&&req.url?.startsWith('/vtt/catalog/unassigned/')||
@@ -1095,6 +1121,7 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
             characterClaims:{read:!!characterClaims,write:!!characterClaims},
             characterPortraits:{read:!!characterPortraits,write:!!characterPortraits},
             logicalCharacters:{read:!!logicalCharacters,write:!!logicalCharacters},
+            ...(logicalCharacters?.catalog?{logicalCharacterCatalog:{read:true,write:true}}:{}),
             ...(campaigns&&nativeCatalog&&nativeCatalogNotes?{nativeCatalog:{read:true,write:true}}:{}),
             entityNotes:{read:!!entityNotes,write:!!entityNotes},
             narrativeEntityNotes:{read:!!narrativeEntityNotes,write:!!narrativeEntityNotes},

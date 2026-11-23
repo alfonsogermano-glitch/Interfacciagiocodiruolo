@@ -415,7 +415,7 @@ DECLARE v_logical_owner_id uuid;v_campaign_id uuid;v_owner_id uuid;v_status text
 BEGIN
  IF NOT EXISTS(SELECT 1 FROM hollowgate_auth.users u
    WHERE u.id=p_actor AND u.status='active' AND u.email_verified_at IS NOT NULL) THEN
-  RETURN QUERY SELECT 'forbidden'::text,NULL::uuid,NULL::text;
+  RETURN QUERY SELECT 'forbidden'::text,NULL::uuid,NULL::text;RETURN;
  END IF;
  SELECT d.logical_owner_id,d.campaign_id,d.owner_id,d.status,d.ruleset
   INTO v_logical_owner_id,v_campaign_id,v_owner_id,v_status,v_ruleset
@@ -423,21 +423,17 @@ BEGIN
   WHERE d.id=p_character
   FOR UPDATE OF d;
  IF NOT FOUND OR v_status='archived' THEN
-  RETURN QUERY SELECT 'not_found'::text,NULL::uuid,NULL::text;
+  RETURN QUERY SELECT 'not_found'::text,NULL::uuid,NULL::text;RETURN;
  END IF;
- v_may_manage := (v_logical_owner_id=p_actor) OR (v_logical_owner_id IS NULL AND v_owner_id=p_actor);
- IF v_campaign_id IS NOT NULL THEN
-  v_may_manage := v_may_manage OR EXISTS(
-   SELECT 1 FROM hollowgate_vtt.campaigns c WHERE c.id=v_campaign_id AND c.owner_id=p_actor);
- END IF;
+ v_may_manage := COALESCE(v_logical_owner_id,v_owner_id)=p_actor;
  IF NOT v_may_manage THEN
-  RETURN QUERY SELECT 'forbidden'::text,NULL::uuid,NULL::text;
+  RETURN QUERY SELECT 'forbidden'::text,NULL::uuid,NULL::text;RETURN;
  END IF;
  IF p_campaign IS NULL THEN
   DELETE FROM hollowgate_vtt.character_player_assignments WHERE character_id=p_character;
   DELETE FROM hollowgate_vtt.character_claims WHERE character_id=p_character;
   UPDATE hollowgate_vtt.character_drafts SET campaign_id=NULL,updated_at=now() WHERE id=p_character;
-  RETURN QUERY SELECT 'detached'::text,NULL::uuid,NULL::text;
+  RETURN QUERY SELECT 'detached'::text,NULL::uuid,NULL::text;RETURN;
  END IF;
  IF NOT EXISTS(
   SELECT 1 FROM hollowgate_vtt.campaigns c
@@ -451,11 +447,11 @@ BEGIN
    )
   )
  ) THEN
-  RETURN QUERY SELECT 'not_found'::text,NULL::uuid,NULL::text;
+  RETURN QUERY SELECT 'not_found'::text,NULL::uuid,NULL::text;RETURN;
  END IF;
  SELECT c.ruleset INTO v_target_ruleset FROM hollowgate_vtt.campaigns c WHERE c.id=p_campaign;
  IF v_ruleset IS NOT NULL AND v_ruleset<>v_target_ruleset THEN
-  RETURN QUERY SELECT 'ruleset_mismatch'::text,NULL::uuid,NULL::text;
+  RETURN QUERY SELECT 'ruleset_mismatch'::text,NULL::uuid,NULL::text;RETURN;
  END IF;
  v_effective:=COALESCE(v_ruleset,v_target_ruleset);
  IF v_campaign_id IS DISTINCT FROM p_campaign THEN
@@ -464,7 +460,7 @@ BEGIN
  END IF;
  UPDATE hollowgate_vtt.character_drafts
  SET campaign_id=p_campaign,ruleset=v_effective,updated_at=now() WHERE id=p_character;
- RETURN QUERY SELECT 'assigned'::text,p_campaign::uuid,v_effective::text;
+ RETURN QUERY SELECT 'assigned'::text,p_campaign::uuid,v_effective::text;RETURN;
 END $$;
 
 REVOKE ALL ON FUNCTION hollowgate_vtt.claim_available_character(uuid,uuid) FROM PUBLIC;

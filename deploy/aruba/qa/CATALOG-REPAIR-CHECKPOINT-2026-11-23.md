@@ -1,6 +1,48 @@
 # Checkpoint riparazione catalogo — 23 novembre 2026
 
-## Ultimo incremento (dopo `740e695d`)
+## Ultimo incremento (dopo `bc4c4c13`)
+- Nuovo catalogo PG logici `/vtt/catalog/logical-characters`: lettura paginata,
+  creazione senza campagna, salvataggio CAS e archiviazione non distruttiva.
+  Le nuove creazioni PG passano da questo modello, non dal catalogo nativo
+  separato. I vecchi PG nativi restano conservati e distinti.
+- Migrazione root 039: revisioni condivise con note/ritratti e vecchi writer;
+  snapshot storici `sourceRecord` immutabili, placement/media conservati
+  durante edit scheda, origini bloccate in campagna, nessuna resurrezione
+  tramite vecchie PUT. Nessun backfill di proprietari.
+- Il giocatore può salvare il PG reclamato mentre autorizzato; il GM fisico
+  non può più archiviarlo o riassegnarlo dal catalogo. Revoca mantiene la
+  proprietà congelata leggibile ma blocca scritture nella vecchia campagna.
+- Archiviare o staccare l'ultimo PG logico del giocatore revoca la membership;
+  archiviare uno di più PG non lo fa. Il PG staccato resta editabile/rilasciabile.
+  Note, schede e bytes immagini rimangono nel DB.
+- Duplicazione GM atomica e idempotente: crop/source, tab nascoste/private e
+  sotto-tab, con UUID strutturali rimappati e testo originale intatto.
+  **Duplicazione dei PG reclamati altrui ancora rifiutata (403)**: manca una
+  proiezione approvata di materiale privato del GM, non aggirare questo guard.
+- Difetti critici trovati in 038: `RETURN QUERY` non termina una funzione
+  PL/pgSQL; il vecchio `IF NOT v_may_manage` con valore NULL poteva saltare il
+  rifiuto; override GM confondeva proprietà fisica e logica. Corretti in 038
+  per installazioni nuove e in 039 per aggiornamenti esistenti. Test con una
+  ricostruzione della vecchia funzione verificano esattamente un esito e
+  nessuna modifica al DB dopo i rifiuti.
+- Gli spostamenti con cambio GM o dipendenze da rimappare sono ora rifiutati
+  (409) PRIMA di mutare: evita note/media lasciate nel contesto sbagliato.
+  Il motore di proiezione atomica rimane da completare.
+- `AUTH_VTT_CHARACTER_CATALOG_ENABLED=true` abilita solo questo catalogo,
+  subordinato a logical characters e preflight 039. Anche l'avvio del servizio
+  logico base richiede il marker 039: non riattivare DB con vecchie funzioni
+  vulnerabili. Nessuna variabile operativa modificata in questa tranche.
+- Adapter originale collegato a create/save/archive/duplicate PG; refresh
+  della revisione dopo assegnazione/disponibilità. Gli errori di salvataggio
+  sono visibili, non soltanto loggati. Rimangono da completare queue/flush
+  esaustivi di tutti i writer UI, note/media globali e prove browser pulite.
+- Verifiche: API 298/298, frontend 518/518, QA DB/HTTP/provenienza 55 passati,
+  0 falliti e 3 race PostgreSQL saltate. Entrambe le build riuscite; il
+  bundle originale supera il controllo di assenza del client/SDK Supabase.
+- Nessun SQL, aggiornamento API o rilascio eseguito sul VPS. La ricostruzione
+  integrale del sito NON è conclusa: vedi i gate sotto e il piano generale.
+
+## Incremento precedente (`bc4c4c13`)
 - Migrazione nativa 005 e API `/vtt/catalog/native/*`: lista/lettura/salvataggio,
   immagini, note, duplicazione e copia anche per record assegnati; PNG/Mostri
   assegnabili, spostabili e staccabili mantenendo lo stesso ID e tutti i dati.
@@ -108,9 +150,9 @@
    legge solo il catalogo nativo non assegnato e NON deve nasconderlo all'utente.
 3. Lifecycle nativo implementato e testato; completare le corrispondenti azioni
    sui contenuti storici con provenienza e ownership autorevoli.
-4. Completare salvataggio/duplicazione PG logici e reclamati, media, note,
-   inviti con scelta del PG, presenza e aggiornamenti live. Non aggirare i
-   controlli delle revisioni né le autorizzazioni.
+4. Save/archive PG logici e duplicazione GM implementati. Completare duplicazione
+   del reclamato con proiezione privata, trasferimenti atomici, media/note globali,
+   inviti con scelta PG, presenza/live e queue/flush UI. Non aggirare i controlli.
 5. Avvio/capability nativi collegati; completare il servizio globale storico,
    la proiezione delle copie native nei consumer di campagna e relativi test.
 6. Montaggio nella sezione Personaggi fatto nella build di contratto; completare
