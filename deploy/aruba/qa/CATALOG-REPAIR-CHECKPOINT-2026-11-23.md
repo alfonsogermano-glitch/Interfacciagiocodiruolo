@@ -1,6 +1,6 @@
 # Checkpoint riparazione catalogo — 23 novembre 2026
 
-## Ultimo incremento (dopo `bc4c4c13`)
+## Ultimo incremento (`787d3c80`, dopo `bc4c4c13`)
 - Nuovo catalogo PG logici `/vtt/catalog/logical-characters`: lettura paginata,
   creazione senza campagna, salvataggio CAS e archiviazione non distruttiva.
   Le nuove creazioni PG passano da questo modello, non dal catalogo nativo
@@ -39,8 +39,32 @@
 - Verifiche: API 298/298, frontend 518/518, QA DB/HTTP/provenienza 55 passati,
   0 falliti e 3 race PostgreSQL saltate. Entrambe le build riuscite; il
   bundle originale supera il controllo di assenza del client/SDK Supabase.
+- Pubblicato su GitHub: `787d3c80`; working tree pulito e sincronizzato con origin.
 - Nessun SQL, aggiornamento API o rilascio eseguito sul VPS. La ricostruzione
   integrale del sito NON è conclusa: vedi i gate sotto e il piano generale.
+
+## Incremento precedente (`787d3c80`)
+- Trancha 039 completa: catalogo PG logici revisionato (lista paginata, create
+  in `character_drafts`, CAS save/archive), ownership coerente, dettaglio
+  account e media/provenienza preservati; detach ultimo PG → membership
+  revocata, PG editabile/rilasciabile; storico `sourceRecord` immutabile.
+- Correzioni PL/pgSQL critiche in 038 (validate anche installazioni nuove):
+  `RETURN QUERY` non termina la funzione; soggetto NULL non bypassa il rifiuto;
+  distinzione fisica/logica nell'ownership GM. Test con ricostruzione della
+  vecchia funzione: esattamente un esito e nessuna modifica al DB dopo rifiuti.
+- Scrittori legacy: note/portrait invalidano la CAS; saves legacy invalidano
+  CAS e non possono alterare provenienza importata.
+- Duplicazione GM: atomica/idempotente (crop/source, tab nascoste/private e
+  sotto-tab, UUID strutturali rimappati, testo originale). Duplicazione del
+  PG reclamato da altri: rifiutata 403 (non c'è proiezione privata approvata —
+  non aggirare questo guard).
+- Adapter originale: create/save/archive/duplicate PG, refresh revisione dopo
+  assegnazione/disponibilità, errori di salvataggio visibili (toast, non solo
+  log). DA FARE: queue/flush UI, note/media globali, inviti con scelta PG,
+  presenza/live, E2E browser, task PostgreSQL concorrente.
+- Verifiche: API 298/298, frontend 518/518, QA DB/HTTP/provenienza 55 passati,
+  0 falliti, 3 race PostgreSQL saltate; build pubblica e originale fatte;
+  controllo assenza Supabase del bundle originale passato.
 
 ## Incremento precedente (`bc4c4c13`)
 - Migrazione nativa 005 e API `/vtt/catalog/native/*`: lista/lettura/salvataggio,
@@ -145,22 +169,29 @@
   backup produzione o distribuzione VPS eseguita in questa tranche.
 
 ## Lavoro ancora necessario prima del rilascio
-1. Mantenere verdi entrambe le build e i test dopo le prossime modifiche.
+1. Mantenere verdi entrambe le build e i test dopo le prossime modifiche
+   (ricorsione QA minimale: suite aruba-api, aruba-vtt-pilot, QA DB 038/039).
 2. Completare listing globale PNG/Mostri storici e assegnati: l'adapter attuale
    legge solo il catalogo nativo non assegnato e NON deve nasconderlo all'utente.
-3. Lifecycle nativo implementato e testato; completare le corrispondenti azioni
+3. Lifecycle nativo implementato e testato (done in `bc4c4c13`); completare le corrispondenti azioni
    sui contenuti storici con provenienza e ownership autorevoli.
-4. Save/archive PG logici e duplicazione GM implementati. Completare duplicazione
-   del reclamato con proiezione privata, trasferimenti atomici, media/note globali,
-   inviti con scelta PG, presenza/live e queue/flush UI. Non aggirare i controlli.
-5. Avvio/capability nativi collegati; completare il servizio globale storico,
-   la proiezione delle copie native nei consumer di campagna e relativi test.
+4. Save/archive PG logici e duplicazione GM implementati (done in `787d3c80`).
+   Completare: duplicazione del reclamato con proiezione privata approvata,
+   media/note globali, inviti con scelta PG, presenza/live, queue/flush UI.
+   Non aggirare il 403 di duplicazione del reclamato senza proiezione approvata.
+5. Avvio/capability nativi collegati (done in `bc4c4c13`); completare il
+   servizio globale storico, la proiezione delle copie native nei consumer di
+   campagna e relativi test.
 6. Montaggio nella sezione Personaggi fatto nella build di contratto; completare
    ogni azione esposta prima di promuoverlo nella build pubblica.
 7. Test end-to-end browser con account GM/giocatore e PG/PNG/Mostri;
    prove race su PostgreSQL usa-e-getta, non sul DB operativo.
 8. Solo dopo: procedura rilascio con backup/rollback,
    eventuale comando sudo per operatore VPS, smoke test sull'origine pubblica.
+9. Continuazione: storico PNG/Mostri (estrazione storica, zero dirasee nel
+   catalogo nativo); proiettare i nativi nei consumer di campagna; editor
+   media/note globali; completare duplicazione del reclamato con proiezione
+   approvata; poi E2E browser/PG reale; poi procedura rilascio.
 
 ## Comunicazione e risparmio contesto
 Risposte brevi in italiano. Riportare soltanto verifiche realmente eseguite.
