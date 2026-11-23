@@ -40,6 +40,23 @@ collisioni cross-storage e backfill revisionato prima di unificare le liste.
 La diagnosi `catalog-provenance-audit.sql` del 22 resta dedicata allo storage
 migrato/campagna: **non** è ora un inventario dei nuovi record nativi.
 
+## Assegnamento e copia verso campagne
+
+`sql/catalog/003_catalog_assign_copy.sql` aggiunge, sempre solo nei database QA:
+
+- `copy_unassigned_catalog_to_campaign(p_actor,p_kind,p_id,p_target_campaign,p_revision)`:
+  una sola transazione che legge l'entità sorgente (campagna NULL), verifica
+  revisione CAS, esistenza della campagna di destinazione e proprietà, crea la
+  nuova riga con `campaign_id` impostato, copia media e note (radici e sotto-tab
+  con ordini strutturali rimappati tramite nuovi UUID), e restituisce il
+  documento dell'entità copia. La sorgente resta intatta (campagna NULL).
+  Qualsiasi errore annulla tutto, lasciando la sorgente intatta.
+- L'entità copiata non è più raggiungibile dagli endpoint del catalogo
+  non assegnato (filtro `campaign_id IS NULL`): lettura, modifica e media
+  diventano indisponibili da questo sottoinsieme, come previsto dal modello.
+- Non esiste ancora una routine che sposti un'entità esistente (cambio
+  `campaign_id` in-place) né che assegni un'entità già in una campagna.
+
 ## Note, sotto-tab e duplicazione atomica
 
 `sql/catalog/002_notes_and_duplication.sql` aggiunge, sempre solo nei database
