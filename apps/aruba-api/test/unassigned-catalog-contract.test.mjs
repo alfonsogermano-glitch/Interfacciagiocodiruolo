@@ -27,7 +27,8 @@ test('native catalog refuses browser ownership, placement, provenance, timestamp
 
 test('native catalog validates kind, name, ruleset, mechanics and bounded plain JSON',()=>{
  invalid(()=>validateUnassignedCatalogBody('clues',draft));
- for(const name of ['', ' ', 'x'.repeat(121),null])invalid(()=>validateUnassignedCatalogBody('characters',{...draft,name}));
+ for(const name of ['', ' ', 'x'.repeat(501),null])invalid(()=>validateUnassignedCatalogBody('characters',{...draft,name}));
+ assert.equal(validateUnassignedCatalogBody('characters',{...draft,name:'x'.repeat(500)}).name.length,500);
  for(const ruleset of [null,'unknown',{},1])invalid(()=>validateUnassignedCatalogBody('characters',{...draft,ruleset}));
  for(const data of [null,[],new Date(),{...draft.data,ambiti:[]},{...draft.data,equipment:{}},
   {...draft.data,notes:'x'.repeat(50001)},{...draft.data,value:Infinity},

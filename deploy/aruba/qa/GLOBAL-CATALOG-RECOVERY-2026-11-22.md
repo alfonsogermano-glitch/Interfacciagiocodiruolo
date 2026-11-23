@@ -1,9 +1,10 @@
 # Cataloghi globali — confronto sorgenti e primo incremento locale
 
 Aggiornamento del 23 novembre: primo storage/API per **nuovi contenuti senza
-campagna**, ancora disattivato e senza backfill, descritto in
-`UNASSIGNED-CATALOG-BACKEND-2026-11-23.md`. Le sezioni sotto conservano il
-checkpoint del 22; il recupero globale completo rimane aperto.
+campagna**, note/sotto-tab e duplicazione atomica, ancora disattivati e senza
+backfill, descritti in `UNASSIGNED-CATALOG-BACKEND-2026-11-23.md`. Le sezioni
+sotto conservano il checkpoint del 22; il recupero globale completo rimane
+aperto.
 
 **Parziale, non pubblicato.** Nessuna migrazione catalogo applicata, nessuna
 modifica a database/account/configurazione Aruba o staging. Il componente

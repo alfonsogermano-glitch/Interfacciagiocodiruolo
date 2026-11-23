@@ -8,7 +8,7 @@ CREATE TABLE hollowgate_vtt.catalog_entities (
  id uuid NOT NULL DEFAULT gen_random_uuid(),
  owner_id uuid NOT NULL REFERENCES hollowgate_auth.users(id) ON DELETE RESTRICT,
  campaign_id uuid REFERENCES hollowgate_vtt.campaigns(id) ON DELETE RESTRICT,
- name text NOT NULL CHECK(length(btrim(name)) BETWEEN 1 AND 200),
+ name text NOT NULL CHECK(length(btrim(name)) BETWEEN 1 AND 500),
  -- Historic NULL rulesets must remain representable; native creation below
  -- requires an explicit picker selection. No historical rows are imported here.
  ruleset text CHECK(ruleset IN ('hsc','dnd5e','pathfinder','coc7e','cocclassic','custom')),
@@ -17,7 +17,6 @@ CREATE TABLE hollowgate_vtt.catalog_entities (
  created_at timestamptz NOT NULL DEFAULT now(),
  updated_at timestamptz NOT NULL DEFAULT now(),
  PRIMARY KEY(kind,id),
- CHECK(kind<>'characters' OR length(btrim(name))<=120),
  CHECK(NOT data ?| ARRAY['id','kind','name','ruleset','ownerId','ownerProfileId','owner_id','owner_profile_id',
   'campaignId','campaign_id','revision','createdAt','updatedAt','status','sourceRecord','sourceCampaignId',
   'availableForPlayers','claimableOrigin','originalOwnerProfileId','chapterId','sceneId','environmentId',

@@ -4,9 +4,10 @@
 campagna. Nessun deploy, backfill o attivazione del catalogo originale.**
 
 Questo incremento segue `GLOBAL-CATALOG-RECOVERY-2026-11-22.md`: risolve la
-necessità di una campagna fittizia per creare nuovi PG/PNG/Mostri e i loro
-media. Non risolve ancora la proprietà storica ambigua, l'assegnazione alle
-campagne, la duplicazione, le note o il ciclo claim/distacco/release completo.
+necessità di una campagna fittizia per creare nuovi PG/PNG/Mostri, le loro
+note/sotto-tab e i media. Non risolve ancora la proprietà storica ambigua,
+l'assegnazione alle campagne, il ciclo claim/distacco/release completo né il
+montaggio dell'interfaccia originale.
 
 ## Modello scelto per i nuovi contenuti
 
@@ -30,7 +31,7 @@ Le routine di questo incremento accettano soltanto entità con campagna null.
 Se un futuro percorso assegna un'entità, questi endpoint non possono essere
 usati per aggirare i controlli di campagna: lettura, modifica e media diventano
 indisponibili da questo sottoinsieme. Non esiste ancora una routine runtime
-che cambi owner/campagna, cancelli, duplichi o effettui un claim.
+che cambi owner/campagna, cancelli o effettui un claim.
 
 Non sono state cambiate le tabelle/routine/trigger campagna o claim esistenti.
 Nessun dato precedente è copiato in una seconda sorgente di verità: il nuovo
@@ -38,6 +39,45 @@ storage nasce vuoto. L'integrazione futura deve definire locator/provenienza,
 collisioni cross-storage e backfill revisionato prima di unificare le liste.
 La diagnosi `catalog-provenance-audit.sql` del 22 resta dedicata allo storage
 migrato/campagna: **non** è ora un inventario dei nuovi record nativi.
+
+## Note, sotto-tab e duplicazione atomica
+
+`sql/catalog/002_notes_and_duplication.sql` aggiunge, sempre solo nei database
+QA:
+
+- `catalog_entity_notes`: massimo due livelli come l'originale (nota radice e
+  una sola generazione di sotto-tab), FK composta `(kind,entity_id)` verso
+  l'entità catalogo, padre obbligatoriamente nella stessa entità, ordine
+  strutturale separato dal testo, tab nascoste/private e stato archiviato.
+  Un trigger indipendente rifiuta un terzo livello anche quando si scrive
+  direttamente in SQL.
+- `catalog_duplicate_requests`: ricevuta idempotente per `(attore,requestId)`.
+  Ripetere la stessa richiesta restituisce la copia già creata senza duplicare
+  media, note o entità; riusare la chiave per un'altra origine viene respinto.
+  La ricevuta non è leggibile dal ruolo runtime e non espone una copia che nel
+  frattempo è stata assegnata o trasferita.
+- `duplicate_unassigned_catalog_entry`: una sola transazione che copia scheda,
+  tutti i media, tutte le note attive (radici e sotto-tab), i relativi ordini e
+  nuovi identificativi. I riferimenti strutturali (`tabOrder`, ordine delle
+  sotto-tab) vengono rimappati solo verso la stessa radice o gli stessi figli;
+  UUID obsoleti vengono rimossi come nella riconciliazione originale. Il testo
+  delle note e i documenti ricchi non vengono mai modificati con sostituzioni
+  testuali. Un errore in qualsiasi punto annulla entità, media già inseriti e
+  ricevuta, lasciando la sorgente intatta.
+- Le note non accettano owner/campagna/autore/date nel body; il nome resta
+  limitato a 120 caratteri, il testo a 32 KiB UTF-8 e il documento ricco a
+  1 MiB con profondità/numero di nodi limitati. Niente URL Supabase o immagini
+  data-URI. Revisione, posizione, tipo e ordine sono verificati dal contratto.
+- Archiviare una nota radice archivia anche i figli; il contenuto resta
+  recuperabile in SQL ma sparisce dalle liste e dalle duplicazioni. Archiviare
+  un figlio aggiorna l'ordine del padre. Le operazioni note incrementano la
+  stessa revisione della scheda e dei media: un salvataggio concorrente
+  obsoleto riceve 409, non una scrittura parziale.
+- Il prefisso «Copia di » è applicato come nell'originale. Il limite del nome
+  del catalogo è un controllo infrastrutturale di 500 caratteri (l'originale
+  non ne dichiarava uno): nomi realistici restano integrali, inclusa una copia
+  di un nome di 120 caratteri; solo entro 9 caratteri dal limite il nome viene
+  troncato in modo deterministico, senza fallire l'intera operazione.
 
 ## Autorizzazioni e salvataggi
 
@@ -66,8 +106,8 @@ migrato/campagna: **non** è ora un inventario dei nuovi record nativi.
 
 ## Servizio e trasporto HTTP
 
-`apps/aruba-api/src/unassigned-catalog-{contract,service}.mjs` e boundary
-opzionale in `auth-http.mjs`:
+`apps/aruba-api/src/unassigned-catalog-{contract,service,notes-contract,notes-service}.mjs`
+e boundary opzionale in `auth-http.mjs`:
 
 | Metodo/percorso | Contratto |
 |---|---|
@@ -77,6 +117,12 @@ opzionale in `auth-http.mjs`:
 | PUT stesso percorso | `{name,ruleset,data,revision}` → `{item}` |
 | GET `…/{id}/media/{role}` | `{mimeType,dataBase64,revision}` |
 | PUT stesso percorso media | `{mimeType,dataBase64,revision}` → `{item}` |
+| GET `…/{id}/notes`, `?parentId=UUID` | `{item,notes}` |
+| POST `…/{id}/notes` | `{tabName,revision,parentId?}` → `{item,note}` |
+| PUT `…/{id}/notes/{noteId}` | `{tabName,content,contentRich,position,hidden,visibility,revision}` → `{item,note}` |
+| PUT `…/{id}/notes/{noteId}/order` | `{tabOrder,revision}` → `{item,note}` |
+| DELETE `…/{id}/notes/{noteId}` | `{revision}` → `{item,archivedId}` |
+| POST `…/{id}/duplicate` | `{requestId,revision}` → `{item}` |
 
 `kind` = characters/npcs/monsters; `role` = portrait/source/cover. Per PG,
 `data` contiene i campi scheda originali (style/viaggio/ambiti/abilita/tratti/
@@ -93,9 +139,10 @@ URL pubblico o cache condivisa che sopravviva alla revoca. Errori SQL inattesi
 non vengono inviati al browser.
 
 **Disattivato per impostazione predefinita.** `index.mjs` non importa, costruisce
-o inietta il servizio. Non è aggiunta alcuna capability globale/unassigned
-al bootstrap. Senza iniezione esplicita nei test, le route restano 404.
-Nessun Caddy, flag, installer, database attivo o componente originale è cambiato.
+o inietta i servizi catalogo o note. Non è aggiunta alcuna capability
+globale/unassigned al bootstrap. Senza iniezione esplicita nei test, le route
+restano 404. Nessun Caddy, flag, installer, database attivo o componente
+originale è cambiato.
 Il componente originale non deve essere montato sul solo sottoinsieme nativo:
 nasconderebbe i dati storici e proporrebbe azioni ancora non implementate.
 
@@ -107,14 +154,22 @@ nasconderebbe i dati storici e proporrebbe azioni ancora non implementate.
   proprietari; revoca/utente non verificato; accesso tabelle/helper vietato;
   autorità nel JSON rifiutata anche bypassando JS; pagine 100/100/5 su 205 righe;
   media senza campagna e rollback; barriera futura assegnazione.
-- Incluso percorso **HTTP reale → sessione → servizio → PostgreSQL ristretto**
-  su loopback, con creazione, save, 409 obsoleto, upload/read media e CSRF.
+- **12/12** test PostgreSQL incorporato per note e duplicazione: cascata
+  media/note/sotto-tab sui tre tipi, nuovi ID e ordini rimappati, tab
+  nascoste/private e documenti ricchi preservati; rifiuto di genitori esterni,
+  terzo livello, ordine incompleto/duplicato e accessi di altri utenti; archivi
+  e potatura ordini; revisione condivisa; idempotenza anche dopo modifiche
+  della sorgente; rollback di un errore simulato a metà copia; ricevute non
+  riutilizzabili; limite nomi; HTTP reale con cookie/Origin/409.
+- Incluso percorso **HTTP reale → sessione → servizi → PostgreSQL ristretto**
+  su loopback, con creazione, save, 409 obsoleto, upload/read media, note,
+  duplicazione e CSRF.
 - Eseguiti anche i test SQL preesistenti di assignment e claim/release/revoca
   accanto al nuovo schema: passano e non cambiano il record catalogo nativo.
-- **10** nuovi test contract/HTTP ordinari: campi originali, input e UTF-8
-  limitati, media, contesti risposta sbagliati, errori sanitizzati, opt-in off,
-  nessuna capability/startup wiring.
-- Suite API completa **274/274**, VTT **490/490**; precedente diagnosi di
+- **18** nuovi test contract/HTTP ordinari: campi originali, input e UTF-8
+  limitati, media, note/ordini, contesti risposta sbagliati, errori sanitizzati,
+  opt-in off, nessuna capability/startup wiring.
+- Suite API completa **282/282**, VTT **490/490**; precedente diagnosi di
   provenienza **7/7** ancora passata. Nessun test manuale richiesto all'utente.
 
 Limiti delle prove: PGlite serializza gli statement; il test di due save con
@@ -124,8 +179,10 @@ layout, crop/cornici, TURN/realtime, storico pubblico o parità completa.
 
 ## Passo successivo
 
-Integrare note/sotto-tab e duplicazione transazionale di entità+media+note;
-poi definire ownership/provenienza revisionate e lifecycle di assegnazione,
-claim, distacco e rilascio senza riattivare vecchi diritti. L'abilitazione
-pubblica resta un rilascio successivo, esplicitamente autorizzato con backup,
-preflight e rollback. Non eseguire questa nuova SQL sul VPS come prova manuale.
+Definire il modello di proprietà logica e il lifecycle di assegnazione,
+claim, distacco e rilascio senza riattivare vecchi diritti; poi proiettare in
+transazione i contenuti nativi verso le campagne (media, note e riferimenti),
+provare la concorrenza su PostgreSQL indipendente e solo allora collegare
+servizi, capability e componente originale. L'abilitazione pubblica resta un
+rilascio successivo, esplicitamente autorizzato con backup, preflight e
+rollback. Non eseguire questa SQL sul VPS come prova manuale.

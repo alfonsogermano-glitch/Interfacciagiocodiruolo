@@ -101,7 +101,7 @@ class HttpProblem extends Error {
   }
 }
 
-export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, oauth = null, passwordReset = null, signupService = null, campaigns = null,campaignInvites = null,chapters = null,scenes = null,narrativeContent = null,unassignedCatalog = null,equipmentCatalog = null,campaignDocuments = null,campaignChat = null,diceFormulas = null,visualAssets = null,characters = null,entityNotes = null,narrativeEntityNotes = null,campaignNotes = null,campaignFolders = null,notesPanelEnabled = false,campaignRoster = null,characterAvailability = null,characterAssignments = null,playerCharacters = null,characterClaims = null,characterPortraits = null, turnCredentials = null, gameSessionBootstrap = null }) {
+export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, oauth = null, passwordReset = null, signupService = null, campaigns = null,campaignInvites = null,chapters = null,scenes = null,narrativeContent = null,unassignedCatalog = null,unassignedCatalogNotes = null,equipmentCatalog = null,campaignDocuments = null,campaignChat = null,diceFormulas = null,visualAssets = null,characters = null,entityNotes = null,narrativeEntityNotes = null,campaignNotes = null,campaignFolders = null,notesPanelEnabled = false,campaignRoster = null,characterAvailability = null,characterAssignments = null,playerCharacters = null,characterClaims = null,characterPortraits = null, turnCredentials = null, gameSessionBootstrap = null }) {
   if(typeof notesPanelEnabled!=='boolean'||(notesPanelEnabled&&(!campaignNotes||!campaignFolders)))
     throw new TypeError('Original Notes panel requires both authenticated Notes and folders');
   const allowedOrigin = new URL(origin);
@@ -131,6 +131,8 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
     throw new TypeError('Narrative content endpoints require scenes and a valid service');
   if(unassignedCatalog!==null&&['list','read','create','save','saveMedia','readMedia'].some(k=>typeof unassignedCatalog[k]!=='function'))
     throw new TypeError('Invalid unassigned catalog service');
+  if(unassignedCatalogNotes!==null&&(!unassignedCatalog||['list','create','save','archive','reorder'].some(k=>typeof unassignedCatalogNotes[k]!=='function')))
+    throw new TypeError('Catalog notes require unassigned catalog and a valid notes service');
   if(campaignChat!==null&&(!campaigns||['list','send','remove','clear','react','participants','privateList','privateSend','privateRemove','privateClear','saveAttachment','readAttachment','removeAttachment'].some(k=>typeof campaignChat[k]!=='function')))
     throw new TypeError('Campaign chat endpoints require campaigns and a valid service');
   if(diceFormulas!==null&&(!campaigns||['list','create','update','remove','reorder'].some(k=>typeof diceFormulas[k]!=='function')))
@@ -315,24 +317,41 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
       // catalog. index.mjs deliberately does not construct/inject this service.
       if(unassignedCatalog&&req.url?.startsWith('/vtt/catalog/unassigned/')){
         const url=new URL(req.url,origin);
-        const match=/^\/vtt\/catalog\/unassigned\/(characters|npcs|monsters)(?:\/([0-9a-f-]{36})(?:\/media\/(portrait|source|cover))?)?$/i.exec(url.pathname);
+        const match=/^\/vtt\/catalog\/unassigned\/(characters|npcs|monsters)(?:\/([0-9a-f-]{36})(\/.*)?)?$/i.exec(url.pathname);
         if(!match)throw new HttpProblem(400,'Percorso catalogo non valido');
-        const [,kind,id,role]=match;
-        if(!['GET',id?'PUT':'POST'].includes(req.method))throw new HttpProblem(405,'Metodo non consentito');
+        const [,kind,id,tail]=match;
+        const media=tail&&/^\/media\/(portrait|source|cover)$/.exec(tail);
+        const notes=tail&&/^\/notes(?:\/([0-9a-f-]{36})(\/order)?)?$/i.exec(tail);
+        const duplicate=tail==='/duplicate';
+        if(tail&&!media&&!notes&&!duplicate)throw new HttpProblem(400,'Percorso catalogo non valido');
+        if(notes&&!unassignedCatalogNotes||duplicate&&typeof unassignedCatalog.duplicate!=='function')
+          return response(res,404,{error:'Not found'});
+        const role=media?.[1];
+        const methods=duplicate?['POST']:notes?(notes[2]?['PUT']:notes[1]?['PUT','DELETE']:['GET','POST']):['GET',id?'PUT':'POST'];
+        if(!methods.includes(req.method))throw new HttpProblem(405,'Metodo non consentito');
         const keys=[...url.searchParams.keys()];
-        if(keys.length&&(req.method!=='GET'||id||keys.length!==1||keys[0]!=='after'))
+        const allowedQuery=notes&&!notes[1]?'parentId':!id?'after':null;
+        if(keys.length&&(req.method!=='GET'||!allowedQuery||keys.length!==1||keys[0]!==allowedQuery))
           throw new HttpProblem(400,'Query catalogo non valida');
         const token=extractSession(req);
         if(!token)return response(res,401,{error:'Non autenticato'});
         const user=await getSessionUser(token);
         if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
         if(req.method==='GET'){
+          if(notes)return response(res,200,await unassignedCatalogNotes.list(user.id,kind,id,url.searchParams.get('parentId')));
           if(role)return response(res,200,await unassignedCatalog.readMedia(user.id,kind,id,role));
           if(id)return response(res,200,await unassignedCatalog.read(user.id,kind,id));
           return response(res,200,await unassignedCatalog.list(user.id,kind,url.searchParams.get('after')));
         }
         if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
-        const body=await readJson(req,role?2800000:100000);
+        const body=await readJson(req,role?2800000:notes?1100000:100000);
+        if(duplicate)return response(res,200,await unassignedCatalog.duplicate(user.id,kind,id,body));
+        if(notes){
+          if(!notes[1])return response(res,201,await unassignedCatalogNotes.create(user.id,kind,id,body));
+          if(notes[2])return response(res,200,await unassignedCatalogNotes.reorder(user.id,kind,id,notes[1],body));
+          if(req.method==='DELETE')return response(res,200,await unassignedCatalogNotes.archive(user.id,kind,id,notes[1],body));
+          return response(res,200,await unassignedCatalogNotes.save(user.id,kind,id,notes[1],body));
+        }
         if(role)return response(res,200,await unassignedCatalog.saveMedia(user.id,kind,id,role,body));
         if(id)return response(res,200,await unassignedCatalog.save(user.id,kind,id,body));
         return response(res,201,await unassignedCatalog.create(user.id,kind,body));

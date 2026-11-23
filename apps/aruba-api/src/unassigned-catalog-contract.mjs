@@ -37,7 +37,7 @@ export function validateUnassignedCatalogBody(kind,body,{saving=false}={}){
  catalogKind(kind);
  if(!plain(body)||Object.keys(body).sort().join(',')!==(saving?'data,name,revision,ruleset':'data,name,ruleset'))
   throw new CatalogRejected('Dati catalogo non validi');
- if(typeof body.name!=='string'||!body.name.trim()||body.name.trim().length>(kind==='characters'?120:200)||
+ if(typeof body.name!=='string'||!body.name.trim()||body.name.trim().length>500||
     !RULESETS.includes(body.ruleset)||!plain(body.data)||!safeTree(body.data)||
     Object.keys(body.data).some(key=>RESERVED.has(key)))throw new CatalogRejected('Contenuto catalogo non valido');
  const serialized=JSON.stringify(body.data);

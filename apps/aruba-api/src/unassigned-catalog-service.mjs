@@ -1,4 +1,5 @@
 import {CatalogRejected,catalogId,catalogKind,catalogMediaRole,validateUnassignedCatalogBody,validateCatalogMedia} from './unassigned-catalog-contract.mjs';
+import {catalogDuplicateBody} from './unassigned-catalog-notes-contract.mjs';
 
 // Not instantiated by index.mjs. New native unassigned content only; never
 // masquerades as a complete listing of historical/campaign/claimed entities.
@@ -48,6 +49,13 @@ export function createUnassignedCatalogService({pool}){
    const args=scope(actor,kind,id),draft=validateUnassignedCatalogBody(kind,body,{saving:true});
    return item(await query('SELECT hollowgate_vtt.save_unassigned_catalog_entry($1,$2,$3,$4,$5,$6,$7::jsonb) AS item',
     [...args,draft.revision,draft.name,draft.ruleset,JSON.stringify(draft.data)]),args);
+  },
+  async duplicate(actor,kind,id,body){
+   const args=scope(actor,kind,id),draft=catalogDuplicateBody(body);
+   const result=item(await query('SELECT hollowgate_vtt.duplicate_unassigned_catalog_entry($1,$2,$3,$4,$5) AS item',
+    [...args,draft.revision,draft.requestId]),args.slice(0,2));
+   if(result.item.id===args[2])throw new Error('Invalid catalog duplicate identity');
+   return result;
   },
   async saveMedia(actor,kind,id,role,body){
    const args=scope(actor,kind,id),draft=validateCatalogMedia(role,body);
