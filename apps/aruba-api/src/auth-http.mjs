@@ -101,7 +101,7 @@ class HttpProblem extends Error {
   }
 }
 
-export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, oauth = null, passwordReset = null, signupService = null, campaigns = null,campaignInvites = null,chapters = null,scenes = null,narrativeContent = null,unassignedCatalog = null,unassignedCatalogNotes = null,equipmentCatalog = null,campaignDocuments = null,campaignChat = null,diceFormulas = null,visualAssets = null,characters = null,entityNotes = null,narrativeEntityNotes = null,campaignNotes = null,campaignFolders = null,notesPanelEnabled = false,campaignRoster = null,characterAvailability = null,characterAssignments = null,playerCharacters = null,characterClaims = null,characterPortraits = null, turnCredentials = null, gameSessionBootstrap = null }) {
+export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, oauth = null, passwordReset = null, signupService = null, campaigns = null,campaignInvites = null,chapters = null,scenes = null,narrativeContent = null,unassignedCatalog = null,unassignedCatalogNotes = null,equipmentCatalog = null,campaignDocuments = null,campaignChat = null,diceFormulas = null,visualAssets = null,characters = null,entityNotes = null,narrativeEntityNotes = null,campaignNotes = null,campaignFolders = null,notesPanelEnabled = false,campaignRoster = null,characterAvailability = null,characterAssignments = null,playerCharacters = null,characterClaims = null,characterPortraits = null, logicalCharacters = null, turnCredentials = null, gameSessionBootstrap = null }) {
   if(typeof notesPanelEnabled!=='boolean'||(notesPanelEnabled&&(!campaignNotes||!campaignFolders)))
     throw new TypeError('Original Notes panel requires both authenticated Notes and folders');
   const allowedOrigin = new URL(origin);
@@ -150,6 +150,8 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
   if(characterClaims!==null&&(!playerCharacters||!characterAssignments||typeof characterClaims.list!=='function'||typeof characterClaims.current!=='function'||typeof characterClaims.owned!=='function'||
       typeof characterClaims.claim!=='function'||typeof characterClaims.release!=='function'||typeof characterClaims.save!=='function'))
     throw new TypeError('Character claims require player reads and assignments');
+  if(logicalCharacters!==null&&(!characters||typeof logicalCharacters.list!=='function'||typeof logicalCharacters.assign!=='function'))
+    throw new TypeError('Logical character lifecycle requires characters and a valid service');
   if(campaignRoster!==null&&(!campaigns||typeof campaignRoster.list!=='function'))
     throw new TypeError('Invalid campaign roster service');
   if(characters!==null && (typeof characters.list!=='function'||typeof characters.create!=='function'||typeof characters.save!=='function'||typeof characters.archive!=='function'||!campaigns))
@@ -704,6 +706,34 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
           throw new HttpProblem(400,'Dati disponibilità non validi');
         return response(res,200,await characterAvailability.set(user.id,
           body.campaignId,charId,body.availableForPlayers));
+      }
+      if(logicalCharacters && (req.url==='/vtt/characters'||req.url?.startsWith('/vtt/characters?')) && req.method==='GET'){
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        const url=new URL(req.url,origin);
+        if(url.pathname!=='/vtt/characters')
+          throw new HttpProblem(400,'Query personaggi non valida');
+        const keys=[...url.searchParams.keys()];
+        const after=url.searchParams.get('after');
+        if(keys.length===0)return response(res,200,await logicalCharacters.list(user.id,null));
+        if(keys.length!==1||keys[0]!=='after'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(after||''))
+          throw new HttpProblem(400,'Query personaggi non valida');
+        return response(res,200,await logicalCharacters.list(user.id,after));
+      }
+      if(logicalCharacters && req.method==='PATCH' &&
+         /^\/vtt\/characters\/[0-9a-f-]{36}\/campaign$/i.test(req.url??'')){
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        const characterId=/^\/vtt\/characters\/([0-9a-f-]{36})\/campaign$/i.exec(req.url??'')[1];
+        const body=await readJson(req);
+        if(Object.keys(body).sort().join(',')!=='campaignId'||!(body.campaignId===null||typeof body.campaignId==='string'))
+          throw new HttpProblem(400,'Assegnazione non valida');
+        return response(res,200,await logicalCharacters.assign(user.id,characterId,body.campaignId));
       }
       if(characters && req.url?.startsWith('/vtt/characters?') && req.method==='GET'){
         const token=extractSession(req);

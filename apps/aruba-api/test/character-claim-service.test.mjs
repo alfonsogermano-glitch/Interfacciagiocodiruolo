@@ -6,9 +6,12 @@ const character='d2344aae-20d0-4395-8039-49d0aa3657f9';
 const campaign='f24f6bdd-a5f7-4521-aa16-bc0854dc5841';
 test('claim and release pass only cookie player plus path character to restricted SQL',async()=>{
  const calls=[];
- const service=createCharacterClaimService({pool:{query:async(sql,args)=>{calls.push({sql,args});return {rows:[{campaign_id:campaign}]};}}});
+ const service=createCharacterClaimService({pool:{query:async(sql,args)=>{
+  calls.push({sql,args});
+  return {rows:[sql.includes('claim_available_character')?{campaign_id:campaign}:{character_id:character}]};
+ }}});
  assert.deepEqual(await service.claim(player,character),{characterId:character,campaignId:campaign});
- assert.deepEqual(await service.release(player,character),{characterId:character,campaignId:campaign});
+ assert.deepEqual(await service.release(player,character),{characterId:character});
  assert.deepEqual(calls.map(call=>call.args),[[player,character],[player,character]]);
  assert.match(calls[0].sql,/claim_available_character/);assert.match(calls[1].sql,/release_claimed_character/);
 });
@@ -38,7 +41,11 @@ test('claimed sheet save validates complete model and reloads authorized row',as
  await assert.rejects(()=>service.save(player,campaign,character,{...body,sheetData:{}}),error=>error.status===400);
 });
 test('invalid IDs and SQL rejection fail closed',async()=>{
- let calls=0;const service=createCharacterClaimService({pool:{query:async()=>{calls++;return {rows:[{campaign_id:null}]};}}});
+ let calls=0;
+ const service=createCharacterClaimService({pool:{query:async(sql,args)=>{
+  calls++;
+  return {rows:[sql.includes('release_claimed_character')?{character_id:'00000000-0000-4000-8000-000000000009'}:{character_id:character}]};
+ }}});
  await assert.rejects(()=>service.claim('bad',character),error=>error.status===400);assert.equal(calls,0);
  await assert.rejects(()=>service.claim(player,character),error=>error.status===409);
  await assert.rejects(()=>service.release(player,character),error=>error.status===409);

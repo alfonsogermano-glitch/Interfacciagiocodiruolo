@@ -179,6 +179,16 @@ layout, crop/cornici, TURN/realtime, storico pubblico o parità completa.
 
 ## Passo successivo
 
+Stato al 23 novembre (fine checkpoint): il modello di proprietà logica e il
+lifecycle claim/distacco/rilascio sono **implementati in QA** come
+`sql/038_vtt_character_lifecycle.sql` (non ancora eseguita sul VPS, non ancora
+rilasciata): aggiunta di `logical_owner_id`, `original_owner_id`,
+`claimable_origin` e `ruleset` a `character_drafts`; backfill dal claim
+corrente; routine di assign/release/claim riscritte; disponibilità GM e
+assign rifiutano ora i PG già claimati. I test incorporati
+`deploy/aruba/qa/character-lifecycle-db.test.mjs` (3/3), la suite API
+completa e il regression SQL `test_vtt_character_claims.sql` sono verde.
+
 Definire il modello di proprietà logica e il lifecycle di assegnazione,
 claim, distacco e rilascio senza riattivare vecchi diritti; poi proiettare in
 transazione i contenuti nativi verso le campagne (media, note e riferimenti),

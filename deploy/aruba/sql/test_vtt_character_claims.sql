@@ -35,7 +35,7 @@ BEGIN
  IF result IS DISTINCT FROM character_a THEN RAISE EXCEPTION 'Claimed player save rejected';END IF;
  IF NOT hollowgate_vtt.save_authorized_character_portrait(player,campaign,character_a,'image/png',decode('89504e470d0a1a0a00000000','hex')) THEN RAISE EXCEPTION 'Claimed portrait save rejected';END IF;
  SELECT hollowgate_vtt.release_claimed_character(player,character_a) INTO result;
- IF result IS DISTINCT FROM campaign THEN RAISE EXCEPTION 'Release rejected';END IF;
+ IF result IS DISTINCT FROM character_a THEN RAISE EXCEPTION 'Release rejected';END IF;
  SELECT count(*) INTO n FROM hollowgate_vtt.character_claims WHERE character_id=character_a;
  IF n<>0 THEN RAISE EXCEPTION 'Release retained claim';END IF;
  SELECT count(*) INTO n FROM hollowgate_vtt.get_player_character_claim(player,campaign);
@@ -47,6 +47,14 @@ BEGIN
  SELECT count(*) INTO n FROM hollowgate_vtt.character_claims WHERE character_id=character_a;
  IF n<>0 THEN RAISE EXCEPTION 'Revocation retained claim';END IF;
  IF hollowgate_vtt.save_claimed_character_sheet(player,campaign,character_a,'Stale',sheet) IS NOT NULL THEN RAISE EXCEPTION 'Revoked player saved PG';END IF;
+ -- Release survives membership revocation because logical ownership was frozen.
+ SELECT hollowgate_vtt.release_claimed_character(player,character_a) INTO result;
+ IF result IS DISTINCT FROM character_a THEN RAISE EXCEPTION 'Release after revocation failed';END IF;
+ SELECT count(*) INTO n FROM hollowgate_vtt.character_claims WHERE character_id=character_a;
+ IF n<>0 THEN RAISE EXCEPTION 'Release after revocation retained claim';END IF;
+ -- Released characters return to GM ownership and availability; the revoked
+ -- player can no longer reclaim because the membership is no longer active.
+ IF hollowgate_vtt.claim_available_character(player,character_a) IS NOT NULL THEN RAISE EXCEPTION 'Released PG remained claimable';END IF;
  IF has_table_privilege('hollowgate_api_runtime','hollowgate_vtt.character_claims','SELECT')
   OR has_table_privilege('hollowgate_api_runtime','hollowgate_vtt.character_claims','INSERT')
   OR has_table_privilege('hollowgate_api_runtime','hollowgate_vtt.character_claims','UPDATE')

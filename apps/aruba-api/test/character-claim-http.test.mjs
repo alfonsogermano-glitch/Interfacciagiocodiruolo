@@ -26,7 +26,7 @@ test('claim routes and capability remain absent by default',async()=>{
 });
 
 test('claim and release derive player from cookie and accept no client identity body',async()=>{
- const calls=[];const claims={list:async(...args)=>{calls.push(['list',...args]);return {characters:[]};},current:async(...args)=>{calls.push(['current',...args]);return {claim:{characterId:character,claimedAt:'2026-11-16T00:00:00.000Z'}};},owned:async(...args)=>{calls.push(['owned',...args]);return {claims:[]};},claim:async(...args)=>{calls.push(['claim',...args]);return {characterId:args[1],campaignId:campaign};},release:async(...args)=>{calls.push(['release',...args]);return {characterId:args[1],campaignId:campaign};},save:async(...args)=>{calls.push(['save',...args]);return {character:{id:character}};}};
+ const calls=[];const claims={list:async(...args)=>{calls.push(['list',...args]);return {characters:[]};},current:async(...args)=>{calls.push(['current',...args]);return {claim:{characterId:character,claimedAt:'2026-11-16T00:00:00.000Z'}};},owned:async(...args)=>{calls.push(['owned',...args]);return {claims:[]};},claim:async(...args)=>{calls.push(['claim',...args]);return {characterId:args[1],campaignId:campaign};},release:async(...args)=>{calls.push(['release',...args]);return {characterId:args[1]};},save:async(...args)=>{calls.push(['save',...args]);return {character:{id:character}};}};
  await serve(configured(claims),async base=>{
   const claim=`${base}/vtt/player-characters/${character}/claim`,release=`${base}/vtt/player-characters/${character}/release`;
   const list=`${base}/vtt/player-character-claims?campaignId=${campaign}`;

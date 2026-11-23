@@ -17,7 +17,7 @@ const body=kind=>({name:kind==='characters'?'Mara':'Custode',ruleset:'hsc',data:
 async function fixture(){
  const db=new PGlite();
  const directory=new URL('../sql/',import.meta.url);
- for(const name of readdirSync(directory).filter(name=>/^\d{3}_.*\.sql$/.test(name)&&Number(name.slice(0,3))<=34).sort())
+ for(const name of readdirSync(directory).filter(name=>/^\d{3}_.*\.sql$/.test(name)&&Number(name.slice(0,3))<=38&&![35,36,37].includes(Number(name.slice(0,3)))).sort())
   await db.exec(readFileSync(new URL(name,directory),'utf8'));
  await db.exec(readFileSync(new URL('catalog/001_unassigned_catalog.sql',directory),'utf8'));
  for(const [id,label,verified] of [[owner,'owner',true],[other,'other',true],[unverified,'unverified',false]])

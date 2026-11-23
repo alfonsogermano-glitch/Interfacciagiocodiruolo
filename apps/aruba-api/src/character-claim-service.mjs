@@ -13,20 +13,26 @@ const validSheet=body=>body&&typeof body==='object'&&!Array.isArray(body)&&
  JSON.stringify(body.sheetData).length<=30000&&!/supabase[.]co|data:image\//i.test(JSON.stringify(body.sheetData));
 export function createCharacterClaimService({pool}){
  if(typeof pool?.query!=='function')throw new TypeError('PostgreSQL pool required');
- const mutate=async(operation,playerId,characterId)=>{
+ async function claim(playerId,characterId){
   if(!valid(playerId)||!valid(characterId))throw new CampaignRejected('Personaggio non valido',400);
-  const fn=operation==='claim'?'claim_available_character':'release_claimed_character';
-  const {rows}=await pool.query(`SELECT hollowgate_vtt.${fn}($1,$2) AS campaign_id`,[playerId,characterId]);
+  const {rows}=await pool.query('SELECT hollowgate_vtt.claim_available_character($1,$2) AS campaign_id',[playerId,characterId]);
   const campaignId=rows[0]?.campaign_id;
-  if(!valid(campaignId))throw new CampaignRejected(operation==='claim'?'Personaggio non disponibile':'Personaggio non posseduto',409);
+  if(!valid(campaignId))throw new CampaignRejected('Personaggio non disponibile',409);
   return {characterId,campaignId};
- };
+ }
+ async function release(playerId,characterId){
+  if(!valid(playerId)||!valid(characterId))throw new CampaignRejected('Personaggio non valido',400);
+  const {rows}=await pool.query('SELECT hollowgate_vtt.release_claimed_character($1,$2) AS character_id',[playerId,characterId]);
+  const releasedId=rows[0]?.character_id;
+  if(releasedId!==characterId)throw new CampaignRejected('Personaggio non posseduto',409);
+  return {characterId};
+ }
  return {
   async list(playerId,campaignId){
    if(!valid(playerId)||!valid(campaignId))throw new CampaignRejected('Campagna non valida',400);
    const {rows}=await pool.query('SELECT * FROM hollowgate_vtt.list_claimable_characters($1,$2)',[playerId,campaignId]);
-   return {characters:rows.map(row=>({id:row.id,campaignId:row.campaign_id,ownerId:row.owner_id,
-   name:row.name,sheetData:row.sheet_data,status:row.status,createdAt:row.created_at,updatedAt:row.updated_at}))};
+   return {characters:rows.map(row=>({id:row.id,campaignId:row.campaign_id,ownerId:row.owner_id,name:row.name,
+    sheetData:row.sheet_data,status:row.status,createdAt:row.created_at,updatedAt:row.updated_at}))};
   },
   async current(playerId,campaignId){
    if(!valid(playerId)||!valid(campaignId))throw new CampaignRejected('Campagna non valida',400);
@@ -50,7 +56,7 @@ export function createCharacterClaimService({pool}){
    if(!row)throw new CampaignRejected('Personaggio non più autorizzato',404);
    return {character:mapped(row)};
   },
-  claim:(playerId,characterId)=>mutate('claim',playerId,characterId),
-  release:(playerId,characterId)=>mutate('release',playerId,characterId),
+  claim,
+  release,
  };
 }

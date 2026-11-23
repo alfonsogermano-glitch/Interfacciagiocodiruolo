@@ -72,7 +72,7 @@ assignment="$(docker exec "$container" psql -X -At -v ON_ERROR_STOP=1 -U postgre
 [[ "$assignment" == "1:$winner" ]] || { echo "Invalid committed assignment state: $assignment" >&2;exit 1; }
 released="$(docker exec "$container" psql -X -qAt -v ON_ERROR_STOP=1 -U postgres -d "$database" -c \
  "SET ROLE hollowgate_api_runtime;SELECT hollowgate_vtt.release_claimed_character('$winner','$character')")"
-[[ "$released" == "$campaign" ]] || { echo 'Winner could not release claim' >&2;exit 1; }
+[[ "$released" == "$character" ]] || { echo 'Winner could not release claim' >&2;exit 1; }
 remaining="$(docker exec "$container" psql -X -At -v ON_ERROR_STOP=1 -U postgres -d "$database" -c \
  "SELECT (SELECT count(*) FROM hollowgate_vtt.character_claims WHERE character_id='$character')||':'||(SELECT count(*) FROM hollowgate_vtt.character_player_assignments WHERE character_id='$character')")"
 [[ "$remaining" == '0:0' ]] || { echo "Release retained state: $remaining" >&2;exit 1; }

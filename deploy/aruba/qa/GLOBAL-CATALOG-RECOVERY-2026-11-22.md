@@ -155,6 +155,9 @@ sulla dimensione del bundle, non risolto da questo incremento.
 - Completare confronto di join, note/media e detail adapter originali.
 - Chiudere modello logico e backfill revisionato senza resuscitare vecchi owner;
   provare nuovi contenuti null-campaign e media indipendenti dalla campagna.
+  Il migration `sql/038_vtt_character_lifecycle.sql` ora definisce la
+  proprietà logica, il claim/distacco/rilascio e il ruleset mismatch in QA
+  (3/3 test PGlite verdi, suite API 288/288, regression claim 034/038).
 - Implementare transazioni e API globali sotto ruolo runtime ristretto;
   testare concorrenti claim/release, distacco/revoca, copy rollback, isolamento
   cross-owner e sotto-tab nascoste con media reali.
