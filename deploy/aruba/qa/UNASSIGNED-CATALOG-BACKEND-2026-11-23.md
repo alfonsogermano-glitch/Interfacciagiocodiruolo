@@ -191,8 +191,29 @@ nasconderebbe i dati storici e proporrebbe azioni ancora non implementate.
 
 Limiti delle prove: PGlite serializza gli statement; il test di due save con
 stessa revisione dimostra il rifiuto CAS, **non** contesa multi-connessione su
-un server PostgreSQL indipendente. Non provati ancora browser originale,
-layout, crop/cornici, TURN/realtime, storico pubblico o parità completa.
+un server PostgreSQL indipendente. I test di race multi-connessione sono
+definiti in `deploy/aruba/qa/postgres-race.test.mjs` e si eseguono solo quando
+`PGHOST` è impostato (skip automatico altrimenti). Non provati ancora browser
+originale, layout, crop/cornici, TURN/realtime, storico pubblico o parità
+completa.
+
+## Assegnamento e copia verso campagne (003)
+
+`sql/catalog/003_catalog_assign_copy.sql` aggiunge, sempre solo nei database
+QA:
+
+- `copy_unassigned_catalog_to_campaign(p_actor,p_kind,p_id,p_target_campaign,p_revision)`:
+  una sola transazione che legge l'entità sorgente (campagna NULL), verifica
+  revisione CAS, esistenza della campagna di destinazione e proprietà, crea la
+  nuova riga con `campaign_id` impostato, copia media e note (radici e sotto-tab
+  con ordini strutturali rimappati tramite nuovi UUID), e restituisce il
+  documento dell'entità copia. La sorgente resta intatta (campagna NULL).
+  Qualsiasi errore annulla tutto, lasciando la sorgente intatta.
+- L'entità copiata non è più raggiungibile dagli endpoint del catalogo
+  non assegnato (filtro `campaign_id IS NULL`): lettura, modifica e media
+  diventano indisponibili da questo sottoinsieme, come previsto dal modello.
+- Non esiste ancora una routine che sposti un'entità esistente (cambio
+  `campaign_id` in-place) né che assegni un'entità già in una campagna.
 
 ## Passo successivo
 
@@ -206,10 +227,19 @@ assign rifiutano ora i PG già claimati. I test incorporati
 `deploy/aruba/qa/character-lifecycle-db.test.mjs` (3/3), la suite API
 completa e il regression SQL `test_vtt_character_claims.sql` sono verde.
 
-Definire il modello di proprietà logica e il lifecycle di assegnazione,
-claim, distacco e rilascio senza riattivare vecchi diritti; poi proiettare in
-transazione i contenuti nativi verso le campagne (media, note e riferimenti),
-provare la concorrenza su PostgreSQL indipendente e solo allora collegare
+Le transazioni di assegnamento/copia per PG/PNG/Mostri sono **implementate in
+QA** come `sql/catalog/003_catalog_assign_copy.sql` (non ancora eseguita sul
+VPS, non ancora rilasciata): copia atomica di entità non assegnate verso una
+campagna con media e note in un'unica transazione, revision CAS, source
+intatta. I test QA `deploy/aruba/qa/catalog-assign-copy-db.test.mjs` (3/3)
+sono verdi.
+
+I test di contesa multi-connessione sono definiti in
+`deploy/aruba/qa/postgres-race.test.mjs` (claim race, save CAS race, copy
+race) e si eseguono solo contro un PostgreSQL reale quando `PGHOST` è
+impostato; si skippa altrimenti.
+
+Provare la concorrenza su PostgreSQL indipendente e solo allora collegare
 servizi, capability e componente originale. L'abilitazione pubblica resta un
 rilascio successivo, esplicitamente autorizzato con backup, preflight e
 rollback. Non eseguire questa SQL sul VPS come prova manuale.
