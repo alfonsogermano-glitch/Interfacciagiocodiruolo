@@ -65,6 +65,13 @@ passata). Nessuna SQL eseguita sul VPS e nessun catalogo originale ancora
 montato/pubblicato. Resta da implementare il modello/API globale, compreso
 rilascio di PG precompilati dopo il distacco dalla campagna.
 
+Incremento locale del 23: `UNASSIGNED-CATALOG-BACKEND-2026-11-23.md` descrive
+storage/API nativi dei nuovi PG/PNG/Mostri senza campagna, con media per entità,
+ownership esplicita e revisione CAS. 8 test DB/HTTP reali incorporati, 274 API
+e 490 VTT passati; indice API non collegato al servizio, nessuna capability
+abilitata. Nessun backfill, cambiamento ai claim o deploy; il catalogo originale
+non è ancora montato e non deve mostrare soltanto questi nuovi record.
+
 **Aggiornamento attuale:** soltanto Privacy / Elimina dati sono pubblicate e
 verificate in HTTPS. Le correzioni di caricamento campagne/inviti del VTT
 restano nel codice condiviso, non incluse nel rilascio statico.

@@ -11,6 +11,7 @@ import { NarrativeContentRejected } from './narrative-content-contract.mjs';
 import { EquipmentCatalogRejected } from './equipment-catalog-contract.mjs';
 import { CampaignDocumentRejected } from './campaign-document-contract.mjs';
 import { VisualAssetRejected } from './visual-asset-contract.mjs';
+import { CatalogRejected } from './unassigned-catalog-contract.mjs';
 
 const COOKIE = '__Host-hg_session';
 const COOKIE_PATTERN = /^[A-Za-z0-9_-]{43}$/;
@@ -100,7 +101,7 @@ class HttpProblem extends Error {
   }
 }
 
-export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, oauth = null, passwordReset = null, signupService = null, campaigns = null,campaignInvites = null,chapters = null,scenes = null,narrativeContent = null,equipmentCatalog = null,campaignDocuments = null,campaignChat = null,diceFormulas = null,visualAssets = null,characters = null,entityNotes = null,narrativeEntityNotes = null,campaignNotes = null,campaignFolders = null,notesPanelEnabled = false,campaignRoster = null,characterAvailability = null,characterAssignments = null,playerCharacters = null,characterClaims = null,characterPortraits = null, turnCredentials = null, gameSessionBootstrap = null }) {
+export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, oauth = null, passwordReset = null, signupService = null, campaigns = null,campaignInvites = null,chapters = null,scenes = null,narrativeContent = null,unassignedCatalog = null,equipmentCatalog = null,campaignDocuments = null,campaignChat = null,diceFormulas = null,visualAssets = null,characters = null,entityNotes = null,narrativeEntityNotes = null,campaignNotes = null,campaignFolders = null,notesPanelEnabled = false,campaignRoster = null,characterAvailability = null,characterAssignments = null,playerCharacters = null,characterClaims = null,characterPortraits = null, turnCredentials = null, gameSessionBootstrap = null }) {
   if(typeof notesPanelEnabled!=='boolean'||(notesPanelEnabled&&(!campaignNotes||!campaignFolders)))
     throw new TypeError('Original Notes panel requires both authenticated Notes and folders');
   const allowedOrigin = new URL(origin);
@@ -128,6 +129,8 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
     throw new TypeError('Scene endpoints require chapters and a valid scene service');
   if(narrativeContent!==null&&(!scenes||['list','save','remove'].some(k=>typeof narrativeContent[k]!=='function')))
     throw new TypeError('Narrative content endpoints require scenes and a valid service');
+  if(unassignedCatalog!==null&&['list','read','create','save','saveMedia','readMedia'].some(k=>typeof unassignedCatalog[k]!=='function'))
+    throw new TypeError('Invalid unassigned catalog service');
   if(campaignChat!==null&&(!campaigns||['list','send','remove','clear','react','participants','privateList','privateSend','privateRemove','privateClear','saveAttachment','readAttachment','removeAttachment'].some(k=>typeof campaignChat[k]!=='function')))
     throw new TypeError('Campaign chat endpoints require campaigns and a valid service');
   if(diceFormulas!==null&&(!campaigns||['list','create','update','remove','reorder'].some(k=>typeof diceFormulas[k]!=='function')))
@@ -307,6 +310,32 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
         if(req.method==='DELETE')return response(res,200,await scenes.remove(user.id,match[1],match[2]));
         return response(res,200,await scenes.save(user.id,match[1],await readJson(req,100000)));
+      }
+      // LOCAL opt-in only: native unassigned entities, not the complete global
+      // catalog. index.mjs deliberately does not construct/inject this service.
+      if(unassignedCatalog&&req.url?.startsWith('/vtt/catalog/unassigned/')){
+        const url=new URL(req.url,origin);
+        const match=/^\/vtt\/catalog\/unassigned\/(characters|npcs|monsters)(?:\/([0-9a-f-]{36})(?:\/media\/(portrait|source|cover))?)?$/i.exec(url.pathname);
+        if(!match)throw new HttpProblem(400,'Percorso catalogo non valido');
+        const [,kind,id,role]=match;
+        if(!['GET',id?'PUT':'POST'].includes(req.method))throw new HttpProblem(405,'Metodo non consentito');
+        const keys=[...url.searchParams.keys()];
+        if(keys.length&&(req.method!=='GET'||id||keys.length!==1||keys[0]!=='after'))
+          throw new HttpProblem(400,'Query catalogo non valida');
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.method==='GET'){
+          if(role)return response(res,200,await unassignedCatalog.readMedia(user.id,kind,id,role));
+          if(id)return response(res,200,await unassignedCatalog.read(user.id,kind,id));
+          return response(res,200,await unassignedCatalog.list(user.id,kind,url.searchParams.get('after')));
+        }
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        const body=await readJson(req,role?2800000:100000);
+        if(role)return response(res,200,await unassignedCatalog.saveMedia(user.id,kind,id,role,body));
+        if(id)return response(res,200,await unassignedCatalog.save(user.id,kind,id,body));
+        return response(res,201,await unassignedCatalog.create(user.id,kind,body));
       }
       // Original NPC, Monster, Clue and Situation documents. Explicit staging opt-in only.
       if(narrativeContent&&/^\/vtt\/campaigns\/[^/]+\/narrative\/(?:npcs|monsters|clues|events)(?:\/[^/]+)?$/.test(req.url??'')){
@@ -1026,6 +1055,7 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
       }
       return response(res, 404, { error: 'Not found' });
     } catch (error) {
+      if (error instanceof CatalogRejected) return response(res,error.status,{error:error.message});
       if (error instanceof VisualAssetRejected) return response(res,error.status,{error:error.message});
       if (error instanceof CampaignDocumentRejected) return response(res,error.status,{error:error.message});
       if (error instanceof EquipmentCatalogRejected) return response(res,error.status,{error:error.message});

@@ -1,0 +1,68 @@
+import {CatalogRejected,catalogId,catalogKind,catalogMediaRole,validateUnassignedCatalogBody,validateCatalogMedia} from './unassigned-catalog-contract.mjs';
+
+// Not instantiated by index.mjs. New native unassigned content only; never
+// masquerades as a complete listing of historical/campaign/claimed entities.
+export function createUnassignedCatalogService({pool}){
+ if(typeof pool?.query!=='function')throw new TypeError('PostgreSQL pool required');
+ const scope=(actor,kind,id)=>[catalogId(actor),catalogKind(kind),...(id===undefined?[]:[catalogId(id)])];
+ async function query(text,args){
+  try{return await pool.query(text,args);}
+  catch(error){
+   if(error.code==='40001')throw new CatalogRejected('Il contenuto è cambiato: ricarica prima di salvare.',409);
+   if(['23514','23502','22023','22001'].includes(error.code))throw new CatalogRejected('Contenuto catalogo non valido');
+   throw error;
+  }
+ }
+ function assertContext(row,args){
+  if(!row||row.ownerId!==args[0]||row.kind!==args[1]||row.campaignId!==null||
+   (args[2]!==undefined&&row.id!==args[2])||!Number.isInteger(row.revision)||row.revision<1||row.revision>=2147483647)
+   throw new Error('Invalid unassigned catalog result');
+  try{catalogId(row.id);}catch{throw new Error('Invalid unassigned catalog identity');}
+ }
+ const item=(result,args)=>{
+  if(!result.rows[0]?.item)throw new CatalogRejected('Contenuto non trovato o non autorizzato',404);
+  assertContext(result.rows[0].item,args);
+  return {item:result.rows[0].item};
+ };
+ return {
+  async list(actor,kind,after=null){
+   const args=scope(actor,kind);args.push(after===null?null:catalogId(after));
+   const {rows}=await query('SELECT hollowgate_vtt.list_unassigned_catalog_entries($1,$2,$3) AS item',args);
+   const page=rows.map(row=>row.item);
+   if(page.length>101)throw new Error('Invalid unassigned catalog result');
+   for(const row of page)assertContext(row,args.slice(0,2));
+   if(new Set(page.map(row=>row.id)).size!==page.length)throw new Error('Duplicate unassigned catalog identity');
+   const items=page.slice(0,100);
+   return {items,nextCursor:page.length>100?items.at(-1).id:null};
+  },
+  async read(actor,kind,id){
+   const args=scope(actor,kind,id);
+   return item(await query('SELECT hollowgate_vtt.get_unassigned_catalog_entry($1,$2,$3) AS item',args),args);
+  },
+  async create(actor,kind,body){
+   const args=scope(actor,kind),draft=validateUnassignedCatalogBody(kind,body);
+   return item(await query('SELECT hollowgate_vtt.create_unassigned_catalog_entry($1,$2,$3,$4,$5::jsonb) AS item',
+    [...args,draft.name,draft.ruleset,JSON.stringify(draft.data)]),args);
+  },
+  async save(actor,kind,id,body){
+   const args=scope(actor,kind,id),draft=validateUnassignedCatalogBody(kind,body,{saving:true});
+   return item(await query('SELECT hollowgate_vtt.save_unassigned_catalog_entry($1,$2,$3,$4,$5,$6,$7::jsonb) AS item',
+    [...args,draft.revision,draft.name,draft.ruleset,JSON.stringify(draft.data)]),args);
+  },
+  async saveMedia(actor,kind,id,role,body){
+   const args=scope(actor,kind,id),draft=validateCatalogMedia(role,body);
+   return item(await query('SELECT hollowgate_vtt.save_unassigned_catalog_media($1,$2,$3,$4,$5,$6,$7) AS item',
+    [...args,draft.revision,role,draft.mimeType,draft.bytes]),args);
+  },
+  async readMedia(actor,kind,id,role){
+   const args=scope(actor,kind,id);catalogMediaRole(role);
+   const {rows}=await query('SELECT * FROM hollowgate_vtt.read_unassigned_catalog_media($1,$2,$3,$4)',[...args,role]);
+   if(!rows[0])throw new CatalogRejected('Immagine non trovata o non autorizzata',404);
+   const row=rows[0],bytes=Buffer.from(row.bytes);
+   const dataBase64=bytes.toString('base64');
+   try{validateCatalogMedia(role,{mimeType:row.mime_type,revision:row.revision,dataBase64});}
+   catch(error){if(error instanceof CatalogRejected)throw new Error('Invalid stored catalog media');throw error;}
+   return {mimeType:row.mime_type,dataBase64,revision:row.revision};
+  },
+ };
+}

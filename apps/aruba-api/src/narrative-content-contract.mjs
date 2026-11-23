@@ -45,7 +45,7 @@ function d20Stats(value){
  return Object.keys(value).every(key=>numeric.includes(key)||textual.includes(key))&&
   numeric.every(key=>optionalNumber(value[key],-1000,10000))&&textual.every(key=>optionalString(value[key],200));
 }
-function validateOriginalEntityFields(kind,draft){
+export function validateOriginalEntityFields(kind,draft){
  if(kind!=='npcs'&&kind!=='monsters')return;
  for(const key of UUID_FIELDS)if(!optionalUuid(draft[key]))throw new NarrativeContentRejected('Riferimento contenuto non valido');
  for(const key of ['portraitFrameAssetId','coverFrameAssetId'])
