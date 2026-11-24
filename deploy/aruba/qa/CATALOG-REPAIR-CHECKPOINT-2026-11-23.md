@@ -1,6 +1,7 @@
 # Checkpoint riparazione catalogo — 23 novembre 2026
 
 ## Ultimo incremento (`6c49fd37`)
+- Comando accesso VPS (ricordato): `ssh -C -tt -o ConnectTimeout=12 -o ServerAliveInterval=20 -o ServerAliveCountMax=3 -o KexAlgorithms=ecdh-sha2-nistp256 -i "$env:USERPROFILE\.ssh\hollowgate_aruba" hgadmin@212.237.9.78`; backup del sito su VPS in corso, archivio rilascio uploadato via scp.
 - Procedura rilascio preparata via PowerShell: `deploy/aruba/production/build-release.ps1 -SkipBuild` eseguita
   (`npm run build` apps/aruba-vtt-pilot printa `built in`; `node_modules` presenti). Archivi in
   `.local/release/hollowgate-aruba-production.zip|.tar.gz` con SHA256. Distribuzione VPS resta a operatore
