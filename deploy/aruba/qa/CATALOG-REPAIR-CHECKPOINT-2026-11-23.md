@@ -1,6 +1,11 @@
 # Checkpoint riparazione catalogo — 23 novembre 2026
 
-## Ultimo incremento (`bf0da974`)
+## Ultimo incremento (`7d2367be`)
+- Verifica E2E browser del catalogo originale eseguita: `node test/browser-original-catalog.mjs`
+  (da apps/aruba-vtt-pilot). La pagina apre ma `locator.click getByRole('button', {name:'PNG'})` va in
+  timeout: gate browser aperto come da note del checkpoint (script inline estranei/domini bloccati).
+- Prova race PostgreSQL: `postgresRaceConfig` (HG_DISPOSABLE_PG_RACE=1 + PGHOST/PGUSER + DB `hollowgate_race_*`
+  vuota) non eseguibile qui: nessun PostgreSQL su 5432 nel debug locale; richiede VPS/PG dedicato, mai il DB operativo.
 - Editor media/note globali: endpoint `GET/PUT /vtt/catalog/native/global/<kind>/<id>/media/<role>` e
   `GET /vtt/catalog/native/global/<kind>/<id>/notes` (vista SQL catalog/007, servizio
   apps/aruba-api/src/native-global-editor-service.mjs, adapter loadNativeGlobalEntries/saveNativeGlobalMedia/
