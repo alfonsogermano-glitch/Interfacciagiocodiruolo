@@ -1,6 +1,10 @@
 # Checkpoint riparazione catalogo — 23 novembre 2026
 
-## Ultimo incremento (`7d2367be`)
+## Ultimo incremento (`6c49fd37`)
+- Procedura rilascio preparata via PowerShell: `deploy/aruba/production/build-release.ps1 -SkipBuild` eseguita
+  (`npm run build` apps/aruba-vtt-pilot printa `built in`; `node_modules` presenti). Archivi in
+  `.local/release/hollowgate-aruba-production.zip|.tar.gz` con SHA256. Distribuzione VPS resta a operatore
+  (sudo + backup/rollback + smoke test su https://www.hollowgate.quest).
 - Verifica E2E browser del catalogo originale eseguita: `node test/browser-original-catalog.mjs`
   (da apps/aruba-vtt-pilot). La pagina apre ma `locator.click getByRole('button', {name:'PNG'})` va in
   timeout: gate browser aperto come da note del checkpoint (script inline estranei/domini bloccati).
