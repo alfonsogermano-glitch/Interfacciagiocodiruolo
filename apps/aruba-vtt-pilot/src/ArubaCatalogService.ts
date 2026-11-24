@@ -150,6 +150,38 @@ export function isLastActiveCharacterForOwner<T extends {id:string;ownerProfileI
 }
 export const loadNPCsByOwner=(ownerId:string)=>nativeList('npcs',ownerId);
 export const loadMonstersByOwner=(ownerId:string)=>nativeList('monsters',ownerId);
+const GLOBAL_ENTRY_UUID_RE=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function validateGlobalEntry(item:any){
+ if(!item||typeof item!=='object'||(item.kind!=='characters'&&item.kind!=='npcs'&&item.kind!=='monsters')||
+    !GLOBAL_ENTRY_UUID_RE.test(item.id)||item.ownerId!==actor()||item.status!=='active'||
+    typeof item.name!=='string'||typeof item.data!=='object'||item.data===null)
+  throw Error('Elemento catalogo globale non valido');
+ return item;
+}
+async function nativeGlobalList(kind:string,after?:string){
+ const url='/vtt/catalog/native/global/'+kind+(after?'?after='+encodeURIComponent(after):'');
+ const items=await json(url);
+ if(!Array.isArray(items)||items.length>101)throw Error('Pagina catalogo globale non valida');
+ return items.map(validateGlobalEntry);
+}
+export async function loadNativeGlobalEntries(kind:string){return nativeGlobalList(kind);}
+export async function saveNativeGlobalMedia(kind:string,id:string,revision:number,role:string,mimeType:string,dataBase64:string){
+ if(!GLOBAL_ENTRY_UUID_RE.test(id)||!['portrait','source','cover'].includes(role))throw Error('IDENTITA_MEDIA_INVALIDA');
+ return validateGlobalEntry(await json('/vtt/catalog/native/global/'+kind+'/'+id+'/media/'+role,'PUT',{revision,mimeType,dataBase64}));
+}
+export async function readNativeGlobalMedia(kind:string,id:string,role:string){
+ if(!GLOBAL_ENTRY_UUID_RE.test(id)||!['portrait','source','cover'].includes(role))throw Error('IDENTITA_MEDIA_INVALIDA');
+ return json('/vtt/catalog/native/global/'+kind+'/'+id+'/media/'+role);
+}
+export async function listNativeGlobalNotes(kind:string,id:string){
+ if(!GLOBAL_ENTRY_UUID_RE.test(id))throw Error('IDENTITA_NOTA_INVALIDA');
+ return json('/vtt/catalog/native/global/'+kind+'/'+id+'/notes');
+}
+export async function createNativeGlobalNote(kind:string,id:string,revision:number,name:string){
+ if(!GLOBAL_ENTRY_UUID_RE.test(id)||!name)throw Error('IDENTITA_NOTA_INVALIDA');
+ return json('/vtt/catalog/native/global/'+kind+'/'+id+'/notes','POST',{revision,name});
+}
+
 const CAMPAIGN_UUID_RE=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function validateNativeCampaignItems(items:any){
  if(!Array.isArray(items)||items.length>101)throw Error('Pagina catalogo nativo di campagna non valida');

@@ -5,7 +5,7 @@ test('native catalog default/false never probe the DB or construct services',asy
  const pool={query:async()=>{throw Error('must not query');}};
  for(const flag of [undefined,'','false']){
   assert.deepEqual(await configureNativeCatalog({flag,pool}),
-   {unassignedCatalog:null,unassignedCatalogNotes:null,nativeCatalog:null,nativeCatalogNotes:null,nativeCampaignCatalog:null});
+   {unassignedCatalog:null,unassignedCatalogNotes:null,nativeCatalog:null,nativeCatalogNotes:null,nativeCampaignCatalog:null,nativeGlobalEditor:null});
  }
 });
 test('native catalog validates flag, authentication and dependencies before DB access',async()=>{

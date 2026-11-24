@@ -1,5 +1,6 @@
 import {createUnassignedCatalogService} from './unassigned-catalog-service.mjs';
 import {createNativeCampaignCatalogService} from './native-campaign-catalog-service.mjs';
+import {createNativeGlobalEditorService} from './native-global-editor-service.mjs';
 import {createUnassignedCatalogNotesService} from './unassigned-catalog-notes-service.mjs';
 const requiredFunctions=[
  'create_unassigned_catalog_entry(uuid,text,text,text,jsonb)',
@@ -19,6 +20,13 @@ const requiredFunctions=[
  'hollowgate_vtt.assign_native_catalog_entry(uuid,text,uuid,integer,uuid)',
  'hollowgate_vtt.archive_native_catalog_entry(uuid,text,uuid,integer)',
   'hollowgate_vtt.list_native_catalog_entries_by_campaign(uuid,text,uuid)',
+  'hollowgate_vtt.lock_native_catalog_entry_global(uuid,text,uuid,integer)',
+  'hollowgate_vtt.list_native_catalog_entries_global(uuid,text,uuid)',
+  'hollowgate_vtt.save_native_catalog_media_global(uuid,text,uuid,integer,text,text,bytea)',
+  'hollowgate_vtt.read_native_catalog_media_global(uuid,text,uuid,text)',
+  'hollowgate_vtt.list_native_catalog_notes_global(uuid,text,uuid,uuid)',
+  'hollowgate_vtt.create_native_catalog_note_global(uuid,text,uuid,integer,text,uuid)',
+  'hollowgate_vtt.save_native_catalog_note_global(uuid,text,uuid,uuid,integer,text,text,jsonb,integer,boolean,text)',
 ]);
 
 // Explicit partial capability: this never means historical/global UI parity.
@@ -26,7 +34,7 @@ const requiredFunctions=[
 export async function configureNativeCatalog({flag,authEnabled,campaigns,pool}){
  if(flag!==undefined&&flag!==''&&!['true','false'].includes(flag))
   throw Error('Unsupported AUTH_VTT_NATIVE_CATALOG_ENABLED value');
- if(flag!=='true')return {unassignedCatalog:null,unassignedCatalogNotes:null,nativeCatalog:null,nativeCatalogNotes:null,nativeCampaignCatalog:null};
+ if(flag!=='true')return {unassignedCatalog:null,unassignedCatalogNotes:null,nativeCatalog:null,nativeCatalogNotes:null,nativeCampaignCatalog:null,nativeGlobalEditor:null};
  if(!authEnabled)throw Error('Native catalog requires authenticated runtime');
  if(!campaigns)throw Error('Native catalog requires campaigns');
  if(typeof pool?.query!=='function')throw TypeError('PostgreSQL pool required');
@@ -43,5 +51,6 @@ export async function configureNativeCatalog({flag,authEnabled,campaigns,pool}){
   unassignedCatalogNotes:createUnassignedCatalogNotesService({pool}),
   nativeCatalog:createUnassignedCatalogService({pool,native:true}),
   nativeCatalogNotes:createUnassignedCatalogNotesService({pool,native:true}),
-   nativeCampaignCatalog:createNativeCampaignCatalogService({pool})};
+   nativeCampaignCatalog:createNativeCampaignCatalogService({pool}),
+   nativeGlobalEditor:createNativeGlobalEditorService({pool})};
 }

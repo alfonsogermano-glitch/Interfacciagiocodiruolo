@@ -101,7 +101,7 @@ class HttpProblem extends Error {
   }
 }
 
-export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, oauth = null, passwordReset = null, signupService = null, campaigns = null,campaignInvites = null,chapters = null,scenes = null,narrativeContent = null,unassignedCatalog = null,unassignedCatalogNotes = null,equipmentCatalog = null,campaignDocuments = null,campaignChat = null,diceFormulas = null,visualAssets = null,characters = null,entityNotes = null,narrativeEntityNotes = null,campaignNotes = null,campaignFolders = null,notesPanelEnabled = false,campaignRoster = null,characterAvailability = null,characterAssignments = null,playerCharacters = null,characterClaims = null,characterPortraits = null, logicalCharacters = null, turnCredentials = null, gameSessionBootstrap = null,nativeCatalog = null,nativeCatalogNotes = null,nativeCampaignCatalog = null,storicoPngMostri = null }) {
+export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, oauth = null, passwordReset = null, signupService = null, campaigns = null,campaignInvites = null,chapters = null,scenes = null,narrativeContent = null,unassignedCatalog = null,unassignedCatalogNotes = null,equipmentCatalog = null,campaignDocuments = null,campaignChat = null,diceFormulas = null,visualAssets = null,characters = null,entityNotes = null,narrativeEntityNotes = null,campaignNotes = null,campaignFolders = null,notesPanelEnabled = false,campaignRoster = null,characterAvailability = null,characterAssignments = null,playerCharacters = null,characterClaims = null,characterPortraits = null, logicalCharacters = null, turnCredentials = null, gameSessionBootstrap = null,nativeCatalog = null,nativeCatalogNotes = null,nativeCampaignCatalog = null,storidoPngMostri = null,nativeGlobalEditor = null }) {
   if(typeof notesPanelEnabled!=='boolean'||(notesPanelEnabled&&(!campaignNotes||!campaignFolders)))
     throw new TypeError('Original Notes panel requires both authenticated Notes and folders');
   const allowedOrigin = new URL(origin);
@@ -347,7 +347,7 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
       }
       // Read-only historical PNG/Mostri of the old site. Historical rows stay
       // in npcs/monsters; the native catalog is never written.
-      if(storicoPngMostri&&req.url?.startsWith('/vtt/storico/png-mostri')){
+      if(storidoPngMostri&&req.url?.startsWith('/vtt/storico/png-mostri')){
         const url=new URL(req.url,origin);
         const match=/^\/vtt\/storico\/png-mostri(?:\/([0-9a-f-]{36}))?$/i.exec(url.pathname);
         if(!match)throw new HttpProblem(400,'Percorso storico PNG/Mostri non valido');
@@ -360,8 +360,35 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
         if(!token)return response(res,401,{error:'Non autenticato'});
         const user=await getSessionUser(token);
         if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
-        return response(res,200,id?await storicoPngMostri.read(user.id,id):
-          await storicoPngMostri.list(user.id,url.searchParams.get('after')));
+        return response(res,200,id?await storidoPngMostri.read(user.id,id):
+          await storidoPngMostri.list(user.id,url.searchParams.get('after')));
+      }
+      // Global editor surface for native entries: owner-wide listing plus
+      // media/notes editing on entries in any campaign.
+      if(nativeGlobalEditor&&req.url?.startsWith('/vtt/catalog/native/global/')){
+        const url=new URL(req.url,origin);
+        const match=/^\/vtt\/catalog\/native\/global\/(characters|npcs|monsters)(?:\/([0-9a-f-]{36})(?:\/media\/(portrait|source|cover)|\/notes(?:\/([0-9a-f-]{36}))?)?)?$/i.exec(url.pathname);
+        if(!match)throw new HttpProblem(400,'Percorso catalogo globale non valido');
+        const [,kind,id,media,noteId]=match;
+        const allowed=id?(media||noteId?['GET','PUT']:['GET']):['GET','POST'];
+        if(!allowed.includes(req.method))throw new HttpProblem(405,'Metodo non consentito');
+        const keys=[...url.searchParams.keys()];
+        if(keys.length)throw new HttpProblem(400,'Query catalogo globale non valida');
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        if(req.method==="GET"){
+          if(!id)return response(res,200,await nativeGlobalEditor.list(user.id,kind));
+          if(media)return response(res,200,await nativeGlobalEditor.mediaRead(user.id,kind,id,media));
+          const listed=await nativeGlobalEditor.notesList(user.id,kind,id);
+          return response(res,200,listed);
+        }
+        if(req.headers.origin!==origin)throw new HttpProblem(403,'Origine non consentita');
+        const body=await readJson(req,100000);
+        if(media)return response(res,200,await nativeGlobalEditor.mediaSave(user.id,kind,id,body,media));
+        if(noteId)return response(res,200,await nativeGlobalEditor.noteSave(user.id,kind,id,noteId,body));
+        return response(res,201,await nativeGlobalEditor.noteCreate(user.id,kind,id,body));
       }
       // Explicit native catalog opt-in. This is NOT the complete global catalog.
       if(unassignedCatalog&&req.url?.startsWith('/vtt/catalog/unassigned/')||

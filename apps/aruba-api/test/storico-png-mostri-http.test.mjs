@@ -30,7 +30,7 @@ function service(){
 }
 async function serve(storico,callback){
  const handler=createAuthHttpHandler({origin,login:async()=>{},getSessionUser:async()=>({id:actor}),
-  revokeSession:async()=>{},campaigns,characters,storicoPngMostri:storico});
+  revokeSession:async()=>{},campaigns,characters,storidoPngMostri:storico});
  const app=createApp({checkDatabase:async()=>{},authHandler:handler});app.listen(0,'127.0.0.1');
  await once(app,'listening');
  try{await callback('http://127.0.0.1:'+app.address().port);}

@@ -197,7 +197,7 @@ async function main() {
     const logicalCatalog=await configureLogicalCharacterCatalog({
       flag:process.env.AUTH_VTT_CHARACTER_CATALOG_ENABLED,logicalCharacters,pool});
     if(logicalCatalog)logicalCharacters.catalog=logicalCatalog;
-    const {unassignedCatalog,unassignedCatalogNotes,nativeCatalog,nativeCatalogNotes,nativeCampaignCatalog}=await configureNativeCatalog({
+    const {unassignedCatalog,unassignedCatalogNotes,nativeCatalog,nativeCatalogNotes,nativeCampaignCatalog,nativeGlobalEditor}=await configureNativeCatalog({
       flag:process.env.AUTH_VTT_NATIVE_CATALOG_ENABLED,authEnabled:true,campaigns,pool});
     const availabilityFlag=process.env.AUTH_VTT_CHARACTER_AVAILABILITY_ENABLED;
     if(availabilityFlag&&!['true','false'].includes(availabilityFlag))
