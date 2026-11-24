@@ -2,6 +2,14 @@
 set -Eeuo pipefail
 umask 077
 
+# This is the historical initial installer, NOT an updater. In particular it
+# replays schema and historical ETL. Never invoke it on an operational site.
+if [[ "${HG_ALLOW_INITIAL_INSTALL:-}" != "EMPTY_DATABASE_ONLY" ]]; then
+  echo 'INSTALL_BLOCKED: install-private.sh is an initial installer, not an update command.' >&2
+  echo 'No database, container or file changes performed. Use the reviewed update runbook.' >&2
+  exit 64
+fi
+
 release="${HG_RELEASE_DIR:-$HOME/hollowgate-private-upload/hollowgate-aruba-production-linux}"
 container="${HG_POSTGRES_CONTAINER:-hollowgate-postgres-1}"
 database="${HG_POSTGRES_DATABASE:-hollowgate}"

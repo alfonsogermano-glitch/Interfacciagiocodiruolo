@@ -1,6 +1,5 @@
 import {createUnassignedCatalogService} from './unassigned-catalog-service.mjs';
 import {createNativeCampaignCatalogService} from './native-campaign-catalog-service.mjs';
-import {createNativeGlobalEditorService} from './native-global-editor-service.mjs';
 import {createUnassignedCatalogNotesService} from './unassigned-catalog-notes-service.mjs';
 const requiredFunctions=[
  'create_unassigned_catalog_entry(uuid,text,text,text,jsonb)',
@@ -20,13 +19,6 @@ const requiredFunctions=[
  'hollowgate_vtt.assign_native_catalog_entry(uuid,text,uuid,integer,uuid)',
  'hollowgate_vtt.archive_native_catalog_entry(uuid,text,uuid,integer)',
   'hollowgate_vtt.list_native_catalog_entries_by_campaign(uuid,text,uuid)',
-  'hollowgate_vtt.lock_native_catalog_entry_global(uuid,text,uuid,integer)',
-  'hollowgate_vtt.list_native_catalog_entries_global(uuid,text,uuid)',
-  'hollowgate_vtt.save_native_catalog_media_global(uuid,text,uuid,integer,text,text,bytea)',
-  'hollowgate_vtt.read_native_catalog_media_global(uuid,text,uuid,text)',
-  'hollowgate_vtt.list_native_catalog_notes_global(uuid,text,uuid,uuid)',
-  'hollowgate_vtt.create_native_catalog_note_global(uuid,text,uuid,integer,text,uuid)',
-  'hollowgate_vtt.save_native_catalog_note_global(uuid,text,uuid,uuid,integer,text,text,jsonb,integer,boolean,text)',
 ]);
 
 // Explicit partial capability: this never means historical/global UI parity.
@@ -46,11 +38,13 @@ export async function configureNativeCatalog({flag,authEnabled,campaigns,pool}){
   AND to_regprocedure('hollowgate_vtt.copy_native_catalog_to_campaign_internal(uuid,text,uuid,uuid,integer)') IS NOT NULL
   AND NOT has_function_privilege(current_user,to_regprocedure('hollowgate_vtt.copy_native_catalog_to_campaign_internal(uuid,text,uuid,uuid,integer)'),'EXECUTE')
   AS ready FROM unnest($1::text[]) AS required(signature)`,[requiredFunctions]);
- if(rows[0]?.ready!==true)throw Error('Native catalog requires migrations 001-005 and restricted runtime grants');
+  if(rows[0]?.ready!==true)throw Error('Native catalog requires migrations 001-006 and restricted runtime grants');
  return {unassignedCatalog:createUnassignedCatalogService({pool}),
   unassignedCatalogNotes:createUnassignedCatalogNotesService({pool}),
   nativeCatalog:createUnassignedCatalogService({pool,native:true}),
   nativeCatalogNotes:createUnassignedCatalogNotesService({pool,native:true}),
    nativeCampaignCatalog:createNativeCampaignCatalogService({pool}),
-   nativeGlobalEditor:createNativeGlobalEditorService({pool})};
+    // 007 bypasses context checks and permits NULL CAS via a runtime helper.
+    // Do not activate or require that migration as a release dependency.
+    nativeGlobalEditor:null};
 }

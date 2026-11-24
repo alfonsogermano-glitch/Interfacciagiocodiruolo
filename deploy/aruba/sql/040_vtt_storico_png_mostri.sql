@@ -1,24 +1,26 @@
 -- Storico PNG/Mostri: read-only projection of the old site's npcs/monsters.
 -- Historical data has no native-catalog writes; the view is never mutated.
--- Owner: legacy owner_profile_id when present, else the campaign owner
--- (campaigns always carry an owner). NULL-owner + NULL-campaign rows are
--- only for campaignless legacy data and stay readable to active users.
+-- Fail closed: authoritative owner, or campaign GM for genuinely ownerless
+-- campaign records. Unresolved/invalid owners and campaignless orphan records
+-- are not public content. No ownership backfill is performed.
 BEGIN;
 
 DROP VIEW IF EXISTS hollowgate_vtt.storico_png_mostri;
 
 CREATE VIEW hollowgate_vtt.storico_png_mostri AS
 SELECT 'npcs'::text AS kind,n.id,n.name,n.ruleset,
- CASE WHEN n.owner_profile_id ~ '^[0-9a-fA-F-]{36}$' THEN n.owner_profile_id::uuid END AS owner_profile_id,
+  CASE WHEN n.owner_profile_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN n.owner_profile_id::uuid END AS owner_profile_id,
  n.campaign_id,n.description,n.notes,n.environment_id,n.chapter_id,n.map_location_id,
  n.image_url,n.cover_image_url,n.created_at,n.updated_at,'npcs'::text AS storico_type
 FROM hollowgate_vtt.npcs n
+WHERE n.owner_profile_id IS NULL OR n.owner_profile_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
 UNION ALL
 SELECT 'monsters'::text,m.id,m.name,m.ruleset,
- CASE WHEN m.owner_profile_id ~ '^[0-9a-fA-F-]{36}$' THEN m.owner_profile_id::uuid END,
+  CASE WHEN m.owner_profile_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN m.owner_profile_id::uuid END,
  m.campaign_id,m.description,m.notes,m.environment_id,m.chapter_id,m.map_location_id,
  m.image_url,m.cover_image_url,m.created_at,m.updated_at,'monsters'::text
-FROM hollowgate_vtt.monsters m;
+FROM hollowgate_vtt.monsters m
+WHERE m.owner_profile_id IS NULL OR m.owner_profile_id ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
 
 CREATE OR REPLACE FUNCTION hollowgate_vtt.storico_png_mostri_document(p_entry hollowgate_vtt.storico_png_mostri)
 RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
@@ -33,11 +35,13 @@ $$;
 
 CREATE OR REPLACE FUNCTION hollowgate_vtt.storico_png_mostri_access(p_actor uuid,p_owner uuid,p_campaign uuid)
 RETURNS boolean LANGUAGE sql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
-SELECT (p_owner IS NOT NULL AND p_owner=p_actor)
-   OR (p_campaign IS NOT NULL AND EXISTS(
-    SELECT 1 FROM hollowgate_vtt.campaigns c WHERE c.id=p_campaign AND c.owner_id=p_actor))
-   OR (p_owner IS NULL AND p_campaign IS NULL AND EXISTS(
-    SELECT 1 FROM hollowgate_auth.users u WHERE u.id=p_actor AND u.status='active' AND u.email_verified_at IS NOT NULL))
+SELECT EXISTS(
+ SELECT 1 FROM hollowgate_auth.users u WHERE u.id=p_actor
+ AND u.status='active' AND u.email_verified_at IS NOT NULL
+) AND ((p_owner IS NOT NULL AND p_owner=p_actor)
+   OR (p_owner IS NULL AND p_campaign IS NOT NULL AND EXISTS(
+     SELECT 1 FROM hollowgate_vtt.campaigns c WHERE c.id=p_campaign AND c.owner_id=p_actor))
+)
 $$;
 
 CREATE OR REPLACE FUNCTION hollowgate_vtt.list_storico_png_mostri(p_actor uuid,p_after uuid)

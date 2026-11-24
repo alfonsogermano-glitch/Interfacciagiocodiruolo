@@ -19,12 +19,13 @@ test('native startup requires secure schema and constructs catalog plus notes to
   pool:{query:async text=>{sql.push(text);return {rows:[{ready:true}]};}}});
  assert.equal(typeof configured.unassignedCatalog.copyToCampaign,'function');
  assert.equal(typeof configured.unassignedCatalogNotes.archive,'function');
+ assert.equal(configured.nativeGlobalEditor,null);
  assert.equal(sql.length,1);
  assert.match(sql[0],/copy_unassigned_catalog_to_campaign_v003/);
  assert.match(sql[0],/NOT has_function_privilege/);
  assert.doesNotMatch(sql[0],/\b(?:CREATE|ALTER|GRANT|INSERT|UPDATE|DELETE)\b/);
  for(const ready of [false,null,undefined]){
   await assert.rejects(configureNativeCatalog({flag:'true',authEnabled:true,campaigns:{},
-   pool:{query:async()=>({rows:[{ready}]})}}),/migrations 001-005/);
+    pool:{query:async()=>({rows:[{ready}]})}}),/migrations 001-006/);
  }
 });

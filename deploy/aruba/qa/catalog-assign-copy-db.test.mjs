@@ -1,7 +1,7 @@
 // In-memory PostgreSQL, actual SQL + restricted role + real service/HTTP.
 // No VPS, credentials, exports or active databases are used.
 // Applies migrations 001-039 (excluding 35/36/37 staging-only DO blocks) plus
-// native catalog migrations 001-005 (copy, authorization and lifecycle).
+// native catalog migrations 001-006 (copy, authorization and lifecycle).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync,readdirSync} from 'node:fs';
@@ -25,6 +25,7 @@ async function fixture(){
   await db.exec(readFileSync(new URL('catalog/003_catalog_assign_copy.sql',directory),'utf8'));
   await db.exec(readFileSync(new URL('catalog/004_catalog_copy_authorization.sql',directory),'utf8'));
   await db.exec(readFileSync(new URL('catalog/005_native_catalog_lifecycle.sql',directory),'utf8'));
+  await db.exec(readFileSync(new URL('catalog/006_native_campaign_projection.sql',directory),'utf8'));
  await db.query(`INSERT INTO hollowgate_auth.users(id,email,display_name,status,email_verified_at,source)
   VALUES($1,'catalog-owner@example.invalid','Catalog Owner','active',now(),'local')`,[owner]);
  const campaignId=(await db.query(`INSERT INTO hollowgate_vtt.campaigns(owner_id,name,description,ruleset)

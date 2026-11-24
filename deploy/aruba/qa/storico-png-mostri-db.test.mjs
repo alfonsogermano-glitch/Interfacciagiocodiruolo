@@ -4,6 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync,readdirSync} from 'node:fs';
 import {PGlite} from '@electric-sql/pglite';
+import {createStoricoPngMostriService} from '../../../apps/aruba-api/src/storico-png-mostri-service.mjs';
 
 const owner='71000000-0000-4000-8000-000000000021';
 const campaign='71000000-0000-4000-8000-000000000023';
@@ -26,15 +27,14 @@ async function fixture(){
  await db.exec(stub('npcs'));
  await db.exec(stub('monsters'));
  await db.exec(readFileSync(new URL('../sql/040_vtt_storico_png_mostri.sql',import.meta.url),'utf8'));
- await db.exec('GRANT SELECT,INSERT,UPDATE,DELETE ON hollowgate_vtt.npcs,hollowgate_vtt.monsters TO hollowgate_api_runtime;');
  await db.query(`INSERT INTO hollowgate_auth.users(id,email,display_name,status,email_verified_at,source) VALUES
    ($1,'storico-owner@example.invalid','Storico Owner','active',now(),'local'),
    ($2,'storico-other@example.invalid','Storico Other','active',now(),'local')`,[owner,other]);
  const campaignId=(await db.query(`INSERT INTO hollowgate_vtt.campaigns(owner_id,name,description,ruleset) VALUES($1,'Storico QA','','hsc') RETURNING id`,[owner])).rows[0].id;
- await db.exec('SET ROLE hollowgate_api_runtime;');
  await db.query(`INSERT INTO hollowgate_vtt.npcs(id,campaign_id,owner_profile_id,name,description,notes,ruleset) VALUES($1,$2,$3,'Dio dei carmini','Testo','Nota del consigliere','hsc')`,[npc,campaignId,owner]);
  await db.query(`INSERT INTO hollowgate_vtt.monsters(id,campaign_id,owner_profile_id,name,description,notes,ruleset) VALUES($1,$2,$3,'Gigante storico','Testo','Nota del GM','hsc')`,[monster,campaignId,owner]);
- await db.query(`INSERT INTO hollowgate_vtt.npcs(id,campaign_id,owner_profile_id,name) VALUES($1,$2,NULL,'Senza propietario storico')`,[legacy,campaignId]);
+  await db.query(`INSERT INTO hollowgate_vtt.npcs(id,campaign_id,owner_profile_id,name) VALUES($1,$2,NULL,'Senza propietario storico')`,[legacy,campaignId]);
+  await db.exec('SET ROLE hollowgate_api_runtime;');
  return {db,pool:{query:(text,args)=>db.query(text,args)},campaign:campaignId};
 }
 async function docsFor(f,actor,after){
@@ -79,7 +79,33 @@ test('storico PNG/Mostri: owner and campaign-owner reads, denial, native untouch
   assert.ok(legacyRead);
   assert.equal(legacyRead.ownerProfileId,null);
   // Historical rows stay untouched by the read path.
+  await f.db.exec('RESET ROLE');
   assert.equal((await f.pool.query('SELECT count(*) AS c FROM hollowgate_vtt.npcs')).rows[0].c,2);
   assert.equal((await f.pool.query('SELECT count(*) AS c FROM hollowgate_vtt.monsters')).rows[0].c,1);
+ }finally{await f.db.close();}
+});
+test('historical service uses real SQL and denies orphan, invalid and inactive ownership',async()=>{
+ const f=await fixture();
+ try{
+  const service=createStoricoPngMostriService({pool:f.pool});
+  assert.equal((await service.list(owner)).items.length,3);
+  await f.db.exec('RESET ROLE');
+  const ids=[];
+  for(const [campaignId,profile] of [[null,null],[f.campaign,'unknown-profile'],
+   [f.campaign,'------------------------------------']]){
+   ids.push((await f.db.query(`INSERT INTO hollowgate_vtt.npcs(campaign_id,owner_profile_id,name)
+    VALUES($1,$2,'Non pubblicare') RETURNING id`,[campaignId,profile])).rows[0].id);
+  }
+  await f.db.exec('SET ROLE hollowgate_api_runtime');
+  for(const actor of [owner,other]){
+   for(const id of ids)await assert.rejects(service.read(actor,id),e=>e.status===404);
+  }
+  assert.equal((await service.list(owner)).items.length,3);
+  await assert.rejects(f.db.query('SELECT * FROM hollowgate_vtt.npcs'),e=>e.code==='42501');
+  await f.db.exec('RESET ROLE');
+  // A verified but disabled account must not retain historical access.
+  await f.db.query("UPDATE hollowgate_auth.users SET email_verified_at=NULL WHERE id=$1",[owner]);
+  await f.db.exec('SET ROLE hollowgate_api_runtime');
+  assert.deepEqual((await service.list(owner)).items,[]);
  }finally{await f.db.close();}
 });

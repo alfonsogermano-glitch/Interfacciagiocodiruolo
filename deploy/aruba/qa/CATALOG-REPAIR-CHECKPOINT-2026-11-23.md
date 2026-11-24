@@ -1,5 +1,12 @@
 # Checkpoint riparazione catalogo — 23 novembre 2026
 
+> **CORREZIONE OPERATIVA 24 NOVEMBRE:** le successive diciture “DONE” non
+> dimostrano parità o rilascio. Stato autorevole del recupero:
+> `VPS-RECOVERY-2026-11-24.md`; procedura: `../production/UPDATE-PROCEDURE.md`.
+> Segreti recuperati/ripristinati, Compose candidato solo validato, nessun
+> aggiornamento live verificato. Non usare `install-private.sh` come updater.
+> Storico ed editor globale sperimentale sono ora disattivati nel runtime.
+
 ## Ultimo incremento (`6c49fd37`)
 - Comando accesso VPS (ricordato): `ssh -C -tt -o ConnectTimeout=12 -o ServerAliveInterval=20 -o ServerAliveCountMax=3 -o KexAlgorithms=ecdh-sha2-nistp256 -i "$env:USERPROFILE\.ssh\hollowgate_aruba" hgadmin@212.237.9.78`; backup del sito su VPS in corso, archivio rilascio uploadato via scp.
 - Procedura rilascio preparata via PowerShell: `deploy/aruba/production/build-release.ps1 -SkipBuild` eseguita

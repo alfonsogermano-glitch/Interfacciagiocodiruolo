@@ -28,7 +28,7 @@ import {createCharacterClaimService} from './character-claim-service.mjs';
 import {createLogicalCharacterService} from './logical-character-service.mjs';
 import {configureNativeCatalog} from './native-catalog-startup.mjs';
 import {configureLogicalCharacterCatalog,requireLogicalCharacterSafety} from './logical-character-catalog-startup.mjs';
-import {createStoricoPngMostriService} from './storico-png-mostri-service.mjs';
+import {configureHistoricalCatalog} from './historical-catalog-startup.mjs';
 import {createGameSessionBootstrap} from './game-session-bootstrap.mjs';
 import {createCharacterPortraitService} from './character-portrait-service.mjs';
 import {createEntityNotesService} from './entity-notes-service.mjs';
@@ -193,7 +193,8 @@ async function main() {
       throw new Error('Character logical ownership requires staging characters');
     const logicalCharacters=logicalFlag==='true'?createLogicalCharacterService({pool}):null;
     if(logicalCharacters)await requireLogicalCharacterSafety({pool});
-    const storicoPngMostri=createStoricoPngMostriService({pool});
+    const storicoPngMostri=configureHistoricalCatalog({
+      flag:process.env.AUTH_VTT_HISTORICAL_CATALOG_ENABLED});
     const logicalCatalog=await configureLogicalCharacterCatalog({
       flag:process.env.AUTH_VTT_CHARACTER_CATALOG_ENABLED,logicalCharacters,pool});
     if(logicalCatalog)logicalCharacters.catalog=logicalCatalog;

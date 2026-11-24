@@ -4,7 +4,8 @@ BEGIN;
 CREATE FUNCTION hollowgate_vtt.list_native_catalog_entries_by_campaign(p_actor uuid,p_kind text,p_campaign uuid)
 RETURNS TABLE(item jsonb) LANGUAGE sql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
 SELECT hollowgate_vtt.catalog_entity_document(e) FROM hollowgate_vtt.catalog_entities e
-WHERE e.kind=p_kind AND e.campaign_id=p_campaign
+WHERE e.kind=p_kind AND e.campaign_id=p_campaign AND e.status='active'
+  AND e.owner_id=p_actor
   AND hollowgate_vtt.native_catalog_context_authorized(p_actor,p_campaign)
 ORDER BY e.id LIMIT 101
 $$;

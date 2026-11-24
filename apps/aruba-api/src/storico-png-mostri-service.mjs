@@ -17,7 +17,7 @@ export function createStoricoPngMostriService({pool}){
   async list(actor,after=null){
    const args=[catalogId(actor),after===null||after===undefined?null:catalogId(after)];
    const {rows}=await pool.query(
-    'SELECT hollowgate_vtt.storico_png_mostri_document(v) AS item FROM hollowgate_vtt.list_storico_png_mostri($1,$2) AS v',args);
+     'SELECT item FROM hollowgate_vtt.list_storico_png_mostri($1,$2)',args);
    if(rows.length>101)throw new Error('Invalid storico paging result');
    const items=rows.slice(0,100).map(row=>validateItem(row.item));
    return {items,nextCursor:rows.length>100?items.at(-1).id:null};
