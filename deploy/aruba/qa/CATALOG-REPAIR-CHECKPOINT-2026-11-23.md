@@ -1,6 +1,10 @@
 # Checkpoint riparazione catalogo — 23 novembre 2026
 
-## Ultimo incremento (`d8ae71c7`)
+## Ultimo incremento (`bf0da974`)
+- Editor media/note globali: endpoint `GET/PUT /vtt/catalog/native/global/<kind>/<id>/media/<role>` e
+  `GET /vtt/catalog/native/global/<kind>/<id>/notes` (vista SQL catalog/007, servizio
+  apps/aruba-api/src/native-global-editor-service.mjs, adapter loadNativeGlobalEntries/saveNativeGlobalMedia/
+  readNativeGlobalMedia/listNativeGlobalNotes/createNativeGlobalNote). Verdi: API 301/301, frontend 525/525, DB native-global 1/1.
 - Proiezione native nei consumer di campagna: `GET /vtt/catalog/native/by-campaign/<kind>/<campaignId>`
   (vista SQL catalog/006, servizio apps/aruba-api/src/native-campaign-catalog-service.mjs, read-only);
   adapter `loadNPCsByCampaign`/`loadMonstersByCampaign` in apps/aruba-vtt-pilot/src/ArubaCatalogService.ts.
@@ -194,7 +198,7 @@
    eventuale comando sudo per operatore VPS, smoke test sull'origine pubblica.
 9. Storico PNG/Mostri (estrazione storica): DONE - endpoint read-only `'/vtt/storico/png-mostri`, vista SQL 040_vtt_storico_png_mostri.sql, funzioni list_storico_png_mostri/read_storico_png_mostri, transport adapter loadStoricoPngMostri. Verdi: API 299/299, frontend 520/520, DB storico 1/1.
 10. DONE - proiezione native nei consumer di campagna (endpoint by-campaign, servizio, adapter).
-11.  editor media/note globali; completare duplicazione del reclamato con proiezione approvata; poi E2E browser/PG reale; poi procedura rilascio.
+11.  editor media/note globali DONE (servizio native-global-editor + adapter); completare duplicazione del reclamato con proiezione approvata; poi E2E browser/PG reale; poi procedura rilascio.
 
 ## Comunicazione e risparmio contesto
 Risposte brevi in italiano. Riportare soltanto verifiche realmente eseguite.
