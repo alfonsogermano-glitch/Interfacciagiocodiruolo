@@ -150,6 +150,25 @@ export function isLastActiveCharacterForOwner<T extends {id:string;ownerProfileI
 }
 export const loadNPCsByOwner=(ownerId:string)=>nativeList('npcs',ownerId);
 export const loadMonstersByOwner=(ownerId:string)=>nativeList('monsters',ownerId);
+const CAMPAIGN_UUID_RE=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function validateNativeCampaignItems(items:any){
+ if(!Array.isArray(items)||items.length>101)throw Error('Pagina catalogo nativo di campagna non valida');
+ return items.map((item:any)=>{
+  if(!item||typeof item!=='object'||(item.kind!=='characters'&&item.kind!=='npcs'&&item.kind!=='monsters')||
+     !CAMPAIGN_UUID_RE.test(item.id)||item.ownerId!==actor()||!CAMPAIGN_UUID_RE.test(item.campaignId)||
+     typeof item.name!=='string'||item.status!=='active'||typeof item.data!=='object')
+   throw Error('Elemento catalogo nativo di campagna non valido');
+  return item;
+ });
+}
+async function nativeCampaignList(kind:string,campaignId:string){
+ if(!CAMPAIGN_UUID_RE.test(campaignId))throw Error('CAMPAIGN_ID_INVALID');
+ const items=await json('/vtt/catalog/native/by-campaign/'+kind+'/'+campaignId);
+ return validateNativeCampaignItems(items);
+}
+export async function loadNPCsByCampaign(campaignId:string){return nativeCampaignList('npcs',campaignId);}
+export async function loadMonstersByCampaign(campaignId:string){return nativeCampaignList('monsters',campaignId);}
+
 const STORICO_ID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function validateStoricoPage(page:any){
  if(!page||typeof page!=='object'||!Array.isArray(page.items)||page.items.length>100||

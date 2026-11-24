@@ -197,7 +197,7 @@ async function main() {
     const logicalCatalog=await configureLogicalCharacterCatalog({
       flag:process.env.AUTH_VTT_CHARACTER_CATALOG_ENABLED,logicalCharacters,pool});
     if(logicalCatalog)logicalCharacters.catalog=logicalCatalog;
-    const {unassignedCatalog,unassignedCatalogNotes,nativeCatalog,nativeCatalogNotes}=await configureNativeCatalog({
+    const {unassignedCatalog,unassignedCatalogNotes,nativeCatalog,nativeCatalogNotes,nativeCampaignCatalog}=await configureNativeCatalog({
       flag:process.env.AUTH_VTT_NATIVE_CATALOG_ENABLED,authEnabled:true,campaigns,pool});
     const availabilityFlag=process.env.AUTH_VTT_CHARACTER_AVAILABILITY_ENABLED;
     if(availabilityFlag&&!['true','false'].includes(availabilityFlag))
@@ -295,7 +295,7 @@ async function main() {
         identity:signalingIdentity,sharedSecret:secret,urls,
       });
     }
-    authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession, oauth,passwordReset,signupService,campaigns,campaignInvites,chapters,scenes,narrativeContent,equipmentCatalog,campaignDocuments,campaignChat,diceFormulas,visualAssets,characters,entityNotes,narrativeEntityNotes,campaignNotes,campaignFolders,notesPanelEnabled,campaignRoster,characterAvailability,characterAssignments,playerCharacters,characterClaims,characterPortraits,logicalCharacters,unassignedCatalog,unassignedCatalogNotes,nativeCatalog,nativeCatalogNotes,storicoPngMostri,turnCredentials,gameSessionBootstrap});
+    authHandler = createAuthHttpHandler({origin, login, getSessionUser, revokeSession, oauth,passwordReset,signupService,campaigns,campaignInvites,chapters,scenes,narrativeContent,equipmentCatalog,campaignDocuments,campaignChat,diceFormulas,visualAssets,characters,entityNotes,narrativeEntityNotes,campaignNotes,campaignFolders,notesPanelEnabled,campaignRoster,characterAvailability,characterAssignments,playerCharacters,characterClaims,characterPortraits,logicalCharacters,unassignedCatalog,unassignedCatalogNotes,nativeCatalog,nativeCatalogNotes,storicoPngMostri,nativeCampaignCatalog,turnCredentials,gameSessionBootstrap});
   } else if (process.env.AUTH_VTT_NATIVE_CATALOG_ENABLED === 'true') {
     throw new Error('Native catalog requires authenticated runtime');
   } else if (process.env.AUTH_VTT_CHARACTER_CATALOG_ENABLED === 'true') {

@@ -101,7 +101,7 @@ class HttpProblem extends Error {
   }
 }
 
-export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, oauth = null, passwordReset = null, signupService = null, campaigns = null,campaignInvites = null,chapters = null,scenes = null,narrativeContent = null,unassignedCatalog = null,unassignedCatalogNotes = null,equipmentCatalog = null,campaignDocuments = null,campaignChat = null,diceFormulas = null,visualAssets = null,characters = null,entityNotes = null,narrativeEntityNotes = null,campaignNotes = null,campaignFolders = null,notesPanelEnabled = false,campaignRoster = null,characterAvailability = null,characterAssignments = null,playerCharacters = null,characterClaims = null,characterPortraits = null, logicalCharacters = null, turnCredentials = null, gameSessionBootstrap = null,nativeCatalog = null,nativeCatalogNotes = null,storicoPngMostri = null }) {
+export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSession, oauth = null, passwordReset = null, signupService = null, campaigns = null,campaignInvites = null,chapters = null,scenes = null,narrativeContent = null,unassignedCatalog = null,unassignedCatalogNotes = null,equipmentCatalog = null,campaignDocuments = null,campaignChat = null,diceFormulas = null,visualAssets = null,characters = null,entityNotes = null,narrativeEntityNotes = null,campaignNotes = null,campaignFolders = null,notesPanelEnabled = false,campaignRoster = null,characterAvailability = null,characterAssignments = null,playerCharacters = null,characterClaims = null,characterPortraits = null, logicalCharacters = null, turnCredentials = null, gameSessionBootstrap = null,nativeCatalog = null,nativeCatalogNotes = null,nativeCampaignCatalog = null,storicoPngMostri = null }) {
   if(typeof notesPanelEnabled!=='boolean'||(notesPanelEnabled&&(!campaignNotes||!campaignFolders)))
     throw new TypeError('Original Notes panel requires both authenticated Notes and folders');
   const allowedOrigin = new URL(origin);
@@ -414,6 +414,20 @@ export function createAuthHttpHandler({ origin, login, getSessionUser, revokeSes
          if(role)return response(res,200,await catalog.saveMedia(user.id,kind,id,role,body));
          if(id)return response(res,200,await catalog.save(user.id,kind,id,body));
          return response(res,201,await catalog.create(user.id,kind,body));
+      }
+      // Read-only projection of native entries assigned to a campaign.
+      if(nativeCampaignCatalog&&req.url?.startsWith('/vtt/catalog/native/by-campaign/')){
+        const url=new URL(req.url,origin);
+        const match=/^\/vtt\/catalog\/native\/by-campaign\/(characters|npcs|monsters)\/([0-9a-f-]{36})$/i.exec(url.pathname);
+        if(!match)throw new HttpProblem(400,'Percorso catalogo non valido');
+        if(req.method!=='GET')throw new HttpProblem(405,'Metodo non consentito');
+        const keys=[...url.searchParams.keys()];
+        if(keys.length)throw new HttpProblem(400,'Query catalogo non valida');
+        const token=extractSession(req);
+        if(!token)return response(res,401,{error:'Non autenticato'});
+        const user=await getSessionUser(token);
+        if(!user)return response(res,401,{error:'Non autenticato'},LOGOUT_COOKIE);
+        return response(res,200,await nativeCampaignCatalog.list(user.id,match[1],match[2]));
       }
       // Original NPC, Monster, Clue and Situation documents. Explicit staging opt-in only.
       if(narrativeContent&&/^\/vtt\/campaigns\/[^/]+\/narrative\/(?:npcs|monsters|clues|events)(?:\/[^/]+)?$/.test(req.url??'')){
