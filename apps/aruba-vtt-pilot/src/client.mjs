@@ -403,6 +403,22 @@ export async function archiveOwnedCharacter(fetchImpl,campaignId,characterId,own
  if(data.archivedId!==characterId)throw Error('Archiviazione non confermata');
  return data.archivedId;
 }
+export async function copyCharacterToCampaign(fetchImpl,sourceCampaignId,characterId,targetCampaignId,ownerId){
+ if(!/^[0-9a-f-]{36}$/i.test(sourceCampaignId)||!/^[0-9a-f-]{36}$/i.test(characterId)||!/^[0-9a-f-]{36}$/i.test(targetCampaignId))
+  throw new Error('ID di campagna, personaggio o destinazione non validi');
+ const response=await fetchImpl('/vtt/campaigns/'+sourceCampaignId+'/characters/'+characterId+'/copies',{
+  method:'POST',credentials:'same-origin',cache:'no-store',redirect:'error',
+  headers:{'Content-Type':'application/json'},body:JSON.stringify({targetCampaignId}),
+ });
+ if(response.status===401)throw new Error('Sessione scaduta: effettua nuovamente il login.');
+ if(response.status===403)throw new Error('Operazione non autorizzata: il GM deve avere la delega sulla campagna di origine.');
+ if(!response.ok)throw new Error('Impossibile copiare il personaggio nella campagna di destinazione');
+ const data=await campaignApiJson(response);
+ const character=validateCharacterDraft(data.character);
+ if(character.ownerId!==ownerId||character.campaignId!==targetCampaignId)
+  throw new Error('Campagna o proprietario non corrispondente');
+ return character;
+}
 
 export async function listOwnedCampaignRoster(fetchImpl,campaignId){
  if(typeof campaignId!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(campaignId))

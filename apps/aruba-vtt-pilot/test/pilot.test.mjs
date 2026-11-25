@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {loadPilotSession,logoutPilot,validateBootstrap,validateCampaign,listOwnedCampaigns,createOwnedCampaign,updateOwnedCampaign,setCampaignBranding,listCharacterDrafts,createCharacterDraft,validateCharacterDraft,saveFullCharacterSheet,archiveOwnedCharacter} from '../src/client.mjs';
+import {loadPilotSession,logoutPilot,validateBootstrap,validateCampaign,listOwnedCampaigns,createOwnedCampaign,updateOwnedCampaign,setCampaignBranding,listCharacterDrafts,createCharacterDraft,validateCharacterDraft,saveFullCharacterSheet,archiveOwnedCharacter,copyCharacterToCampaign} from '../src/client.mjs';
 const user={id:'971e26ae-eecb-4f37-ad03-56b0c3000789',email:'tester@example.org',displayName:'Tester',role:'standard'};
 const caps=enabled=>({campaigns:{read:enabled,write:enabled},characters:{read:false,write:false},gameSession:false});
 const sample={id:'be2f1a87-b8ee-4b34-9da0-07efda11379a',ownerId:user.id,name:'Storia',description:'',ruleset:'hsc',createdAt:'2026-11-11'};
@@ -256,6 +256,20 @@ test('archive client uses same origin cookies and trusts no browser owner',async
  assert.equal(sent.request.credentials,'same-origin');
  assert.deepEqual(JSON.parse(sent.request.body),{campaignId:sample.id});
  await assert.rejects(()=>archiveOwnedCharacter(async()=>({ok:true,json:async()=>({archivedId:'other'})}),sample.id,uuid,user.id));
+});
+test('character copy client posts the atomic copy contract with validated target',async()=>{
+ const source=sample.id;
+ const characterId='ee2f1a87-b8ee-4b34-9da0-07efda11379a';
+ const target='be2f1a87-b8ee-4b34-9da0-07efda11379b';
+ let sent;
+ const value={id:target,ownerId:user.id,campaignId:target,name:'Ken',status:'draft',sheetData:{}};
+ const copied=await copyCharacterToCampaign(async(url,request)=>{sent={url,request};return {ok:true,json:async()=>({character:value})};},source,characterId,target,user.id);
+ assert.equal(copied.id,target);
+ assert.equal(sent.url,'/vtt/campaigns/'+source+'/characters/'+characterId+'/copies');
+ assert.equal(sent.request.method,'POST');
+ assert.equal(sent.request.credentials,'same-origin');
+ assert.deepEqual(JSON.parse(sent.request.body),{targetCampaignId:target});
+ await assert.rejects(()=>copyCharacterToCampaign(async()=>({ok:true,json:async()=>({character:{...value,ownerId:'22345678-1234-4123-8123-123456789abc'}})}),source,characterId,target,user.id));
 });
 
 test('character endpoints reject HTML SPA fallback with actionable error instead of Unexpected token',async()=>{
