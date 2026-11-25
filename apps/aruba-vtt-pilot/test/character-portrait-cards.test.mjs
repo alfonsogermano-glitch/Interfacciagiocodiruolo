@@ -16,6 +16,11 @@ test('original card is reused with a current authorized portrait, no stale image
   assert.match(text,/enabled=\{portraitsEnabled\}/);
  }
 });
+test('session sheet portrait fallback uses the base-correct default asset',()=>{
+ const source=read('ArubaSessionSheetPortrait.tsx');
+ assert.match(source,/src="\/vtt\/icon-source-1024\.png"/);
+ assert.doesNotMatch(source,/src="\/icon-source-1024\.png"/);
+});
 test('GM sheet image and token use only in-memory Aruba portrait and original detail component',()=>{
  const sheet=read('ArubaCharacterDetailPanel.tsx');
  const editor=read('ArubaGMCharacterPortrait.tsx');

@@ -22,6 +22,6 @@ export function ArubaSessionSheetPortrait({campaignId,characterId,name,enabled=t
   url={characterId?portrait??undefined:image.portraitImageUrl}
   sourceImageUrl={characterId?undefined:image.portraitSourceImageUrl}
   cropArea={characterId?undefined:image.portraitCropArea}
-  fallbackIcon={<img src="/icon-source-1024.png" alt="" draggable={false}
+  fallbackIcon={<img src="/vtt/icon-source-1024.png" alt="" draggable={false}
    className="h-full w-full object-contain" style={{filter:'invert(1)',opacity:.9}}/>}/>;
 }
