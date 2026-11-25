@@ -7,13 +7,17 @@ with release `20261125-sheet-visual-10` (default portrait fallback fix).
 
 ### Copy character PG / NPC / Monster between campaigns
 
-- `POST /vtt/campaigns/{sourceCampaignId}/characters/{characterId}/copies`
-  body: `{ "targetCampaignId": "<uuid>" }`
-- Response 201: `{ "character": { … } }`
+- `POST /vtt/characters/{characterId}/copy-to-campaign`
+  body: `{ "campaignId": "<targetCampaignId>" }`
+- Response: `{ "character": { … } }` (o conferma equivalente)
 - Semantics: atomic deep copy of sheet data, notes and media references into a
   NEW character draft owned by the GM of the target campaign. Source entity is
   NOT modified (copy, not move).
 - Authorization: GM of source campaign only.
+
+The Aruba client mirrors the original Supabase-era contract shape
+(`SessionCharactersPanel.handleConfirmCopy` → `POST /characters/{id}/copy-to-campaign`
+con `{campaignId}`), adapted to Aruba same-origin cookies.
 
 ### Archive / remove entity from campaign
 

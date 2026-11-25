@@ -263,13 +263,13 @@ test('character copy client posts the atomic copy contract with validated target
  const target='be2f1a87-b8ee-4b34-9da0-07efda11379b';
  let sent;
  const value={id:target,ownerId:user.id,campaignId:target,name:'Ken',status:'draft',sheetData:{}};
- const copied=await copyCharacterToCampaign(async(url,request)=>{sent={url,request};return {ok:true,json:async()=>({character:value})};},source,characterId,target,user.id);
+ const copied=await copyCharacterToCampaign(async(url,request)=>{sent={url,request};return {ok:true,json:async()=>({character:value})};},characterId,target,user.id);
  assert.equal(copied.id,target);
- assert.equal(sent.url,'/vtt/campaigns/'+source+'/characters/'+characterId+'/copies');
+ assert.equal(sent.url,'/vtt/characters/'+characterId+'/copy-to-campaign');
  assert.equal(sent.request.method,'POST');
  assert.equal(sent.request.credentials,'same-origin');
- assert.deepEqual(JSON.parse(sent.request.body),{targetCampaignId:target});
- await assert.rejects(()=>copyCharacterToCampaign(async()=>({ok:true,json:async()=>({character:{...value,ownerId:'22345678-1234-4123-8123-123456789abc'}})}),source,characterId,target,user.id));
+ assert.deepEqual(JSON.parse(sent.request.body),{campaignId:target});
+ await assert.rejects(()=>copyCharacterToCampaign(async()=>({ok:true,json:async()=>({character:{...value,ownerId:'22345678-1234-4123-8123-123456789abc'}})}),characterId,target,user.id));
 });
 
 test('character endpoints reject HTML SPA fallback with actionable error instead of Unexpected token',async()=>{
