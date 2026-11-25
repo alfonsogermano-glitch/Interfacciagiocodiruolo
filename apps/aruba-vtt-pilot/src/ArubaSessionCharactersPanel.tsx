@@ -1,8 +1,7 @@
 import {useCallback,useEffect,useRef,useState} from 'react';
-import {FolderPlus} from 'lucide-react';
+import {Copy,X,FolderPlus} from 'lucide-react';
 import {SlideOverPanel} from '../../../src/app/components/session/SlideOverPanel';
-import {listCharacterDrafts} from './client.mjs';
-import {listArubaNarrativeContent} from './client.mjs';
+import {listCharacterDrafts,listArubaNarrativeContent,listOwnedCampaigns,copyCharacterToCampaign} from './client.mjs';
 import {SectionHeader} from '../../../src/app/components/session/shared/SectionHeader';
 import {ArubaCharacterDetailPanel} from './ArubaCharacterDetailPanel';
 import {ArubaNarrativeDetailPanel} from './ArubaNarrativeDetailPanel';
@@ -39,6 +38,11 @@ export function ArubaSessionCharactersPanel({campaignId,ownerId,ownerDisplayName
    const [selected,setSelected]=useState<Selection|null>(null);
    const [transitionError,setTransitionError]=useState<string|null>(null);
    const [switching,setSwitching]=useState(false);
+   const [copyDialogOpen,setCopyDialogOpen]=useState(false);
+   const [copyTargetId,setCopyTargetId]=useState<string|null>(null);
+   const [copyCampaigns,setCopyCampaigns]=useState<{id:string;name:string;ruleset:string}[]>([]);
+   const [isCopying,setIsCopying]=useState(false);
+   const [actionError,setActionError]=useState<string|null>(null);
    const leaveGuard=useRef<(()=>Promise<void>)|null>(null);
     const switchingRef=useRef(false);
     const [panelWidth,setPanelWidth]=useState(()=>clampSheetsPanel(
@@ -94,6 +98,30 @@ export function ArubaSessionCharactersPanel({campaignId,ownerId,ownerDisplayName
      setTransitionError('Salvataggio non confermato: la scheda resta aperta. Verifica le modifiche prima di cambiare selezione.');
     }finally{switchingRef.current=false;setSwitching(false);}
    }
+ const handleConfirmCopy=async()=>{
+  if(selected?.kind!=='pg'||!copyTargetId)return;
+  setIsCopying(true);setActionError(null);
+  try{
+   await copyCharacterToCampaign(fetch,selected.id,copyTargetId,ownerId);
+   setCopyDialogOpen(false);setCopyTargetId(null);
+   setRetry(n=>n+1);
+  }catch(e){
+   setActionError(e instanceof Error?e.message:'Impossibile copiare il personaggio nella campagna di destinazione');
+  }finally{
+   setIsCopying(false);
+  }
+ };
+ const openCopyDialog=()=>{setCopyDialogOpen(true);setCopyTargetId(null);setActionError(null);};
+ useEffect(()=>{
+  let active=true;
+  if(!copyDialogOpen)return;
+  setCopyCampaigns([]);
+  void listOwnedCampaigns(fetch,ownerId).then(list=>{
+   if(!active)return;
+   setCopyCampaigns(list.filter(c=>c.ruleset===ruleset&&c.id!==campaignId));
+  }).catch(()=>{if(active)setCopyCampaigns([]);});
+  return()=>{active=false;};
+ },[copyDialogOpen,ownerId,ruleset,campaignId]);
  const requestKey=campaignId+':'+ownerId+':'+retry;
  useEffect(()=>{
   let active=true;
@@ -176,6 +204,14 @@ export function ArubaSessionCharactersPanel({campaignId,ownerId,ownerDisplayName
     <div className="aruba-session-sidebar-resize" style={{left:sidebarWidth-4}} {...resizeHandle('sidebar')}/>
     <section className="aruba-session-sheet-content" aria-label="Dettaglio scheda della campagna">
      {transitionError&&<p role="alert" className="error">{transitionError}</p>}
+     {selected?.kind==='pg'&&
+      <div className="flex items-center justify-end">
+       <button type="button" onClick={openCopyDialog} disabled={isCopying}
+        className="inline-flex items-center gap-2 rounded-lg border border-[var(--dash-border)] px-4 py-2 text-sm font-medium text-[var(--dash-text)] transition-opacity hover:opacity-80 disabled:opacity-50">
+        <Copy className="h-4 w-4 shrink-0"/>Copia in un'altra campagna
+       </button>
+      </div>
+     }
      {!selected?<p className="muted">Seleziona una scheda dall'elenco a sinistra.</p>:
       selected.kind==='pg'?<ArubaCharacterDetailPanel embedded
        key={campaignId+':pg:'+selected.id} characterId={selected.id} campaignId={campaignId}
@@ -193,6 +229,41 @@ export function ArubaSessionCharactersPanel({campaignId,ownerId,ownerDisplayName
         else setMonsters(rows=>rows.map(row=>row.id===saved.id?saved:row));
         onChanged();
        }}/>}
+     {copyDialogOpen&&
+      <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/80 p-4" onClick={()=>{setCopyDialogOpen(false);setCopyTargetId(null);}}>
+       <div onClick={(e)=>e.stopPropagation()} className="w-full max-w-sm rounded-2xl border border-[var(--dash-border)] bg-[var(--dash-panel)] p-5 shadow-2xl">
+        <h3 className="mb-1 text-base font-semibold text-[var(--dash-text)]">Copia in un'altra campagna</h3>
+        <p className="mb-4 text-sm text-[var(--dash-text)] opacity:0.75">
+          Scegli la campagna di destinazione. Verrà creata una copia; l'originale resterà qui invariato.
+        </p>
+        <div className="mb-4 max-h-56 space-y-1 overflow-y-auto">
+         {copyCampaigns.length===0?
+          <p className="text-sm text-[var(--dash-text)] opacity:0.6">
+            Nessuna campagna compatibile trovata (stesso regolamento, diversa da quella attiva).
+          </p>:
+          copyCampaigns.map((c)=>(
+           <button key={c.id} type="button" onClick={()=>setCopyTargetId(c.id)}
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors"
+            style={{backgroundColor:copyTargetId===c.id?'var(--dash-border)':'transparent',color:'var(--dash-text)'}}>
+            {c.name}
+           </button>
+          ))}
+        </div>
+        {actionError&&<p className="mb-3 text-xs text-red-300">{actionError}</p>}
+        <div className="flex justify-end gap-2">
+         <button type="button" onClick={()=>{setCopyDialogOpen(false);setCopyTargetId(null);}} className="inline-flex items-center gap-2 rounded-lg border border-[var(--dash-border)] px-4 py-2 text-sm font-medium text-[var(--dash-text)] transition-opacity hover:opacity-80">
+          <X className="h-4 w-4 shrink-0" aria-hidden="true"/>
+          Annulla
+         </button>
+         <button type="button" onClick={handleConfirmCopy} disabled={!copyTargetId||isCopying}
+          className="rounded-lg px-4 py-2 text-sm font-semibold text-[#f4efe8] transition-opacity"
+          style={{backgroundColor:'var(--dash-border)',opacity:!copyTargetId||isCopying?0.5:1}}>
+          {isCopying?'Copia in corso...':'Conferma'}
+         </button>
+        </div>
+       </div>
+      </div>
+     }
     </section>
     </div>
   </SlideOverPanel>
