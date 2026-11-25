@@ -10,8 +10,11 @@ const media=readFileSync(new URL('../src/ArubaNarrativeImageEditor.tsx',import.m
 test('session PNG and monster cards open the original detail with serialized Aruba writes',()=>{
  assert.match(app,/setNarrativeOpenRequest\(\{kind,id,requestId:\+\+requestSequence\.current\}\)/);
  assert.doesNotMatch(app,/setNarrativeOpenRequest[\s\S]{0,160}setSection\(kind\)/);
- assert.match(app,/ArubaNarrativeDetailPanel[\s\S]*requestId=\{narrativeOpenRequest\.requestId\}/);
- assert.match(detail,/listArubaNarrativeContent/);
+ assert.match(app,/initialSelection=\{narrativeOpenRequest\?\?sessionCharacterRequest\}/);
+ assert.match(detail,/if\(embedded\)return <ArubaNarrativeNotesProvider/);
+ assert.match(detail,/loadNarrativeDetail/);
+ assert.match(detail,/arubaNarrativePlacementUnavailable=\{!placementAvailable\}/);
+ assert.match(detail,/next.chapterId!==item.chapterId/);
  assert.match(detail,/EntityDetailView entityType=\{kind==='npcs'\?'npc':'monster'\}/);
  assert.match(detail,/saveArubaNarrativeContent/);
  assert.match(detail,/saveQueue\.current=saveQueue\.current/);

@@ -1,4 +1,5 @@
 // Aruba-native VTT frontend. No Supabase, no browser-stored bearer tokens.
+import {normalizeChapterReadModel} from './chapter-read-model.mjs';
 export const RULESETS=Object.freeze({
   hsc:'High School Cthulhu',coc7e:'Il Richiamo di Cthulhu 7ª ed.',
   cocclassic:'Il Richiamo di Cthulhu Classic',custom:'Regolamento personalizzato',
@@ -750,14 +751,21 @@ export async function listArubaChapters(fetchImpl,campaignId){
  const data=await chapterResponse(r);
  if(!Array.isArray(data?.chapters)||data.chapters.length>1000)
   throw Error('Risposta capitoli non valida');
- const ids=new Set();
- for(const chapter of data.chapters){
+  // Normalize only the packaged, known legacy media origin to same-origin
+  // Aruba URLs before validation. Other legacy origins still fail closed.
+  const chapters=data.chapters.map(raw=>{
+   const chapter=normalizeChapterReadModel(raw);
+   return chapter&&typeof chapter==='object'&&!Array.isArray(chapter)
+    ?{...chapter,mapUrl:rewriteArubaLegacyMedia(chapter.mapUrl)}:chapter;
+  });
+  const ids=new Set();
+  for(const chapter of chapters){
   if(!chapter||typeof chapter!=='object'||Array.isArray(chapter)||
    !validArubaChapter(chapter,campaignId)||ids.has(chapter.id))
    throw Error('Risposta capitoli non valida');
   ids.add(chapter.id);
  }
- return data.chapters;
+  return chapters;
 }
 export async function saveArubaChapter(fetchImpl,campaignId,draft){
  if(!draft||typeof draft!=='object'||Array.isArray(draft)||

@@ -1,11 +1,11 @@
-import {useEffect,useRef,useState,type FormEvent} from 'react';
+import {useCallback,useEffect,useRef,useState,type FormEvent} from 'react';
 import {createRoot} from 'react-dom/client';
 import {loadPilotSession,logoutPilot,createOwnedCampaign,updateOwnedCampaign,RULESETS} from './client.mjs';
 import {loadCampaignCollections} from './campaign-collections.mjs';
 import './styles.css';
 import './legacy-wizard.css';
 import IconStudy from './icon-study';
-import {ArubaQuickDice} from './ArubaQuickDice';
+import {ArubaDiceToolsProvider,ArubaOriginalDicePanel,ArubaOriginalDiceFloating} from './ArubaDiceTools';
 import {ArubaCharacterDrafts} from './ArubaCharacterDrafts';
 import {ArubaCharacterDetailPanel} from './ArubaCharacterDetailPanel';
 import {ArubaNotesRoute} from './ArubaNotesRoute';
@@ -19,6 +19,7 @@ import {ArubaSessionEncounterPanel} from './ArubaSessionEncounterPanel';
 import {ArubaSessionChatPanel} from './ArubaSessionChatPanel';
 import {ArubaGmLiveScene} from './ArubaGmLiveScene';
 import {ArubaSessionCharactersPanel} from './ArubaSessionCharactersPanel';
+import {ArubaSheetBoundary} from './ArubaSheetBoundary';
 import {ArubaCampaignCharacterCards,type SessionEntityOpenRequest} from './ArubaCampaignCharacterCards';
 import {ArubaCampaignPlayerRows} from './ArubaCampaignPlayerRows';
 import {ArubaAssignedCharacterPanel} from './ArubaAssignedCharacterPanel';
@@ -26,7 +27,6 @@ import {ArubaPlayerCharacterDetail} from './ArubaPlayerCharacterDetail';
 import {ArubaGmSectionSidebar} from './ArubaGmSectionSidebar';
 import {ArubaChapterSceneEditor} from './ArubaChapterSceneEditor';
 import {ArubaNarrativeManager} from './ArubaNarrativeManager';
-import {ArubaNarrativeDetailPanel} from './ArubaNarrativeDetailPanel';
 import {ArubaSceneEncounterManager} from './ArubaSceneEncounterManager';
 import {ArubaEquipmentCatalog} from './ArubaEquipmentCatalog';
 import {ArubaOriginalGameMap} from './ArubaOriginalGameMap';
@@ -76,10 +76,18 @@ function App(){
   const [topbarNotice,setTopbarNotice]=useState<string|null>(null);
   const [socialLinkProviders,setSocialLinkProviders]=useState<string[]>([]);
  const [section,setSection]=useState<Section>('home');
- const [sessionPanel,setSessionPanel]=useState<'chat'|'notes'|'characters'|'encounters'|'combat'|null>(null);
+ const [sessionPanel,setSessionPanel]=useState<'chat'|'notes'|'characters'|'dice'|'encounters'|'combat'|null>(null);
  const [sessionCharacterRequest,setSessionCharacterRequest]=useState<SessionEntityOpenRequest|null>(null);
  const [narrativeOpenRequest,setNarrativeOpenRequest]=useState<{kind:'npcs'|'monsters';id:string;requestId:number}|null>(null);
  const requestSequence=useRef(0);
+ const sessionSheetsGuard=useRef<(()=>Promise<void>)|null>(null);
+ const registerSessionSheetsGuard=useCallback((guard:(()=>Promise<void>)|null)=>{sessionSheetsGuard.current=guard;},[]);
+ async function toggleSessionPanel(panel:'chat'|'notes'|'characters'|'dice'|'encounters'|'combat'){
+  try{await sessionSheetsGuard.current?.();}
+  catch{setTopbarNotice('Salvataggio scheda non confermato: correggi o riprova prima di chiudere il pannello.');return;}
+  setSessionCharacterRequest(null);setNarrativeOpenRequest(null);
+  setSessionPanel(current=>current===panel?null:panel);
+ }
  function openSessionCharacter(id:string){
   if(!user||!activeCampaign||!(activeCampaignOwned?user.charactersEnabled:user.playerCharactersEnabled))return;
   setSessionPanel('characters');
@@ -87,6 +95,7 @@ function App(){
  }
  function closeSessionCharacter(){
   setSessionCharacterRequest(null);
+  setNarrativeOpenRequest(null);
   // The roster is hidden while the original Schede panel owns the surface.
   // Returning from a character detail must restore the campaign roster rather
   // than leave the panel selected with no visible assignment controls.
@@ -95,7 +104,7 @@ function App(){
  function openNarrativeEntity(kind:'npcs'|'monsters',id:string){
   if(!user||!activeCampaign||!activeCampaignOwned||!user.narrativeContentEnabled)return;
   setNarrativeOpenRequest({kind,id,requestId:++requestSequence.current});
-  setSessionPanel(null);closeSessionCharacter();
+  setSessionCharacterRequest(null);setSessionPanel('characters');
  }
 
  // Same architectural contract as original App.tsx/rightSidebarContext.
@@ -156,8 +165,9 @@ function App(){
  function openCampaignCharacter(id:string,campaignId:string){
   const campaign=availableCampaigns.find(item=>item.id===campaignId);
   if(!user||!campaign)return;
-  if(campaign.ownerId===user.id&&campaigns.some(item=>item.id===campaignId)){
-   setEntityDetail({kind:'characters-detail',entityType:'character',id,campaignId});return;
+   if(campaign.ownerId===user.id&&campaigns.some(item=>item.id===campaignId)){
+    setActiveCampaignId(campaignId);setSection('sheets');setSessionPanel(null);
+    setEntityDetail({kind:'characters-detail',entityType:'character',id,campaignId});return;
   }
   if(!user.playerCharactersEnabled)return;
   setActiveCampaignId(campaignId);setSection('session');setSessionPanel('characters');
@@ -294,11 +304,12 @@ function App(){
        encountersEnabled={activeCampaignOwned&&user.chaptersEnabled&&user.scenesEnabled&&user.narrativeContentEnabled&&user.campaignDocumentsEnabled}
        combatEnabled={activeCampaignOwned&&user.campaignDocumentsEnabled&&user.narrativeContentEnabled}
        activePanel={sessionPanel}
-       onToggleChat={()=>{setSessionCharacterRequest(null);setSessionPanel(value=>value==='chat'?null:'chat');}}
-      onToggleNotes={()=>{setSessionCharacterRequest(null);setSessionPanel(value=>value==='notes'?null:'notes');}}
-       onToggleCharacters={()=>{setSessionCharacterRequest(null);setSessionPanel(value=>value==='characters'?null:'characters');}}
-       onToggleEncounters={()=>{setSessionCharacterRequest(null);setSessionPanel(value=>value==='encounters'?null:'encounters');}}
-       onToggleCombat={()=>{setSessionCharacterRequest(null);setSessionPanel(value=>value==='combat'?null:'combat');}}/>:
+        onToggleChat={()=>{void toggleSessionPanel('chat');}}
+        onToggleNotes={()=>{void toggleSessionPanel('notes');}}
+        onToggleCharacters={()=>{void toggleSessionPanel('characters');}}
+        onToggleDice={()=>{void toggleSessionPanel('dice');}}
+        onToggleEncounters={()=>{void toggleSessionPanel('encounters');}}
+        onToggleCombat={()=>{void toggleSessionPanel('combat');}}/>:
     activeCampaignOwned&&(gmMenu.some(item=>item.id===section)||section==='campaigns')?<ArubaGmSectionSidebar
      activeTab={section==='preparation'?'scene-encounter':section==='sheets'?'players':section==='equipment'?'equipment-catalog':section==='assets'?'visual-assets':section}
      onChangeTab={id=>{
@@ -355,7 +366,7 @@ function App(){
        <div className="empty">Servizio personaggi in preparazione.</div>}
     </>}
     {section==='session'&&activeCampaign&&<div className="aruba-session-content" key={activeCampaign.id}>
-      <ArubaCampaignHome campaign={activeCampaign} revision={characterCatalogRevision}
+       <ArubaSheetBoundary key={activeCampaign.id} label="Campagna"><ArubaCampaignHome campaign={activeCampaign} revision={characterCatalogRevision}
        onOpenCharacter={openSessionCharacter}
         onOpenNarrative={openNarrativeEntity}
        onGoToManagement={()=>{setSessionPanel(null);closeSessionCharacter();setSection('campaigns');}}
@@ -378,7 +389,7 @@ function App(){
          playerCharactersEnabled:user.playerCharactersEnabled,
          characterClaimsEnabled:user.characterClaimsEnabled,
          logicalCharactersEnabled:user.logicalCharactersEnabled,
-         campaignMemberships:user.campaignMemberships}}/>
+          campaignMemberships:user.campaignMemberships}}/></ArubaSheetBoundary>
        {sessionPanel==='combat'&&activeCampaignOwned&&user.campaignDocumentsEnabled&&user.narrativeContentEnabled&&
         <ArubaSessionCombatPanel campaign={{...activeCampaign,ruleset:activeCampaign.ruleset as OriginalCampaign['ruleset'],updatedAt:activeCampaign.updatedAt??activeCampaign.createdAt}} onClose={()=>setSessionPanel(null)}/>}
        {sessionPanel==='encounters'&&activeCampaignOwned&&user.chaptersEnabled&&user.scenesEnabled&&user.narrativeContentEnabled&&user.campaignDocumentsEnabled&&
@@ -389,11 +400,17 @@ function App(){
        <ArubaNotesRoute key={activeCampaign.id} campaignId={activeCampaign.id}
         userId={user.id} ownerId={activeCampaign.ownerId}
         onClose={()=>setSessionPanel(null)}/>}
-      {sessionPanel==='characters'&&!sessionCharacterRequest&&activeCampaignOwned&&user.charactersEnabled&&
-       <ArubaSessionCharactersPanel key={activeCampaign.id} campaignId={activeCampaign.id}
-        ownerId={user.id} initialSelection={sessionCharacterRequest}
-        onClose={()=>{setSessionPanel(null);closeSessionCharacter();}}
-        onOpenCharacter={openSessionCharacter}/>}
+       {sessionPanel==='characters'&&activeCampaignOwned&&user.charactersEnabled&&
+        <ArubaSessionCharactersPanel key={activeCampaign.id} campaignId={activeCampaign.id}
+         narrativeEnabled={user.narrativeContentEnabled}
+         ruleset={activeCampaign.ruleset} notesEnabled={user.entityNotesEnabled}
+         narrativeNotesEnabled={user.narrativeEntityNotesEnabled}
+         portraitsEnabled={user.characterPortraitsEnabled} visualAssetsEnabled={user.visualAssetsEnabled}
+         registerPanelGuard={registerSessionSheetsGuard}
+         onChanged={()=>setCharacterCatalogRevision(n=>n+1)}
+         ownerId={user.id} ownerDisplayName={user.displayName} initialSelection={narrativeOpenRequest??sessionCharacterRequest}
+         onClose={()=>{setSessionPanel(null);closeSessionCharacter();}}
+        />}
       {sessionPanel==='characters'&&!sessionCharacterRequest&&!activeCampaignOwned&&user.playerCharactersEnabled&&
        <ArubaAssignedCharacterPanel key={activeCampaign.id+':player-panel'} fixedCampaignId={activeCampaign.id}
         portraitsEnabled={user.characterPortraitsEnabled} visualAssetsEnabled={user.visualAssetsEnabled} claimsEnabled={user.characterClaimsEnabled}/>}
@@ -426,10 +443,15 @@ function App(){
     {section==='map'&&sessionPanel==='notes'&&notesPanelReady&&activeCampaign&&
      <ArubaNotesRoute key={activeCampaign.id+':map-notes'} campaignId={activeCampaign.id}
       userId={user.id} ownerId={activeCampaign.ownerId} onClose={()=>setSessionPanel(null)}/>}
-    {section==='map'&&sessionPanel==='characters'&&!sessionCharacterRequest&&activeCampaign&&activeCampaignOwned&&user.charactersEnabled&&
-     <ArubaSessionCharactersPanel key={activeCampaign.id+':map-characters'} campaignId={activeCampaign.id}
-      ownerId={user.id} initialSelection={sessionCharacterRequest} onClose={()=>{setSessionPanel(null);closeSessionCharacter();}}
-      onOpenCharacter={openSessionCharacter}/>}
+     {section==='map'&&sessionPanel==='characters'&&activeCampaign&&activeCampaignOwned&&user.charactersEnabled&&
+      <ArubaSessionCharactersPanel key={activeCampaign.id+':map-characters'} campaignId={activeCampaign.id}
+       narrativeEnabled={user.narrativeContentEnabled}
+       ruleset={activeCampaign.ruleset} notesEnabled={user.entityNotesEnabled}
+       narrativeNotesEnabled={user.narrativeEntityNotesEnabled}
+       portraitsEnabled={user.characterPortraitsEnabled} visualAssetsEnabled={user.visualAssetsEnabled}
+       registerPanelGuard={registerSessionSheetsGuard}
+       onChanged={()=>setCharacterCatalogRevision(n=>n+1)}
+       ownerId={user.id} ownerDisplayName={user.displayName} initialSelection={narrativeOpenRequest??sessionCharacterRequest} onClose={()=>{setSessionPanel(null);closeSessionCharacter();}}/>}
     {section==='map'&&sessionPanel==='characters'&&!sessionCharacterRequest&&activeCampaign&&!activeCampaignOwned&&user.playerCharactersEnabled&&
      <ArubaAssignedCharacterPanel key={activeCampaign.id+':map-player-panel'} fixedCampaignId={activeCampaign.id}
       portraitsEnabled={user.characterPortraitsEnabled} visualAssetsEnabled={user.visualAssetsEnabled} claimsEnabled={user.characterClaimsEnabled}/>}
@@ -454,37 +476,24 @@ function App(){
      <ArubaNarrativeManager key={`${activeCampaign.id}:${section}`} campaignId={activeCampaign.id} kind={section as 'npcs'|'monsters'|'clues'} enabled={user.narrativeContentEnabled}
       initialSelection={narrativeOpenRequest?.kind===section?narrativeOpenRequest:null}/>}
     {!activeCampaign&&(['npcs','monsters','clues'] as const).includes(section as 'npcs'|'monsters'|'clues')&&<div className="placeholder"><span className="placeholder-mark">✧</span><h2>Seleziona prima una campagna</h2><p>L’archivio narrativo richiede una campagna Aruba selezionata.</p></div>}
-     {(section==='session'||section==='map')&&activeCampaign&&sessionCharacterRequest&&activeCampaignOwned&&user.charactersEnabled&&
-    <ArubaCharacterDetailPanel key={activeCampaign.id+':'+sessionCharacterRequest.requestId}
-    characterId={sessionCharacterRequest.id} campaignId={activeCampaign.id}
-    ownerId={user.id} notesEnabled={user.entityNotesEnabled} portraitsEnabled={user.characterPortraitsEnabled}
-    visualAssetsEnabled={user.visualAssetsEnabled}
-    onClose={()=>closeSessionCharacter()}
-    onChanged={()=>setCharacterCatalogRevision(n=>n+1)}
-    onArchived={()=>{setCharacterCatalogRevision(n=>n+1);closeSessionCharacter();}}
-    />}
     {(section==='session'||section==='map')&&activeCampaign&&sessionCharacterRequest&&!activeCampaignOwned&&user.playerCharactersEnabled&&
     <ArubaPlayerCharacterDetail key={activeCampaign.id+':player:'+sessionCharacterRequest.requestId}
      campaignId={activeCampaign.id} characterId={sessionCharacterRequest.id}
      portraitsEnabled={user.characterPortraitsEnabled} visualAssetsEnabled={user.visualAssetsEnabled}
      onClose={closeSessionCharacter}/>}
-    {(section==='session'||section==='map')&&activeCampaign&&activeCampaignOwned&&user.narrativeContentEnabled&&narrativeOpenRequest&&
-     <ArubaNarrativeDetailPanel key={activeCampaign.id+':narrative:'+narrativeOpenRequest.requestId}
-       campaignId={activeCampaign.id} kind={narrativeOpenRequest.kind} entityId={narrativeOpenRequest.id}
-        requestId={narrativeOpenRequest.requestId} isHSC={activeCampaign.ruleset==='hsc'}
-        ruleset={activeCampaign.ruleset}
-        notesEnabled={user.narrativeEntityNotesEnabled}
-        visualAssetsEnabled={user.visualAssetsEnabled}
-      onClose={()=>setNarrativeOpenRequest(null)}/>}
    {(section==='characters'||section==='sheets')&&entityDetail&&user.charactersEnabled&&
    <ArubaCharacterDetailPanel key={entityDetail.campaignId+':'+entityDetail.id}
-    characterId={entityDetail.id} campaignId={entityDetail.campaignId} ownerId={user.id} notesEnabled={user.entityNotesEnabled} portraitsEnabled={user.characterPortraitsEnabled}
+    characterId={entityDetail.id} campaignId={entityDetail.campaignId} ownerId={user.id} ownerDisplayName={user.displayName} notesEnabled={user.entityNotesEnabled} portraitsEnabled={user.characterPortraitsEnabled}
     visualAssetsEnabled={user.visualAssetsEnabled}
     onClose={()=>setEntityDetail(null)}
     onChanged={()=>setCharacterCatalogRevision(n=>n+1)}
     onArchived={()=>{setCharacterCatalogRevision(n=>n+1);setEntityDetail(null);}}
    />}
-    {(section==='session'||section==='map')&&activeCampaign&&<ArubaQuickDice key={activeCampaign.id+':'+user.id} campaignId={activeCampaign.id} userId={user.id} rollerName={user.displayName} chatEnabled={user.campaignChatEnabled}/>}
+     {(section==='session'||section==='map')&&activeCampaign&&<ArubaDiceToolsProvider key={activeCampaign.id+':'+user.id}
+      campaign={activeCampaign} user={user} chatEnabled={user.campaignChatEnabled}>
+      <ArubaOriginalDiceFloating/>
+      {sessionPanel==='dice'&&<ArubaOriginalDicePanel enabled={user.diceFormulasEnabled} onClose={()=>setSessionPanel(null)}/>}
+     </ArubaDiceToolsProvider>}
    {showEdit&&activeCampaign&&activeCampaignOwned&&user.campaignsEnabled&&<div className="modal-backdrop" role="presentation" onClick={()=>setShowEdit(false)}>
     <form onSubmit={event=>void editCampaign(event)} className="modal" aria-label="Modifica campagna" onClick={event=>event.stopPropagation()} key={activeCampaign.id}>
       <div className="overline">MODIFICA CAMPAGNA</div><h2>Modifica {activeCampaign.name}</h2>

@@ -14,6 +14,7 @@
     "test:original-shell": "vite build --config vite.original-shell.config.mjs"
   },
   "dependencies": {
+    "@3d-dice/dice-box-threejs": "0.0.12",
     "@iconify/react": "6.0.2",
     "@phosphor-icons/react": "2.1.10",
     "@popperjs/core": "2.11.8",
@@ -62,7 +63,8 @@
     "react-popper": "2.3.0",
     "react-resizable-panels": "2.1.7",
     "sonner": "2.0.3",
-    "tailwind-merge": "3.2.0"
+    "tailwind-merge": "3.2.0",
+    "three": "0.143.0"
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.1.12",

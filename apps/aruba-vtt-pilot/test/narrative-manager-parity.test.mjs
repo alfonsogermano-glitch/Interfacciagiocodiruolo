@@ -19,7 +19,10 @@ test('CampaignHome opens real Aruba PNG and Monster details with repeatable cont
  assert.match(campaignHome,/onClick=\{\(\)=>onOpenNarrative\(kind==='npc'\?'npcs':'monsters',item\.id\)\}/);
  assert.match(pilot,/setNarrativeOpenRequest\(\{kind,id,requestId:\+\+requestSequence\.current\}\)/);
  assert.doesNotMatch(pilot,/setNarrativeOpenRequest[\s\S]{0,160}setSection\(kind\)/);
- assert.match(pilot,/ArubaNarrativeDetailPanel[\s\S]*narrativeOpenRequest\.requestId/);
+ assert.match(pilot,/initialSelection=\{narrativeOpenRequest\?\?sessionCharacterRequest\}/);
+ const sheets=read('../src/ArubaSessionCharactersPanel.tsx');
+ assert.match(sheets,/<ArubaNarrativeDetailPanel embedded/);
+ assert.match(sheets,/requestId=\{selected.requestId\?\?0\}/);
  assert.match(manager,/initialSelection\?\.requestId/);
  assert.match(manager,/result\.some\(item=>item\.id===initialSelection\.id\)/);
 });

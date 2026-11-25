@@ -7,10 +7,9 @@ import {RULESETS,VISIBLE_RULESETS,type RulesetId} from '../../../src/app/campaig
 
 // Presentation aligned with the ORIGINAL CampaignsPage: same heading,
 // filters, horizontal 156px cards, RulesetTag, member tooltip, character
-// links and footer. Data comes exclusively from Aruba. Logo upload and
-// invite codes do not exist in the Aruba backend yet and stay disabled.
+// links and footer. Data and branding come exclusively from Aruba.
 
-export type ArubaCampaignSummary={id:string;ownerId:string;name:string;description:string;ruleset:string;createdAt:string;updatedAt?:string};
+export type ArubaCampaignSummary={id:string;ownerId:string;name:string;description:string;ruleset:string;createdAt:string;updatedAt?:string;logoUrl?:string|null;coverImageUrl?:string|null};
 type CardCampaign=ArubaCampaignSummary & {
  memberNames:string[];memberCount:number;
  characters:{id:string;name:string}[];
@@ -148,14 +147,17 @@ export function ArubaCampaignsPage({campaigns,loading,enabled,createEnabled,owne
     <p className="text-sm text-[var(--dash-muted)]">Nessuna campagna corrisponde ai filtri.</p>
    </div>:
    <div className="flex flex-col gap-4">
-    {filteredSorted.map(campaign=><div key={campaign.id} role="button" tabIndex={0}
+     {filteredSorted.map(campaign=><div key={campaign.id} role="button" tabIndex={0}
+      aria-label="Apri campagna"
      aria-pressed={activeId===campaign.id}
      onClick={()=>onOpen(campaign.id)}
      onKeyDown={event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();onOpen(campaign.id);}}}
      className="flex h-[156px] cursor-pointer overflow-hidden rounded-2xl border-2 border-[var(--dash-border-soft)] bg-[var(--dash-surface)] shadow-xl transition-colors hover:border-[var(--dash-accent)]">
      <div className="relative h-full w-[154px] shrink-0 overflow-hidden bg-black/30">
       <div className="flex h-full w-full items-center justify-center p-7">
-       <img src="/vtt/icon-source-1024.png" alt="Hollow Gate" className="h-full w-full object-contain opacity-80" style={{filter:'invert(1)'}}/>
+        {campaign.logoUrl?
+         <img src={campaign.logoUrl} alt={'Logo di '+campaign.name} className="h-full w-full object-contain"/>:
+         <img src="/vtt/icon-source-1024.png" alt="Hollow Gate" className="h-full w-full object-contain opacity-80" style={{filter:'invert(1)'}}/>}
       </div>
       <Tooltip>
        <TooltipTrigger asChild>

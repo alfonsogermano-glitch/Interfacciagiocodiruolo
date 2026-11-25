@@ -11,14 +11,17 @@ test('Aruba session rail retains original panel order and Phosphor icon language
  let cursor=0;
  for(const label of labels){const index=rail.indexOf("label:'"+label+"'",cursor);assert.ok(index>cursor,label);cursor=index;}
 });
-test('session Dadi opens existing original dice engine rather than a duplicate or fake roll',()=>{
+test('Dadi opens the original library, independently from the original floating quick roll',()=>{
  const rail=read('../src/ArubaSessionRightRail.tsx');
- const dice=read('../src/ArubaQuickDice.tsx');
- assert.match(rail,/id==='dice'\)window\.dispatchEvent\(new CustomEvent\('hollowgate:aruba-open-dice',\{detail:\{campaignId\}\}\)\)/);
- assert.match(dice,/addEventListener\('hollowgate:aruba-open-dice',open\)/);
- assert.match(dice,/removeEventListener\('hollowgate:aruba-open-dice',open\)/);
+ const dice=read('../src/ArubaDiceTools.tsx');
+ const main=read('../src/main.tsx');
+ assert.match(rail,/id==='dice'\)onToggleDice\(\)/);
+ assert.doesNotMatch(rail,/hollowgate:aruba-open-dice/);
+ assert.match(main,/sessionPanel==='dice'&&<ArubaOriginalDicePanel enabled=\{user.diceFormulasEnabled\}/);
+ assert.match(dice,/import \{SessionDicePanel\} from '.+\/SessionDicePanel'/);
+ assert.match(dice,/import \{DiceRollHistoryDrawer\} from '.+\/DiceRollHistoryDrawer'/);
  assert.match(dice,/rollDiceFormula/);
- assert.match(dice,/setPaletteOpen\(true\)/);
+ assert.match(dice,/<SessionDicePanel\/>/);
  assert.doesNotMatch(rail,/rollDiceFormula|localStorage|sessionStorage/);
 });
 
@@ -28,25 +31,45 @@ test('unnamed quick rolls do not invent a saved formula name',()=>{
  assert.doesNotMatch(dice,/formulaName:'Tiro rapido'/);
 });
 
-test('dice rail events are scoped to the currently active Aruba campaign',()=>{
+test('original dice tools are scoped to the authenticated current campaign',()=>{
  const rail=read('../src/ArubaSessionRightRail.tsx');
- const dice=read('../src/ArubaQuickDice.tsx');
+ const dice=read('../src/ArubaDiceTools.tsx');
  const main=read('../src/main.tsx');
  assert.match(main,/<ArubaSessionRightRail campaignId=\{activeCampaign\.id\}/);
- assert.match(rail,/detail:\{campaignId\}/);
- assert.match(dice,/event\.detail\?\.campaignId!==campaignId/);
- assert.match(dice,/\},\[campaignId\]\);/);
+ assert.match(main,/campaign=\{activeCampaign\} user=\{user\}/);
+ assert.match(dice,/previous.campaignId!==campaign.id\|\|previous.rollerId!==user.id/);
+ assert.doesNotMatch(rail,/dispatchEvent/);
 });
 
 test('dice engine remounts when authenticated player or active campaign changes',()=>{
  const main=read('../src/main.tsx');
- assert.match(main,/<ArubaQuickDice key=\{activeCampaign\.id\+':'\+user\.id\}/);
+ assert.match(main,/<ArubaDiceToolsProvider key=\{activeCampaign\.id\+':'\+user\.id\}/);
 });
 
 test('session dice palette does not leak into campaign management or home views',()=>{
  const main=read('../src/main.tsx');
-  assert.match(main,/\{\(section==='session'\|\|section==='map'\)&&activeCampaign&&<ArubaQuickDice key=/);
- assert.doesNotMatch(main,/\{activeCampaign&&<ArubaQuickDice/);
+ assert.match(main,/\{\(section==='session'\|\|section==='map'\)&&activeCampaign&&<ArubaDiceToolsProvider key=/);
+ assert.doesNotMatch(main,/\{activeCampaign&&<ArubaDiceToolsProvider/);
+});
+
+test('formula updates re-read canonical server data instead of fabricating a saved row',()=>{
+ const service=read('../src/ArubaDiceFormulasService.ts');
+ assert.match(service,/acknowledgement.updated!==true/);
+ assert.match(service,/const rows=await loadDiceFormulas\(campaignId,''\)/);
+ assert.match(service,/const campaignId = observedCampaigns.get\(id\)/);
+ assert.doesNotMatch(service,/return \{ id, campaignId, ownerProfileId: ''|new Date\(\)\.toISOString/);
+});
+
+test('Schede lists all three authorized campaign groups without the global historical catalog',()=>{
+ const panel=read('../src/ArubaSessionCharactersPanel.tsx');
+ const main=read('../src/main.tsx');
+ assert.match(panel,/listCharacterDrafts\(fetch,campaignId,ownerId\)/);
+ assert.match(panel,/listArubaNarrativeContent\(fetch,campaignId,'npcs'\)/);
+ assert.match(panel,/listArubaNarrativeContent\(fetch,campaignId,'monsters'\)/);
+ assert.match(main,/narrativeEnabled=\{user.narrativeContentEnabled\}/);
+ assert.match(panel,/<ArubaNarrativeDetailPanel embedded/);
+ assert.match(panel,/\{narrativeEnabled&&<>/);
+ assert.doesNotMatch(panel,/loadStorico|nativeGlobalEditor|supabase/);
 });
 
 test('Aruba session rail follows original GM-only visibility for encounters and combat',()=>{

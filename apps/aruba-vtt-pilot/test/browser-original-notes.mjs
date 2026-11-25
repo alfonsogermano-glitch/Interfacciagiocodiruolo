@@ -2,7 +2,8 @@
 // GM navigation. All API responses are isolated in-memory fixtures: this
 // NEVER touches the production VPS, Supabase or real user accounts.
 import assert from 'node:assert/strict';
-import {chromium} from 'playwright';
+import {chromium} from 'playwright-core';
+import {compareOriginalSheets} from './sheet-visual-comparison.mjs';
 
 const base=process.env.HG_E2E_BASE??'http://127.0.0.1:4173';
 const campaign='b0da2f75-f700-454c-9ba4-65bc0c8838ef';
@@ -13,9 +14,15 @@ const archivedNote='af3aa8a5-6333-4cbb-b2f1-ecbb394542e6';
 const folderId='46fb111f-61b3-4a60-b122-54e8d7689c0e';
 const characterId='eeaa5632-f050-4eb4-a0f4-3981443bf19e';
 const playerId='2675f0a2-ad43-4f2d-ad01-6cfb9e8919b0';
+const recoveredImages=process.env.HG_E2E_RECOVERED_IMAGES==='1';
+const sheetParity=process.env.HG_E2E_SHEET_PARITY==='1';
+const imageFixture='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRk0AAAAASUVORK5CYII=';
+const npcPortrait=`/vtt/campaigns/${campaign}/visual-assets/10000000-0000-4000-8000-000000000002/content`;
+const monsterPortrait=`/vtt/campaigns/${campaign}/visual-assets/10000000-0000-4000-8000-000000000003/content`;
 const campaignRow={
  id:campaign,ownerId:user,name:'Campagna prova Note',description:'Solo browser test',
  ruleset:'hsc',createdAt:'2026-11-12T00:00:00.000Z',
+ logoUrl:`/vtt/campaigns/${campaign}/visual-assets/10000000-0000-4000-8000-000000000001/content`,
 };
 const capability=(enabled,assignmentsEnabled=false,portraitsEnabled=false)=>({
  backend:'aruba-staging',
@@ -26,11 +33,16 @@ const capability=(enabled,assignmentsEnabled=false,portraitsEnabled=false)=>({
   characters:{read:true,write:true},
   characterAvailability:{read:true,write:true},
   characterAssignments:{read:assignmentsEnabled,write:assignmentsEnabled},
-  characterPortraits:{read:portraitsEnabled,write:portraitsEnabled},
+   characterPortraits:{read:portraitsEnabled,write:portraitsEnabled},
+   ...(sheetParity?{visualAssets:{read:true,write:true}}:{}),
   entityNotes:{read:false,write:false},
   campaignNotes:{read:true,write:true},
   campaignNoteFolders:{read:true,write:true},
-  originalNotesPanel:{read:enabled,write:enabled},
+   originalNotesPanel:{read:enabled,write:enabled},
+   diceFormulas:{read:true,write:true},
+   narrativeContent:{read:true,write:true},
+   chapters:{read:true,write:true},
+   scenes:{read:true,write:true},
   gameSession:false,
  },
 });
@@ -39,11 +51,12 @@ const send=(route,status,body)=>route.fulfill({
  headers:{'cache-control':'no-store'},body:JSON.stringify(body),
 });
 function mockApi(page,{enabled=true,authorized=true,assignmentsEnabled=false,portraitsEnabled=false}={}){
- const store={notes:[],trash:[],folders:[],requests:[],next:0,
+  const store={notes:[],trash:[],folders:[],formulas:[],requests:[],next:0,rejectNextCharacterSave:false,
   characterAvailability:new Map([[characterId,assignmentsEnabled]]),
   characterAssignments:new Map(),
   rejectNextAssignment:false,
   portrait:null,
+  portraitMime:'image/jpeg',
   portraitSource:null,
   characters:[{id:characterId,campaignId:campaign,ownerId:user,name:'Mara di prova',
    status:'active',sheetData:{
@@ -58,7 +71,13 @@ function mockApi(page,{enabled=true,authorized=true,assignmentsEnabled=false,por
     follia:9,maxFollia:9,conditions:[],turbe:[],audacia:1,prodigi:1,
     legame:'',tratti:[],equipment:[],notes:'',
    }}]};
- page.route('**/vtt/**',async route=>{
+  store.narrative={
+   npcs:[{id:'40000000-0000-4000-8000-000000000001',campaignId:campaign,name:'Custode prova',description:'PNG di test',
+    ...(recoveredImages?{portraitImageUrl:npcPortrait}:{})}],
+   monsters:[{id:'40000000-0000-4000-8000-000000000002',campaignId:campaign,name:'Bestia prova',description:'Mostro di test',
+    ...(recoveredImages?{portraitImageUrl:monsterPortrait}:{})}],
+  };
+  page.route('**/vtt/**',async route=>{
   const request=route.request(),url=new URL(request.url());
   const path=url.pathname,method=request.method();
   // Vite also serves its HTML and executable assets under /vtt/; the
@@ -68,9 +87,14 @@ function mockApi(page,{enabled=true,authorized=true,assignmentsEnabled=false,por
   const raw=request.postData();
   const body=raw?JSON.parse(raw):{};
   store.requests.push({path,method,body});
-  if(path==='/vtt/bootstrap')return send(route,authorized?200:401,
-   authorized?capability(enabled,assignmentsEnabled,portraitsEnabled):{error:'Non autenticato'});
+   if(path==='/vtt/bootstrap')return send(route,authorized?200:401,
+    authorized?capability(enabled,assignmentsEnabled,portraitsEnabled):{error:'Non autenticato'});
+   if(path===campaignRow.logoUrl)return route.fulfill({status:200,contentType:'image/png',
+    body:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRk0AAAAASUVORK5CYII=','base64')});
   if(!authorized)return send(route,401,{error:'Non autenticato'});
+  if(recoveredImages&&[npcPortrait,monsterPortrait].includes(path))
+   return route.fulfill({status:200,contentType:'image/png',body:Buffer.from(imageFixture,'base64')});
+  if(sheetParity&&path===`/vtt/campaigns/${campaign}/visual-assets`)return send(route,200,{items:[]});
   if(portraitsEnabled&&path==='/vtt/character-portrait-source/'+characterId){
    if(url.searchParams.get('campaignId')!==campaign)return send(route,400,{error:'Invalid source campaign'});
    if(method==='GET')return store.portraitSource?
@@ -86,7 +110,7 @@ function mockApi(page,{enabled=true,authorized=true,assignmentsEnabled=false,por
   if(portraitsEnabled&&path==='/vtt/character-portrait/'+characterId){
    if(url.searchParams.get('campaignId')!==campaign)return send(route,400,{error:'Invalid campaign'});
    if(method==='GET')return store.portrait?
-    send(route,200,{characterId,mimeType:'image/jpeg',dataBase64:store.portrait}):
+    send(route,200,{characterId,mimeType:store.portraitMime,dataBase64:store.portrait}):
     send(route,404,{error:'No portrait'});
    if(method==='PUT'){
     if(body.campaignId!==campaign||body.mimeType!=='image/jpeg'||
@@ -119,12 +143,54 @@ function mockApi(page,{enabled=true,authorized=true,assignmentsEnabled=false,por
    store.characterAvailability.set(characterId,body.availableForPlayers);
    return send(route,200,{id:characterId,availableForPlayers:body.availableForPlayers});
   }
-  if(path==='/vtt/characters'&&method==='GET')
-   return send(route,200,{characters:store.characters});
+   if(path==='/vtt/characters'&&method==='GET')
+    return send(route,200,{characters:store.characters});
+   if(path==='/vtt/characters/'+characterId&&method==='PUT'){
+    if(store.rejectNextCharacterSave){
+     store.rejectNextCharacterSave=false;
+     return send(route,503,{error:'Temporary isolated save failure'});
+    }
+    if(body.campaignId!==campaign)return send(route,400,{error:'Wrong campaign'});
+    Object.assign(store.characters[0],{name:body.name,sheetData:body.sheetData});
+    return send(route,200,{character:store.characters[0]});
+   }
   if(path==='/vtt/campaigns/'+campaign+'/roster'&&method==='GET')
    return send(route,200,{members:[{userId:user,displayName:'GM di prova',role:'gm'},{userId:playerId,displayName:'Giocatore prova',role:'player'}]});
-  if(path==='/vtt/campaigns'&&method==='GET')
-   return send(route,200,{campaigns:[campaignRow]});
+   if(path==='/vtt/campaigns'&&method==='GET')
+    return send(route,200,{campaigns:[campaignRow]});
+   if(path===`/vtt/campaigns/${campaign}/chapters`)return send(route,200,{chapters:[
+    process.env.HG_E2E_INVALID_CHAPTERS==='1'?
+     {id:'60000000-0000-4000-8000-000000000001',campaignId:campaign,title:'Capitolo incompleto'}:
+     {id:'60000000-0000-4000-8000-000000000001',campaignId:campaign,title:'Capitolo originale',
+      description:'',notes:'',kind:'standard',isActive:true,nextChapterIds:[],
+      mapUrl:'https://njcnkovruynhtsgzgrxi.supabase.co/storage/v1/object/public/visual-assets/owner/map.webp',
+      mapMetadata:{},locationMetadata:{},created_at:'2026-01-02T03:04:05.123456+00:00',updated_at:'2026-01-02T03:04:05+00:00'},
+   ]});
+   for(const kind of ['npcs','monsters']){
+    if(path!==`/vtt/campaigns/${campaign}/narrative/${kind}`)continue;
+    if(method==='GET')return send(route,200,{items:store.narrative[kind]});
+    if(method==='PUT'){
+     const index=store.narrative[kind].findIndex(item=>item.id===body.id);
+     if(index<0||body.campaignId!==campaign)return send(route,404,{error:'Not authorized'});
+     store.narrative[kind][index]=structuredClone(body);
+     return send(route,200,{item:body});
+    }
+   }
+   const formulaBase=`/vtt/campaigns/${campaign}/dice-formulas`;
+   if(path===formulaBase&&method==='GET')return send(route,200,{formulas:store.formulas});
+   if(path===formulaBase&&method==='POST'){
+    const formula={id:'30000000-0000-4000-8000-000000000001',campaignId:campaign,ownerProfileId:user,
+     name:body.name,items:body.items,isSecret:body.isSecret,iconName:body.iconName??null,
+     folderId:null,sortOrder:0,createdAt:'2026-11-24T00:00:00.000Z',updatedAt:'2026-11-24T00:00:00.000Z'};
+    store.formulas.push(formula);
+    return send(route,200,{formula});
+   }
+   if(path.startsWith(formulaBase+'/')&&method==='PATCH'){
+    const formula=store.formulas.find(f=>f.id===path.slice(formulaBase.length+1));
+    if(!formula)return send(route,404,{error:'Not found'});
+    Object.assign(formula,body);
+    return send(route,200,{updated:true});
+   }
   if(path==='/vtt/campaign-note-folders'&&method==='GET')
    return send(route,200,{folders:store.folders.filter(f=>f.scope===url.searchParams.get('scope'))});
   if(path==='/vtt/campaign-note-folders'&&method==='POST'){
@@ -182,9 +248,194 @@ function mockApi(page,{enabled=true,authorized=true,assignmentsEnabled=false,por
  });
  return store;
 }
-const browser=await chromium.launch({headless:true,args:['--no-sandbox']});
+const browser=await chromium.launch({headless:true,channel:process.env.HG_BROWSER_CHANNEL??'chrome'});
 const errors=[];
 try{
+ if(process.env.HG_E2E_FOCUSED==='1'){
+  const page=await browser.newPage({viewport:{width:1440,height:1000}});
+  page.setDefaultTimeout(10000);
+  page.on('pageerror',e=>errors.push(e.message));
+  page.on('request',request=>{if(/supabase\.(co|in)/i.test(request.url()))errors.push('Unexpected legacy network request');});
+  const store=mockApi(page,{portraitsEnabled:recoveredImages,assignmentsEnabled:recoveredImages});
+  if(recoveredImages){
+   store.portrait=imageFixture;store.portraitMime='image/png';
+   store.characterAvailability.set(characterId,true);
+   store.characterAssignments.set(characterId,playerId);
+  }
+  if(process.env.HG_E2E_DATA_GUARDS==='1')store.characters.push({
+   id:'50000000-0000-4000-8000-000000000001',campaignId:campaign,ownerId:user,
+   name:'[Recupero] Personaggio test',status:'active',sheetData:{recoveredPlaceholder:true},
+  });
+  try{
+   await page.goto(base,{waitUntil:'domcontentloaded'});
+   await page.getByRole('button',{name:'Campagne',exact:true}).click();
+   const logo=page.getByRole('img',{name:'Logo di '+campaignRow.name,exact:true});
+   await logo.waitFor();
+   assert.equal(await logo.getAttribute('src'),campaignRow.logoUrl);
+   await page.getByRole('button',{name:'Mara di prova',exact:true}).click();
+   await page.getByRole('region',{name:'Scheda di Mara di prova'}).waitFor();
+   await page.getByRole('button',{name:/Torna ai personaggi/}).click();
+   await page.getByRole('button',{name:'Campagne',exact:true}).click();
+   await page.getByRole('button',{name:'Apri campagna',exact:true}).click();
+   await page.getByRole('button',{name:'Entra nella campagna'}).click();
+   const assertDecoded=async(scope,name)=>{
+    const img=scope.getByRole('img',{name,exact:true});
+    await img.waitFor();
+    await img.evaluate(node=>new Promise((resolve,reject)=>{
+     if(node.complete)return node.naturalWidth>0?resolve():reject(Error('Image failed to decode'));
+     node.addEventListener('load',()=>resolve(),{once:true});
+     node.addEventListener('error',()=>reject(Error('Image failed to load')),{once:true});
+    }));
+   };
+   if(recoveredImages){
+    const home=page.locator('[data-aruba-campaign-home]');
+    await assertDecoded(home,'Mara di prova');
+    await assertDecoded(home,'Custode prova');
+    await assertDecoded(home,'Bestia prova');
+   }
+   await page.getByRole('button',{name:'Schede',exact:true}).click();
+   const split=page.locator('[data-session-sheets-split]');
+   await split.waitFor();
+   await split.getByRole('button',{name:'Apri scheda di Mara di prova',exact:true}).click();
+   await split.getByRole('region',{name:'Scheda di Mara di prova'}).waitFor();
+   if(recoveredImages)await assertDecoded(split.locator('[data-session-sheet-detail="pg"]'),'Mara di prova');
+   if(process.env.HG_E2E_VISUAL_REFERENCE)await compareOriginalSheets(browser,page,store,{campaign,ownerId:user,imageFixture});
+   if(sheetParity){
+    const panelResize=page.getByRole('separator',{name:'Larghezza pannello Schede'});
+    const listResize=page.getByRole('separator',{name:'Larghezza elenco schede'});
+     const initialPanel=Number(await panelResize.getAttribute('aria-valuenow'));
+     const panel=page.locator('[data-session-slide-over]');
+     const initialBox=await panel.boundingBox();
+     await panelResize.focus();await page.keyboard.press('ArrowLeft');
+     assert.equal(Number(await panelResize.getAttribute('aria-valuenow')),initialPanel+16);
+     const resizedBox=await panel.boundingBox();
+     assert.equal(Math.round(resizedBox.width-initialBox.width),16,'actual rendered panel must resize, not just aria state');
+    const initialList=Number(await listResize.getAttribute('aria-valuenow'));
+    await listResize.focus();await page.keyboard.press('ArrowRight');
+    assert.equal(Number(await listResize.getAttribute('aria-valuenow')),initialList+16);
+    const detail=split.locator('[data-session-sheet-detail="pg"]');
+    for(const name of ['Scheda','Immagine','Token'])assert.equal(await detail.getByRole('button',{name,exact:true}).count(),0);
+    assert.equal(await detail.getByText('Scheda salvata',{exact:true}).count(),0);
+   }
+   assert.equal(await page.locator('.aruba-entity-overlay').count(),0,
+    'Session sheets must not open the global Personaggi overlay');
+   assert.equal(await page.locator('[data-session-slide-over="true"]').count(),1);
+   const geometry=await split.evaluate(node=>{
+    const list=node.querySelector('.aruba-session-character-list').getBoundingClientRect();
+    const detail=node.querySelector('.aruba-session-sheet-content').getBoundingClientRect();
+    return {list:{left:list.left,right:list.right,width:list.width,height:list.height},
+     detail:{left:detail.left,right:detail.right,width:detail.width,height:detail.height}};
+   });
+   assert.ok(geometry.list.right<=geometry.detail.left+1,JSON.stringify(geometry));
+   assert.ok(geometry.list.width>=140&&geometry.detail.width>=350,JSON.stringify(geometry));
+   if(process.env.HG_E2E_SCREENSHOTS==='1')await page.screenshot({path:'../../.local/session-sheets-two-columns.png'});
+   store.rejectNextCharacterSave=true;
+   const fisico=split.locator('[data-session-sheet-detail="pg"] [role="button"]')
+    .filter({has:page.getByText('Fisico',{exact:true})});
+   await Promise.all([
+    page.waitForResponse(r=>r.request().method()==='PUT'&&new URL(r.url()).pathname==='/vtt/characters/'+characterId),
+    fisico.locator('button').first().click(),
+   ]);
+   await split.getByRole('button',{name:'Riprova salvataggio',exact:true}).waitFor();
+   await split.getByRole('button',{name:'Apri scheda PNG di Custode prova',exact:true}).click();
+   await split.getByText(/la scheda resta aperta/).waitFor();
+   assert.equal(await split.locator('[data-session-sheet-detail="pg"]').count(),1);
+   assert.equal(await split.locator('[data-session-sheet-detail="npcs"]').count(),0);
+   await Promise.all([
+    page.waitForResponse(r=>r.request().method()==='PUT'&&r.status()===200&&new URL(r.url()).pathname==='/vtt/characters/'+characterId),
+    split.getByRole('button',{name:'Riprova salvataggio',exact:true}).click(),
+   ]);
+   assert.equal(store.characters[0].campaignId,campaign);
+   assert.equal(store.characters[0].sheetData.ambiti.Fisico,1);
+   if(recoveredImages){
+    assert.equal(Object.hasOwn(store.characters[0].sheetData,'portraitImageUrl'),false,
+     'display-only authenticated portrait must not be sent with sheet writes');
+   }
+   await page.getByRole('button',{name:'Apri scheda PNG di Custode prova',exact:true}).click();
+   await split.locator('[data-session-sheet-detail="npcs"]').waitFor();
+   if(recoveredImages)await assertDecoded(split.locator('[data-session-sheet-detail="npcs"]'),'Custode prova');
+   if(sheetParity){
+    const detail=split.locator('[data-session-sheet-detail="npcs"]');
+    for(const name of ['Scheda','Immagine','Token'])assert.equal(await detail.getByRole('button',{name,exact:true}).count(),0);
+   }
+   const chapterSelect=split.locator('[data-session-sheet-detail="npcs"]').getByRole('combobox',{name:'Capitolo narrativo',exact:true});
+   await chapterSelect.waitFor();
+   assert.equal(await chapterSelect.isDisabled(),process.env.HG_E2E_INVALID_CHAPTERS==='1');
+   assert.equal(await split.getByRole('button',{name:'Apri scheda di Mara di prova',exact:true}).isVisible(),true);
+   await page.getByRole('button',{name:'Apri scheda Mostro di Bestia prova',exact:true}).click();
+   await split.locator('[data-session-sheet-detail="monsters"]').waitFor();
+   if(recoveredImages)await assertDecoded(split.locator('[data-session-sheet-detail="monsters"]'),'Bestia prova');
+   if(sheetParity){
+    const detail=split.locator('[data-session-sheet-detail="monsters"]');
+    for(const name of ['Scheda','Immagine','Token'])assert.equal(await detail.getByRole('button',{name,exact:true}).count(),0);
+   }
+   await split.getByRole('button',{name:'Apri scheda di Mara di prova',exact:true}).click();
+   await split.getByRole('region',{name:'Scheda di Mara di prova'}).waitFor();
+   assert.equal(await page.locator('.aruba-entity-overlay').count(),0);
+   if(process.env.HG_E2E_DATA_GUARDS==='1'){
+    await split.getByRole('button',{name:'Apri scheda di [Recupero] Personaggio test',exact:true}).click();
+    await split.getByText(/Segnaposto tecnico di recupero/).waitFor();
+    assert.equal(await split.getByRole('button',{name:'Apri scheda di Mara di prova',exact:true}).isVisible(),true);
+    await split.getByRole('button',{name:'Apri scheda di Mara di prova',exact:true}).click();
+    await split.getByRole('region',{name:'Scheda di Mara di prova'}).waitFor();
+   }
+   await page.getByRole('button',{name:'Dadi',exact:true}).click();
+   await page.locator('[data-session-dice-panel]').waitFor();
+   assert.equal(await page.locator('[data-dice-quick-palette]').count(),0,
+    'Dadi must open the formula library, never the floating quick selector');
+   await page.getByRole('button',{name:'Aggiungi d20',exact:true}).click();
+   await page.getByRole('textbox',{name:'Nome formula',exact:true}).fill('Formula test originale');
+   await Promise.all([
+    page.waitForResponse(r=>r.request().method()==='POST'&&new URL(r.url()).pathname===`/vtt/campaigns/${campaign}/dice-formulas`),
+    page.locator('[data-dice-save-formula]').click(),
+   ]);
+   assert.equal(store.formulas.length,1);
+   await page.getByRole('textbox',{name:'Nome formula',exact:true}).fill('Formula aggiornata');
+   await Promise.all([
+    page.waitForResponse(r=>r.request().method()==='PATCH'&&new URL(r.url()).pathname.endsWith('/dice-formulas/'+store.formulas[0].id)),
+    page.locator('[data-dice-save-formula]').click(),
+   ]);
+   await page.getByRole('button',{name:/Formula aggiornata/}).first().waitFor();
+   assert.equal(store.formulas[0].items.length,1);
+   assert.equal(store.formulas[0].ownerProfileId,user);
+   if(process.env.HG_E2E_SCREENSHOTS==='1')await page.screenshot({path:'../../.local/tools-dice.png'});
+   await page.locator('[data-dice-roll-builder]').click();
+   await page.locator('[data-dice-3d-overlay] canvas').waitFor();
+   await page.getByRole('button',{name:'Dadi',exact:true}).click();
+   await page.getByRole('button',{name:'Tiro rapido',exact:true}).click();
+   await page.locator('[data-dice-quick-palette]').waitFor();
+   await page.locator('[data-dice-quick-palette] > div > button').nth(5).click();
+   await page.locator('[data-dice-quick-palette]').getByRole('button',{name:'Tira',exact:true}).click();
+   await page.getByRole('button',{name:'Mostra storico tiri',exact:true}).click();
+   await page.locator('[data-dice-history-drawer]').waitFor();
+   await page.getByRole('button',{name:'Note',exact:true}).click();
+   await page.locator('[data-note-split-panel="true"]').waitFor();
+   await page.locator('[data-note-sidebar="true"] button[aria-label="Nuova nota"]').last().click();
+   await page.locator('[data-tab-id="'+initialNote+'"]').waitFor();
+   await page.getByRole('button',{name:'Crea la prima sotto-tab'}).click();
+   await page.locator('[data-tab-id="'+secondNote+'"]').waitFor();
+   const saved=page.waitForResponse(r=>r.request().method()==='PATCH'&&
+    new URL(r.url()).pathname==='/vtt/campaign-notes/'+secondNote&&
+    JSON.stringify(r.request().postDataJSON().contentRich).includes('Verifica funzionale Aruba'));
+   await page.locator('[contenteditable="true"]').first().fill('Verifica funzionale Aruba');
+   await saved;
+   assert.equal(store.notes.length,2);
+   assert.equal(errors.length,0,errors.join('\n'));
+   assert.equal(await page.getByText(/Animazione 3D non disponibile/).count(),0);
+   if(recoveredImages)console.log('ENTITY_IMAGES_BROWSER_OK: PG/PNG/Monster images decoded in cards and details; PG save keeps portrait outside sheet JSON');
+   console.log('FUNCTIONAL_BROWSER_OK: campaign logo, PG/PNG/Monster sheets, separate original dice library and floating quick roll, 3D, formula save, Notes create/save (isolated fixtures)');
+  }catch(error){
+    console.error('FUNCTIONAL_BROWSER_STATE',JSON.stringify({
+     body:(await page.locator('body').innerText()).slice(-6000),errors,requests:store.requests.slice(-15),
+     images:await page.locator('[data-session-sheets-split] img').evaluateAll(nodes=>nodes.map(node=>({
+      alt:node.alt,loaded:node.complete&&node.naturalWidth>0,
+      data:node.src.startsWith('data:'),width:node.getBoundingClientRect().width,
+     }))),
+   }));
+   throw error;
+  }
+  await page.close();
+ }else{
  // Test a real unauthenticated browser, not only a bootstrap unit test.
  {
   const page=await browser.newPage();
@@ -634,6 +885,7 @@ try{
   assert.equal(errors.length,0,'Browser runtime errors: '+errors.join('; '));
   await page.close();
  }
+ }
 }finally{await browser.close();}
 if(errors.length)throw Error('Browser console runtime errors: '+errors.join('; '));
-console.log('Original Hollowgate browser QA passed: authorized player assignment/revocation, rejected assignments, original EntityCard/detail, auth gating, session rail, original Note slide-over, TipTap persistence, folders and trash restore.');
+if(process.env.HG_E2E_FOCUSED!=='1')console.log('Original Hollowgate browser QA passed: authorized player assignment/revocation, rejected assignments, original EntityCard/detail, auth gating, session rail, original Note slide-over, TipTap persistence, folders and trash restore.');

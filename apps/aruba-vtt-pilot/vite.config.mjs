@@ -2,12 +2,18 @@ import {defineConfig} from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import {fileURLToPath} from 'node:url';
-import {resolve,dirname} from 'node:path';
+import {resolve as resolvePath,dirname} from 'node:path';
 import {readFileSync} from 'node:fs';
 import {maskArubaTrashRow,maskArubaSessionNotesTrashHeader,maskArubaTrashItemPreview} from './src/ArubaSafeNotesTransforms.mjs';
 import {localLandingPlugin} from './local-landing-plugin.mjs';
 import {acknowledgeOriginalCatalogCreation} from './src/ArubaCatalogTransforms.mjs';
+// Rollup module IDs use forward slashes. Returning Windows backslash paths
+// from resolveId creates duplicate React context modules with separate state.
+const resolve=(...parts)=>resolvePath(...parts).replaceAll('\\','/');
 const root=dirname(fileURLToPath(import.meta.url));
+// Ship the migrated Notes panel; backend capabilities and ownership still
+// gate access. An explicit 0 keeps an emergency build-time opt-out.
+const campaignNotesEnabled=process.env.HG_CAMPAIGN_NOTES_CONTRACT!=='0';
 const localHttps=process.env.HG_LOCAL_HTTPS==='1'?{
   key:readFileSync(resolve(root,'../../certs/local/localhost-key.pem')),
   cert:readFileSync(resolve(root,'../../certs/local/localhost-cert.pem')),
@@ -71,8 +77,26 @@ export default defineConfig({
         if(id==='../../../services/realtime/campaignChannel')return resolve(root,'src/ArubaCatalogRealtime.ts');
         if(id==='../../../services/storage/persistenceMode')return resolve(root,'src/ArubaEncounterPersistenceMode.ts');
       }
-      if(importer?.includes('/src/app/components/session/')&&id.endsWith('/DiceAppearanceContext'))return resolve(root,'src/ArubaDiceAppearanceContext.tsx');
-      if((importer?.includes('/src/app/')||importer?.includes('/src/services/'))&&/(?:\.\.\/)+(?:app\/)?auth\/AuthContext$/.test(id))return resolve(root,'src/ArubaOriginalTopBarAdapter.tsx');
+       if(importer?.includes('/src/app/components/session/')&&id.endsWith('/DiceAppearanceContext'))return resolve(root,'src/ArubaDiceAppearanceContext.tsx');
+       if(importer?.includes('/src/app/components/session/dice/')){
+         if(id==='../../../auth/AuthContext'||id==='../../../campaigns/CampaignContext'||id==='./DiceSessionContext'||id==='./Dice3DOverlay')
+           return resolve(root,'src/ArubaDiceTools.tsx');
+         if(id==='../../../../services/supabase/diceFormulasService')return resolve(root,'src/ArubaDiceFormulasService.ts');
+         if(id==='../../../../services/supabase/diceFormulaFoldersService'||id==='../../../../services/supabase/diceCustomDiceService')
+           return resolve(root,'src/ArubaNoteRuntime.tsx');
+       }
+       // Specific Notes contexts must win over the generic original-shell
+       // aliases below, or opening Notes throws "Campaign scope mancante".
+       if(campaignNotesEnabled&&importer?.endsWith('/src/app/components/session/SessionNotesPanel.tsx')){
+         if(id==='../../auth/AuthContext')return resolve(root,'src/ArubaCampaignNotesContext.tsx');
+         if(id==='../../campaigns/CampaignContext')return resolve(root,'src/ArubaOriginalPanelSession.tsx');
+       }
+       if(campaignNotesEnabled&&importer?.endsWith('/src/app/components/session/shared/NoteListRow.tsx')&&id==='../../../auth/AuthContext')
+         return resolve(root,'src/ArubaCampaignNotesContext.tsx');
+       if(importer?.includes('/src/app/components/session/shared/')&&
+          (id==='../../../campaigns/CampaignContext'||id==='../../../auth/AuthContext'))
+         return resolve(root,'src/ArubaNoteRuntime.tsx');
+       if((importer?.includes('/src/app/')||importer?.includes('/src/services/'))&&/(?:\.\.\/)+(?:app\/)?auth\/AuthContext$/.test(id))return resolve(root,'src/ArubaOriginalTopBarAdapter.tsx');
       if(importer?.includes('/src/app/')&&/(?:\.\.\/)+campaigns\/CampaignContext$/.test(id))return resolve(root,'src/ArubaCampaignScopeContext.tsx');
       if((importer?.endsWith('/src/app/components/gm/GameMap.tsx')||importer?.endsWith('/src/app/components/shared/useCampaignDocument.ts'))&&id==='../../campaigns/CampaignContext')return resolve(root,'src/ArubaCampaignScopeContext.tsx');
       if(importer?.endsWith('/src/app/components/session/shared/EntityImageExtras.tsx')&&Object.hasOwn(entityImageImports,id))return resolve(root,'src/'+entityImageImports[id]);
@@ -175,7 +199,7 @@ export default defineConfig({
       // their TipTap imports from this project's real dependency tree; do NOT
       // force nested TipTap extension imports into nonexistent top-level dirs.
       if(id==='aruba-original-session-notes-entry')
-        return resolve(root,process.env.HG_CAMPAIGN_NOTES_CONTRACT==='1'?
+         return resolve(root,campaignNotesEnabled?
           'src/ArubaOriginalSessionNotesBoundary.tsx':
           'src/ArubaOriginalNotesDisabled.tsx');
       if(["class-variance-authority","clsx","tailwind-merge","react-popper","@popperjs/core","react-resizable-panels"].includes(id) && importer?.includes('/src/app/'))
@@ -201,7 +225,7 @@ export default defineConfig({
         return resolve(root,'src/ArubaNoteRuntime.tsx');
       // The original NoteListRow needs the true authenticated cookie context,
       // not the generic disabled editor fallback, in the Campaign Notes build.
-      if(process.env.HG_CAMPAIGN_NOTES_CONTRACT==='1' &&
+       if(campaignNotesEnabled &&
          importer?.endsWith('/src/app/components/session/shared/NoteListRow.tsx') &&
          id==='../../../auth/AuthContext')
         return resolve(root,'src/ArubaCampaignNotesContext.tsx');
@@ -216,7 +240,7 @@ export default defineConfig({
         };
         if(Object.hasOwn(isolated,id))return resolve(root,'src/'+isolated[id]);
       }
-      if(process.env.HG_CAMPAIGN_NOTES_CONTRACT==='1'){
+       if(campaignNotesEnabled){
         if(importer?.endsWith('/src/app/components/session/SessionNotesPanel.tsx')){
           if(id==='../../auth/AuthContext')return resolve(root,'src/ArubaCampaignNotesContext.tsx');
           if(id==='../../campaigns/CampaignContext')return resolve(root,'src/ArubaOriginalPanelSession.tsx');
@@ -256,7 +280,6 @@ export default defineConfig({
           '../../../../services/supabase/entitiesService':'ArubaEntityDependencies.tsx',
           '../../../../services/supabase/charactersService':'ArubaEntityDependencies.tsx',
           '../../../../services/campaign/entityReferenceService':'ArubaEntityDependencies.tsx',
-          './DraggablePortrait':'ArubaPortraitPending.tsx',
         };
         if(Object.hasOwn(map,id))return resolve(root,'src/'+map[id]);
       }
@@ -285,13 +308,13 @@ export default defineConfig({
     name:'aruba-disable-unmigrated-entity-custom-tab-actions',
     enforce:'pre',
     transform(code,id){
-      if(process.env.HG_CAMPAIGN_NOTES_CONTRACT==='1' &&
+       if(campaignNotesEnabled &&
        id.endsWith('/src/app/components/session/shared/TrashRow.tsx'))
         return maskArubaTrashRow(code);
-      if(process.env.HG_CAMPAIGN_NOTES_CONTRACT==='1' &&
+       if(campaignNotesEnabled &&
        id.endsWith('/src/app/components/session/shared/TrashItemPreview.tsx'))
         return maskArubaTrashItemPreview(code);
-      if(process.env.HG_CAMPAIGN_NOTES_CONTRACT==='1' &&
+       if(campaignNotesEnabled &&
        id.endsWith('/src/app/components/session/SessionNotesPanel.tsx'))
         return maskArubaSessionNotesTrashHeader(code);
       if(id.endsWith('/src/app/components/shared/useFolderSection.tsx')){
@@ -301,7 +324,7 @@ export default defineConfig({
         // it. Strip the legacy hostname from this isolated bundle entirely.
         return code.replace(legacy,"const SERVER_BASE = '/vtt';");
       }
-      if(process.env.HG_CAMPAIGN_NOTES_CONTRACT==='1' &&
+       if(campaignNotesEnabled &&
        id.endsWith('/src/app/components/session/shared/NoteListRow.tsx')){
         const old='await setNoteTitleIcon(note.id, nextIcon);';
         if(!code.includes(old))throw Error('NoteListRow title icon contract changed');
@@ -317,19 +340,24 @@ export default defineConfig({
          '<ArubaEntityTabBar canEdit={canEdit} tabs={tabs} tabIndicators={tabIndicators} />');
     }
   },react(),tailwindcss()],
-  resolve:{alias:{
-    react:resolve(root,'node_modules/react'),
+   resolve:{alias:{
+     react:resolve(root,'node_modules/react'),
+     three:resolve(root,'node_modules/three'),
+     '@3d-dice/dice-box-threejs':resolve(root,'node_modules/@3d-dice/dice-box-threejs/dist/dice-box-threejs.es.js'),
     'lucide-react':resolve(root,'node_modules/lucide-react'),
     '@':resolve(root,'../../src'),
     '@aruba-notes':resolve(root,'src'),
   }},
   base:localHttps?'/':'/vtt/',
-  build:{
+   build:{
     outDir:resolve(root,'../../deploy/aruba/dist/vtt-pilot'),
     emptyOutDir:true,
-    target:'es2022',
-  },
-  server:{
+     target:'es2022',
+   },
+   // Preview serves the compiled artifact only. Inheriting the dev /vtt proxy
+   // would send the SPA document to the API instead of testing the build.
+   preview:{proxy:{}},
+   server:{
     host:'127.0.0.1',
     port:5173,
     strictPort:true,

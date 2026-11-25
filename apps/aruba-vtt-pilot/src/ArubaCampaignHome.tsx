@@ -8,6 +8,7 @@ import {ImageSun} from '../../../src/app/components/IconeImmagine';
 import {Tooltip,TooltipContent,TooltipTrigger} from '../../../src/app/components/ui/tooltip';
 import type {RulesetId} from '../../../src/app/campaigns/campaignTypes';
 import {ArubaPortraitEntityCard} from './ArubaPortraitEntityCard';
+import type {CropAreaPercent} from '../../../src/app/components/shared/SourceCroppedImage';
 import {
  listArubaNarrativeContent,listCharacterAssignments,listCharacterAvailability,
  listAssignedPlayerCharacters,listCharacterDrafts,listOwnedCampaignRoster,
@@ -27,6 +28,7 @@ type Member={userId:string;displayName:string;role:'gm'|'player'};
 type Character={id:string;campaignId:string;ownerId:string;name:string;status:string;
  sheetData:Record<string,unknown>};
 type NarrativeItem={id:string;name?:string;title?:string;description?:string;
+ portraitImageUrl?:string|null;portraitSourceImageUrl?:string|null;portraitCropArea?:CropAreaPercent|null;
  environmentId?:string|null;chapterId?:string|null;sceneId?:string|null};
 type Row=Member&{characters:Character[]};
 
@@ -141,6 +143,9 @@ export function ArubaCampaignHome({campaign,viewer,revision,onOpenCharacter,onOp
  function narrativeCard(item:NarrativeItem,kind:'npc'|'monster'){
   return <EntityCard key={item.id} variant="grid"
    name={item.name??item.title??'Senza nome'}
+   photoUrl={item.portraitImageUrl}
+   photoSourceUrl={item.portraitSourceImageUrl}
+   photoCropArea={item.portraitCropArea}
    subtitle={typeof item.description==='string'?item.description:undefined}
    badge={<span className="inline-flex items-center rounded-full border border-[var(--dash-border-soft)] bg-[var(--dash-surface-2)] px-2 py-0.5 text-[10px] font-medium text-[var(--dash-muted)]">
     {kind==='npc'?'PNG':'Mostro'}

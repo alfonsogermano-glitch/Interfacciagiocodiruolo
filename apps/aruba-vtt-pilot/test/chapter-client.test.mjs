@@ -5,7 +5,17 @@ const campaign='be2f1a87-b8ee-4b34-9da0-07efda11379a';
 const chapter='4b2c4c0b-4b67-45c2-901a-2b4d3f7c8c42';
 const valid={id:chapter,campaignId:campaign,title:'Intro',description:'',notes:'',
  kind:'standard',isActive:false,nextChapterIds:[],mapUrl:null,mapMetadata:{},
- locationMetadata:{},createdAt:'2026-01-02T03:04:05.000Z',updatedAt:'2026-01-02T03:04:05.000Z'};
+  locationMetadata:{},createdAt:'2026-01-02T03:04:05.000Z',updatedAt:'2026-01-02T03:04:05.000Z'};
+test('chapter maps from the known historical archive resolve to Aruba without contacting the old origin',async()=>{
+ const legacy={...valid,mapUrl:'https://njcnkovruynhtsgzgrxi.supabase.co/storage/v1/object/public/visual-assets/owner/map.webp'};
+ const calls=[];
+ const rows=await listArubaChapters(async(url)=>{calls.push(url);return {
+  status:200,ok:true,json:async()=>({chapters:[legacy]}),
+ };},campaign);
+ assert.equal(rows[0].mapUrl,'/vtt/migrated-media/visual-assets/owner/map.webp');
+ assert.equal(legacy.mapUrl.startsWith('https://'),true,'do not mutate server snapshots');
+ assert.deepEqual(calls,[`/vtt/campaigns/${campaign}/chapters`]);
+});
 test('Aruba chapter client uses same-origin cookie session for read and write',async()=>{
  const calls=[];
  const fetchImpl=async(url,opts)=>{

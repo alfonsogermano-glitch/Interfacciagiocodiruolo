@@ -173,7 +173,7 @@ export function ArubaAssignedCharacterPanel({portraitsEnabled=false,visualAssets
  return <section className="aruba-player-owned-campaigns" aria-label="I miei personaggi assegnati">
   <h2>I miei personaggi assegnati</h2>
   <p className="muted">Schede autorizzate per la tua partecipazione · i personaggi reclamati sono modificabili.</p>
-  {saving&&<p role="status">Salvataggio scheda su Aruba…</p>}
+  {saving&&<p role="status">Salvataggio scheda…</p>}
   {busy&&<p role="status">Caricamento campagne…</p>}
   {error&&<p role="alert">{error}</p>}
   {!busy&&!error&&campaigns.length===0&&<p className="muted">Non partecipi ancora a campagne abilitate.</p>}
@@ -206,7 +206,7 @@ export function ArubaAssignedCharacterPanel({portraitsEnabled=false,visualAssets
      </div>
      <div className="aruba-entity-detail-main">
       <section aria-label={'Scheda di '+selected.name}>
-       {portraitLoading&&<p role="status">Caricamento immagine Aruba…</p>}
+       {portraitLoading&&<p role="status">Caricamento immagine…</p>}
        {portraitError&&<p role="alert">{portraitError}</p>}
         <EntityDetailView entityType="character" entity={original}
          onUpdate={updateClaimed} canEdit={claimsEnabled&&claimedCharacterId===selected.id&&!releasing} campaignId={selected.campaignId}

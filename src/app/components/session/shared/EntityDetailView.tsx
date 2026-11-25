@@ -187,6 +187,7 @@ interface EntityDetailViewProps {
   /** Server-verified Aruba chapters for isolated narrative placement. When
    * provided, legacy Supabase placement loaders remain disabled. */
   arubaNarrativeChapters?: Chapter[];
+  arubaNarrativePlacementUnavailable?: boolean;
   /** Authoritative Aruba campaign ruleset for isolated narrative rendering. */
   arubaRuleset?: RulesetId;
   /** Read-only Aruba narrative rendering: never activate Supabase-backed
@@ -215,6 +216,7 @@ export function EntityDetailView({
   arubaReadOnlyVisualAssets = [],
   arubaPortraitEditor,
   arubaNarrativeChapters,
+  arubaNarrativePlacementUnavailable = false,
   arubaRuleset,
   arubaIsolatedNarrative = false,
 }: EntityDetailViewProps) {
@@ -1076,10 +1078,15 @@ export function EntityDetailView({
                   <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Ambito narrativo</div>
                   <select
                     value={entity.chapterId ?? ''}
+                    disabled={arubaNarrativePlacementUnavailable}
+                    aria-label="Capitolo narrativo"
                     onChange={(e) => onUpdate({ ...entity, chapterId: e.target.value || null })}
                     className="w-full rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-2 py-1.5 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
                   >
                     <option value="">Tutta la campagna</option>
+                    {arubaNarrativePlacementUnavailable && entity.chapterId && (
+                      <option value={entity.chapterId}>Capitolo attuale (non verificato)</option>
+                    )}
                     {campaignChapters.map((chapter) => (
                       <option key={chapter.id} value={chapter.id}>{chapter.title}</option>
                     ))}
@@ -1260,10 +1267,15 @@ export function EntityDetailView({
                   <div className="mb-1 text-xs uppercase tracking-[0.08em] text-[var(--dash-accent-2)]">Ambito narrativo</div>
                   <select
                     value={entity.chapterId ?? ''}
+                    disabled={arubaNarrativePlacementUnavailable}
+                    aria-label="Capitolo narrativo"
                     onChange={(e) => onUpdate({ ...entity, chapterId: e.target.value || null, environmentId: null })}
                     className="w-full rounded-lg border border-[var(--dash-border-soft)] bg-[var(--dash-input)] px-2 py-1.5 text-sm text-[var(--dash-text-strong)] outline-none focus:border-[var(--dash-accent)]"
                   >
                     <option value="">Tutta la campagna</option>
+                    {arubaNarrativePlacementUnavailable && entity.chapterId && (
+                      <option value={entity.chapterId}>Capitolo attuale (non verificato)</option>
+                    )}
                     {campaignChapters.map((chapter) => (
                       <option key={chapter.id} value={chapter.id}>{chapter.title}</option>
                     ))}

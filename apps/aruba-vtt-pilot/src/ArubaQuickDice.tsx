@@ -8,6 +8,7 @@ import {
 import type {RollResult} from '../../../src/app/components/session/dice/diceTypes.ts';
 import {publishArubaRoll} from './ArubaChatDiceSession';
 import {saveRollEntry} from './ArubaChatService';
+import {ArubaDice3D} from './ArubaDice3D';
 
 const SIDES=[4,6,8,10,12,20,100] as const;
 const MAX_SELECTED=1000;
@@ -22,10 +23,11 @@ export function ArubaQuickDice({campaignId,userId,rollerName,chatEnabled}:{
  const [historyOpen,setHistoryOpen]=useState(false);
  const [unread,setUnread]=useState(false);
  const [history,setHistory]=useState<RollResult[]>([]);
- const [error,setError]=useState<string|null>(null);
+  const [error,setError]=useState<string|null>(null);
+  const [animatedRoll,setAnimatedRoll]=useState<RollResult|null>(null);
  // Never show dice from a different campaign as part of this campaign.
  useEffect(()=>{
-  setEntries([]);setHistory([]);setPaletteOpen(false);setHistoryOpen(false);setUnread(false);setError(null);
+   setEntries([]);setHistory([]);setPaletteOpen(false);setHistoryOpen(false);setUnread(false);setError(null);setAnimatedRoll(null);
  },[campaignId,userId]);
  // The original session rail opens the existing quick-roll palette instead of
  // creating a second dice state. No shared/session dice are claimed yet.
@@ -49,7 +51,8 @@ export function ArubaQuickDice({campaignId,userId,rollerName,chatEnabled}:{
     identity:{campaignId,rollerId:userId,rollerName},
     request:{items:buildQuickRollItems(entries,[]),formulaName:'',visibility:'public'},
    });
-    setHistory(current=>[result,...current].slice(0,20));
+     setHistory(current=>[result,...current].slice(0,20));
+     setAnimatedRoll(result);
     publishArubaRoll(result);
     if(chatEnabled)void saveRollEntry(result);
    if(!historyOpen)setUnread(true);
@@ -58,7 +61,8 @@ export function ArubaQuickDice({campaignId,userId,rollerName,chatEnabled}:{
    setError(null);
   }catch(reason){setError(reason instanceof Error?reason.message:'Tiro non riuscito');}
  };
- return <div className="aruba-dice-floating" data-aruba-original-dice-engine>
+  return <div className="aruba-dice-floating" data-aruba-original-dice-engine>
+    {animatedRoll&&<ArubaDice3D key={animatedRoll.id} result={animatedRoll}/>}
    <button type="button" className="aruba-dice-history-toggle" aria-label={historyOpen?'Nascondi storico tiri':'Mostra storico tiri'}
      onClick={()=>{setHistoryOpen(current=>!current);setUnread(false);}}>
      {historyOpen?<ArrowDownIcon size={15}/>:<ArrowUpIcon size={15}/>}

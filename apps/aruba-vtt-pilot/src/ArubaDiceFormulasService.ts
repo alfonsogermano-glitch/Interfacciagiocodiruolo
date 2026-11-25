@@ -36,10 +36,25 @@ const request = async <T>(path: string, init: RequestInit = {}): Promise<T> => {
 };
 
 const base = (campaignId: string) => `/vtt/campaigns/${campaignId}/dice-formulas`;
+const observedCampaigns=new Map<string,string>();
+const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function canonical(formula:SavedDiceFormula,campaignId:string){
+  if(!formula||!UUID.test(formula.id)||formula.campaignId!==campaignId||
+    typeof formula.name!=='string'||!Array.isArray(formula.items)||
+    typeof formula.isSecret!=='boolean')throw Error('Risposta formula non valida');
+  observedCampaigns.set(formula.id,campaignId);
+  return formula;
+}
 
 export async function loadDiceFormulas(campaignId: string, _ownerProfileId: string): Promise<SavedDiceFormula[]> {
+  if(!UUID.test(campaignId))throw Error('Campagna formule non valida');
   const result = await request<{ formulas: SavedDiceFormula[] }>(base(campaignId));
-  return result.formulas;
+  if(!Array.isArray(result.formulas))throw Error('Lista formule non valida');
+  const ids=new Set<string>();
+  return result.formulas.map(f=>{
+    if(ids.has(f.id))throw Error('Formula duplicata');ids.add(f.id);
+    return canonical(f,campaignId);
+  });
 }
 
 export async function createDiceFormula(input: CreateDiceFormulaInput): Promise<SavedDiceFormula> {
@@ -52,24 +67,29 @@ export async function createDiceFormula(input: CreateDiceFormulaInput): Promise<
       iconName: input.iconName ?? null,
     }),
   });
-  return result.formula;
+  return canonical(result.formula,input.campaignId);
 }
 
 export async function updateDiceFormula(id: string, patch: UpdateDiceFormulaPatch): Promise<SavedDiceFormula> {
-  const campaignId = sessionStorage.getItem('hollowgate.aruba.dice-campaign');
+  const campaignId = observedCampaigns.get(id);
   if (!campaignId) throw new Error('Campagna formule mancante');
-  await request<{ updated: boolean }>(`${base(campaignId)}/${id}`, {
+  const acknowledgement=await request<{ updated: boolean }>(`${base(campaignId)}/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(patch),
   });
-  // Service returns only confirmation; return a stub with updated fields
-  return { id, campaignId, ownerProfileId: '', name: patch.name ?? '', items: patch.items ?? [], isSecret: patch.isSecret ?? false, iconName: patch.iconName ?? null, folderId: null, sortOrder: 0, createdAt: '', updatedAt: new Date().toISOString() };
+  if(acknowledgement.updated!==true)throw Error('Salvataggio formula non confermato');
+  const rows=await loadDiceFormulas(campaignId,'');
+  const saved=rows.find(row=>row.id===id);
+  if(!saved)throw Error('Formula salvata non rileggibile');
+  return saved;
 }
 
 export async function deleteDiceFormula(id: string): Promise<void> {
-  const campaignId = sessionStorage.getItem('hollowgate.aruba.dice-campaign');
+  const campaignId = observedCampaigns.get(id);
   if (!campaignId) throw new Error('Campagna formule mancante');
-  await request<{ deleted: boolean }>(`${base(campaignId)}/${id}`, { method: 'DELETE' });
+  const acknowledgement=await request<{ deleted: boolean }>(`${base(campaignId)}/${id}`, { method: 'DELETE' });
+  if(acknowledgement.deleted!==true)throw Error('Eliminazione formula non confermata');
+  observedCampaigns.delete(id);
 }
 
 export async function duplicateDiceFormula(formula: SavedDiceFormula): Promise<SavedDiceFormula> {

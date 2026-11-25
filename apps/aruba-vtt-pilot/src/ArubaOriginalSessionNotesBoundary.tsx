@@ -1,8 +1,8 @@
 import {ArubaCampaignNotesProvider} from './ArubaCampaignNotesContext';
 import {SessionNotesPanel} from '../../../src/app/components/session/SessionNotesPanel';
 
-/** Isolated compile contract: the ACTUAL original two-column Notes panel.
- * Not used by main.tsx; no navigation or service is activated.
+/** The actual original two-column Notes panel, with Aruba transports.
+ * Access is capability-gated by main.tsx and authorized by the API.
  * Owner identity must come from a trusted authenticated campaign response. */
 export function ArubaOriginalSessionNotesBoundary({campaignId,userId,ownerId}:{
  campaignId:string;userId:string;ownerId:string;

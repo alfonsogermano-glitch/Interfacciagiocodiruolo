@@ -159,15 +159,15 @@ test('right GM sidebar starts beneath the full-width top bar, as in original App
 
 test('Aruba session reuses the ORIGINAL dice game engine and quick-roll state without Supabase',()=>{
  const main=readFileSync(new URL('../src/main.tsx',import.meta.url),'utf8');
- const src=readFileSync(new URL('../src/ArubaQuickDice.tsx',import.meta.url),'utf8');
+  const src=readFileSync(new URL('../src/ArubaDiceTools.tsx',import.meta.url),'utf8');
+  const quick=readFileSync(new URL('../../../src/app/components/session/dice/DiceQuickRollFloating.tsx',import.meta.url),'utf8');
  const engine=readFileSync(new URL('../../../src/app/components/session/dice/diceEngine.ts',import.meta.url),'utf8');
-  assert.match(main,/\(section==='session'\|\|section==='map'\)&&activeCampaign&&<ArubaQuickDice key=\{activeCampaign\.id\+':'\+user\.id\} campaignId=\{activeCampaign\.id\} userId=\{user\.id\}/);
- assert.match(src,/import \{rollDiceFormula\} from '\.\.\/\.\.\/\.\.\/src\/app\/components\/session\/dice\/diceEngine\.ts'/);
- assert.match(src,/addStandardQuickDie,buildQuickRollItems,clearQuickRoll,decrementQuickDie/);
- assert.match(src,/identity:\{campaignId,rollerId:userId,rollerName\}/);
- assert.match(src,/formulaName:'',visibility:'public'/);
- assert.match(src,/useEffect\(\(\)=>\{[\s\S]*setEntries\(\[\]\);setHistory\(\[\]\)/);
- assert.match(src,/Solo in questo browser/);
+  assert.match(main,/\(section==='session'\|\|section==='map'\)&&activeCampaign&&<ArubaDiceToolsProvider key=\{activeCampaign\.id\+':'\+user\.id\}/);
+  assert.match(src,/import \{rollDiceFormula\} from '\.\.\/\.\.\/\.\.\/src\/app\/components\/session\/dice\/diceEngine'/);
+  assert.match(quick,/addStandardQuickDie, buildQuickRollItems, clearQuickRoll/);
+  assert.match(src,/identity:\{campaignId:campaign.id,rollerId:user.id,rollerName:user.displayName\}/);
+  assert.match(src,/result.visibility==='public'/);
+  assert.match(src,/secret rolls stay local/);
  assert.doesNotMatch(src,/supabase|sessionStorage|localStorage|Math\.random/);
  assert.match(engine,/cryptoDiceRng/);
  assert.match(engine,/validateDiceFormula/);
@@ -293,7 +293,8 @@ test('Aruba imports original EntityCard and FilterToolbar visual components, wit
  assert.match(page,/pageItems.map\(d=><ArubaPortraitEntityCard/);
  assert.match(adapter,/import \{EntityCard\} from/);
  assert.match(adapter,/return <EntityCard/);
- assert.match(vite,/'.\/DraggablePortrait':'ArubaPortraitPending\.tsx'/);
+ assert.doesNotMatch(vite,/'.\/DraggablePortrait':'ArubaPortraitPending\.tsx'/,
+  'native portrait reads must reach the original renderer, not a permanent placeholder');
  assert.doesNotMatch(vite,/id==='\.\/DraggablePortrait' && importer\?\.endsWith\('\/src\/app\/components\/session\/shared\/EntityCard\.tsx'\)/);
  assert.match(css,/EntityCard\.tsx/);
  assert.match(original,/DraggablePortrait/);

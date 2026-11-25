@@ -69,7 +69,7 @@ export function ArubaNarrativeImageEditor({entity,campaignId,kind,onUpdate}:{
  const type=kind==='npcs'?'npc':'monster';
  return <section className="space-y-6" aria-label={'Immagini di '+entity.name}>
   {error&&<p role="alert" className="error">{error}</p>}
-  {busy&&<p role="status">Salvataggio immagine su Aruba…</p>}
+   {busy&&<p role="status">Salvataggio immagine…</p>}
   <fieldset disabled={busy} className={busy?'opacity-90':''}>
    <ImageCropCore bucket="aruba-narrative-assets" storagePath={entity.id+'.png'}
     uploadLabel={'Seleziona il ritratto di '+entity.name}
